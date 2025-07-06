@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto間取り図 - ログイン</title>
+    <title>Auto間取り図</title>
     
     <!-- スタイルシート (Tailwind CSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,7 +28,6 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        // グローバルスコープのAmplifyオブジェクトを使用
         const { Amplify, Auth, Hub } = window.aws_amplify;
 
         // ==================================================================================
@@ -54,10 +53,12 @@
 
           const handleLogin = async (e) => {
             e.preventDefault();
+            if (loading) return;
             setLoading(true);
             setError('');
             try {
-              // ログイン処理を呼び出すだけ。画面遷移はAppコンポーネントが検知する
+              // ログイン処理を呼び出すだけ。
+              // 成功すれば、AppコンポーネントのHubリスナーが検知して画面を切り替える。
               await Auth.signIn(email, password);
             } catch (err) {
               setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
@@ -97,6 +98,8 @@
         // 3. ダッシュボード画面コンポーネント
         // ==================================================================================
         const DashboardPage = ({ user, onSignOut }) => {
+          const userEmail = user && user.attributes ? user.attributes.email : '...';
+          
           return (
             <div className="min-h-screen bg-gray-100">
               <header className="bg-white shadow-sm">
@@ -105,7 +108,7 @@
                     <span className="font-bold text-xl text-blue-600">Auto間取り図</span>
                     <div className="flex items-center space-x-4">
                        <span className="text-gray-600">🔔</span>
-                       <span className="text-sm text-gray-700 hidden sm:block">{user.attributes.email}</span>
+                       <span className="text-sm text-gray-700 hidden sm:block">{userEmail}</span>
                        <button onClick={onSignOut} className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 rounded-md">
                         ログアウト
                        </button>
@@ -114,7 +117,7 @@
                 </nav>
               </header>
               <main className="container mx-auto p-8">
-                <h1 className="text-3xl font-bold">ようこそ、{user.attributes.email}さん</h1>
+                <h1 className="text-3xl font-bold">ようこそ、{userEmail}さん</h1>
                 <p className="mt-2 text-gray-600">こちらがダッシュボード画面です。</p>
                  <div className="mt-8 bg-white p-8 rounded-xl shadow-md text-center">
                     <p className="text-lg">間取り図の作成を開始しましょう！</p>
@@ -132,14 +135,25 @@
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(null);
+          const [isLoading, setIsLoading] = useState(true);
 
-          // ★★★ 修正点 ★★★
-          // 認証状態の変化を監視し、Stateを更新するロジックを強化
           useEffect(() => {
-            // 認証状態の変更を監視するリスナーを設定
+            // ★★★ 修正点 ★★★
+            // AmplifyのHub（イベントバス）を使って認証状態の変更を一元管理する、最も堅牢な方法
+            const checkUser = async () => {
+              try {
+                const currentUser = await Auth.currentAuthenticatedUser();
+                setUser(currentUser);
+              } catch (error) {
+                setUser(null);
+              }
+              setIsLoading(false);
+            };
+
             const hubListener = (data) => {
               switch (data.payload.event) {
                 case 'signIn':
+                case 'autoSignIn':
                   checkUser();
                   break;
                 case 'signOut':
@@ -149,23 +163,11 @@
             };
             Hub.listen('auth', hubListener);
 
-            // 初期表示時に現在の認証状態を確認
-            const checkUser = async () => {
-              try {
-                const currentUser = await Auth.currentAuthenticatedUser();
-                setUser(currentUser);
-              } catch (error) {
-                setUser(null);
-              }
-            };
+            checkUser(); // 初期表示時に認証状態を確認
             
-            checkUser();
+            return () => Hub.remove('auth', hubListener); // クリーンアップ
+          }, []);
 
-            // コンポーネントがアンマウントされる時にリスナーを削除
-            return () => Hub.remove('auth', hubListener);
-          }, []); // 空の配列を渡すことで、このeffectは初回レンダリング時に一度だけ実行される
-
-          // ログアウト処理
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
@@ -173,8 +175,11 @@
               console.error('Error signing out: ', error);
             }
           };
+          
+          if (isLoading) {
+            return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
+          }
 
-          // user Stateの状態に応じて表示するコンポーネントを切り替える
           if (user) {
             return <DashboardPage user={user} onSignOut={handleSignOut} />;
           }
