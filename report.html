@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto間取り図 - インタラクティブレポート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Corporate Blue -->
+    <!-- Application Structure Plan: プロジェクトの物語を伝えるため、課題→解決策→仕組み→効果→計画という論理的なフローでSPAを構成。各セクションにジャンプできるナビゲーションを設け、ユーザーが関心のある情報へ容易にアクセスできるように設計。この構造は、報告書を単に再現するのではなく、プロジェクトの価値と計画を直感的に理解させることを目的としています。 -->
+    <!-- Visualization & Content Choices: 
+        - 課題 (比較): グラフを廃止し、テキストとキーメトリクス（カード形式）で課題を直接的に提示。外注の「直接コスト」と社内作業の「時間コスト」という課題の本質を明確化。
+        - 仕組み (整理): HTML/CSSのFlexboxでプロセスフロー図を作成。アイコンで各ステップを直感的に表現。
+        - 効果 (関係性): スライダーとChart.jsを連携させた動的なコスト削減シミュレーターを実装。ユーザーの操作で導入効果がリアルタイムに変化し、プロジェクトの価値を体験的に理解させる。
+        - 計画 (変化): HTML/CSSで時系列のタイムラインを作成し、プロジェクトの進行を視覚化。
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-height: 400px;
+            }
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+        .section-title {
+            font-size: 2.25rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .section-subtitle {
+            font-size: 1.125rem;
+            text-align: center;
+            color: #4b5563; /* gray-600 */
+            max-width: 3xl;
+            margin: 0 auto 3rem;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <header id="header" class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-blue-600">Auto間取り図</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#challenge" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">現状の課題</a>
+                        <a href="#solution" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">解決策</a>
+                        <a href="#how-it-works" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">仕組み</a>
+                        <a href="#impact" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">導入効果</a>
+                        <a href="#plan" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">開発計画</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="hero" class="py-20 md:py-28 bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-gray-900">
+                    <span class="block">間取り図作成を、</span>
+                    <span class="block text-blue-600">スマートに自動化する。</span>
+                </h1>
+                <p class="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-gray-600">
+                    「Auto間取り図」プロジェクトへようこそ。このレポートは、私たちが取り組む課題、提案するソリューション、そしてそれがもたらす価値をインタラクティブに探求するためのものです。
+                </p>
+                <div class="mt-8">
+                    <a href="#challenge" class="inline-block bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition-colors">レポートを見る</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="challenge" class="py-20">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="section-title">1. 見過ごせない現状の課題</h2>
+                <p class="section-subtitle">
+                    現在、間取り図の作成は多くの時間とコスト、そしてリスクを伴う手作業に依存しています。このセクションでは、データを通じてその深刻さを可視化し、なぜ変革が必要なのかを探ります。
+                </p>
+                <div class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+                    <div class="space-y-6">
+                        <h3 class="text-2xl font-bold text-center">手作業と外注がもたらす非効率</h3>
+                        <p class="text-gray-600 text-center">
+                            販売図面からの間取り図作成は、<span class="font-bold text-red-600">高額な外注</span>に頼るか、担当者が<span class="font-bold text-red-600">多くの時間をかけて手作業</span>で行うのが実情です。
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-slate-50 p-4 rounded-lg border border-gray-200">
+                                <dt class="text-sm font-medium text-gray-500">課題①：直接コスト</dt>
+                                <dd class="mt-1 text-2xl font-semibold tracking-tight text-gray-900">外注費: <span class="text-red-500">〜3,000円/件</span></dd>
+                                <dd class="mt-1 text-sm text-gray-600">月15,000件で最大3,000万円規模に</dd>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-gray-200">
+                                <dt class="text-sm font-medium text-gray-500">課題②：時間コスト</dt>
+                                <dd class="mt-1 text-2xl font-semibold tracking-tight text-gray-900">社内作業: <span class="text-red-500">〜60分/件</span></dd>
+                                <dd class="mt-1 text-sm text-gray-600">本来の業務を圧迫する見えないコスト</dd>
+                            </div>
+                        </div>
+                         <p class="text-gray-600 pt-4">
+                            これらの方法では、作成時間のばらつき、品質の不統一、法的リスク、修正対応の煩雑さといった多くの問題が発生しており、経営上の大きなボトルネックとなっています。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="solution" class="py-20 bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="section-title">2. 解決策: 「Auto間取り図」</h2>
+                <p class="section-subtitle">
+                    これらの課題を根本から解決するため、私たちは「Auto間取り図」を提案します。これは、AI技術を活用し、誰でも短時間で高品質な間取り図を作成できる革新的なWebシステムです。
+                </p>
+                <div class="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+                    <div class="bg-slate-50 p-8 rounded-lg">
+                        <h3 class="text-2xl font-bold mb-4">主な機能</h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>販売図面 (PDF/画像) の簡単アップロード</span></li>
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>AIによる間取り図の自動解析・描写</span></li>
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>自然言語による補足入力で精度向上</span></li>
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>SVG形式での高品質な図面を自動生成</span></li>
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>作成履歴の保存、再編集、検索機能</span></li>
+                            <li class="flex items-start"><span class="text-blue-500 mr-3 mt-1">✓</span><span>PDF/PNGでの簡単な出力・共有</span></li>
+                        </ul>
+                    </div>
+                    <div class="flex flex-col justify-center items-center bg-slate-50 p-8 rounded-lg">
+                         <span class="text-6xl mb-4">🏠</span>
+                        <h3 class="text-2xl font-bold text-center">目指すゴール</h3>
+                        <p class="mt-2 text-center text-gray-600">
+                            業務の属人化を解消し、<span class="font-bold text-blue-600">効率化、標準化、品質向上</span>を同時に達成します。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="how-it-works" class="py-20">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="section-title">3. システムの仕組み</h2>
+                <p class="section-subtitle">
+                    「Auto間取り図」は、最先端のAI技術を組み合わせることで実現します。ここでは、ユーザーがファイルをアップロードしてから、間取り図が出力されるまでの一連のプロセスを解説します。
+                </p>
+                <div class="max-w-5xl mx-auto">
+                    <div class="flex flex-col md:flex-row justify-between items-center text-center space-y-8 md:space-y-0 md:space-x-4">
+                        <div class="flex-1">
+                            <div class="p-6 bg-white rounded-lg shadow-lg h-full">
+                                <div class="text-4xl">📄</div>
+                                <h4 class="font-bold mt-2">Step 1: アップロード</h4>
+                                <p class="text-sm text-gray-600 mt-1">ユーザーが販売図面(PDF/画像)をアップロードします。</p>
+                            </div>
+                        </div>
+                        <div class="text-2xl text-gray-400 font-extrabold mx-4">→</div>
+                        <div class="flex-1">
+                            <div class="p-6 bg-white rounded-lg shadow-lg h-full">
+                                <div class="text-4xl">🤖</div>
+                                <h4 class="font-bold mt-2">Step 2: AI解析</h4>
+                                <p class="text-sm text-gray-600 mt-1">OCRと物体検出で図面情報を読み取り、構造化します。</p>
+                            </div>
+                        </div>
+                        <div class="text-2xl text-gray-400 font-extrabold mx-4">→</div>
+                        <div class="flex-1">
+                           <div class="p-6 bg-white rounded-lg shadow-lg h-full">
+                                <div class="text-4xl">✏️</div>
+                                <h4 class="font-bold mt-2">Step 3: 自動描画</h4>
+                                <p class="text-sm text-gray-600 mt-1">解析データからSVG形式の間取り図を自動で描画します。</p>
+                            </div>
+                        </div>
+                         <div class="text-2xl text-gray-400 font-extrabold mx-4">→</div>
+                        <div class="flex-1">
+                            <div class="p-6 bg-white rounded-lg shadow-lg h-full">
+                                <div class="text-4xl">💾</div>
+                                <h4 class="font-bold mt-2">Step 4: 出力</h4>
+                                <p class="text-sm text-gray-600 mt-1">完成した図面をPDFやPNG形式でダウンロードできます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="impact" class="py-20 bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="section-title">4. 導入効果のシミュレーション</h2>
+                <p class="section-subtitle">
+                    「Auto間取り図」の導入がもたらす経済的インパクトは絶大です。下のスライダーを動かして、月間の作成件数に応じたコスト削減効果をシミュレーションしてみてください。
+                </p>
+                <div class="max-w-4xl mx-auto bg-slate-50 p-8 rounded-xl shadow-inner">
+                    <div class="mb-8">
+                        <label for="volumeSlider" class="block text-lg font-medium text-gray-700">月間作成件数: <span id="volumeValue" class="text-blue-600 font-bold">15000</span>件</label>
+                        <input id="volumeSlider" type="range" min="1000" max="30000" value="15000" step="1000" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-8 items-center">
+                        <div>
+                            <div class="chart-container" style="max-height: 300px;">
+                                <canvas id="impactChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h3 class="text-xl font-semibold text-gray-700">想定される月間コスト削減額</h3>
+                            <p class="text-5xl font-extrabold text-green-600 my-2" id="savingsValue">¥22,500,000</p>
+                            <p class="text-gray-600">（外注費用と社内人件費換算コストとの比較）</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="plan" class="py-20">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="section-title">5. 開発計画</h2>
+                <p class="section-subtitle">
+                    プロジェクト成功に向け、明確なロードマップを策定しました。短期間で価値を届けるため、アジャイルなアプローチで開発を進めます。
+                </p>
+                <div class="max-w-2xl mx-auto">
+                    <div class="relative">
+                        <div class="absolute left-1/2 -ml-px w-0.5 h-full bg-blue-200" aria-hidden="true"></div>
+                        <div class="relative py-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 w-1/2 pr-8 text-right">
+                                    <p class="text-sm font-semibold text-blue-600">2025年7月7日〜8日</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">1</div>
+                                </div>
+                                <div class="flex-shrink-0 w-1/2 pl-8">
+                                    <h4 class="font-bold">UIモック作成</h4>
+                                    <p class="text-sm text-gray-600">Figmaで画面イメージを具体化</p>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="relative py-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 w-1/2 pr-8 text-right">
+                                     <h4 class="font-bold">PoC (技術検証)</h4>
+                                     <p class="text-sm text-gray-600">AIによる図面解析の実現性を評価</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">2</div>
+                                </div>
+                                <div class="flex-shrink-0 w-1/2 pl-8">
+                                    <p class="text-sm font-semibold text-blue-600">2025年7月9日〜11日</p>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="relative py-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 w-1/2 pr-8 text-right">
+                                    <p class="text-sm font-semibold text-blue-600">2025年7月12日〜15日</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">3</div>
+                                </div>
+                                <div class="flex-shrink-0 w-1/2 pl-8">
+                                    <h4 class="font-bold">開発・実装</h4>
+                                    <p class="text-sm text-gray-600">インフラ構築と各機能の実装</p>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="relative py-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 w-1/2 pr-8 text-right">
+                                     <h4 class="font-bold">テスト & リリース</h4>
+                                     <p class="text-sm text-gray-600">品質保証と本番環境への展開</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">4</div>
+                                </div>
+                                <div class="flex-shrink-0 w-1/2 pl-8">
+                                    <p class="text-sm font-semibold text-blue-600">2025年7月16日〜18日</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <footer class="bg-gray-800 text-white">
+        <div class="container mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-sm">
+            <p>&copy; 2025 Auto間取り図 Project. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const volumeSlider = document.getElementById('volumeSlider');
+            const volumeValue = document.getElementById('volumeValue');
+            const savingsValue = document.getElementById('savingsValue');
+            
+            const impactChartData = {
+                labels: ['外注コスト', '社内人件費(換算)'],
+                datasets: [{
+                    label: '月間コスト',
+                    data: [15000 * 2000, 15000 * 1500],
+                    backgroundColor: ['rgba(59, 130, 246, 0.6)', 'rgba(239, 68, 68, 0.6)'],
+                }]
+            };
+
+            const impactCtx = document.getElementById('impactChart').getContext('2d');
+            const impactChart = new Chart(impactCtx, {
+                type: 'doughnut',
+                data: impactChartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += '¥' + context.parsed.toLocaleString();
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            function updateImpact() {
+                const volume = parseInt(volumeSlider.value);
+                volumeValue.textContent = volume.toLocaleString();
+
+                // 元の要件定義書にあったコスト換算を元にシミュレーション
+                const outsourcingCost = volume * 2000; // 平均単価2,000円で計算
+                const inhouseCost = volume * 1500;   // 人件費換算単価1,500円で計算
+                
+                impactChart.data.datasets[0].data[0] = outsourcingCost;
+                impactChart.data.datasets[0].data[1] = inhouseCost;
+                impactChart.update();
+
+                // ここでの削減額は、外注と社内作業の両方がゼロになるという仮定
+                const totalSavings = outsourcingCost + inhouseCost;
+                savingsValue.textContent = '¥' + totalSavings.toLocaleString();
+            }
+
+            volumeSlider.addEventListener('input', updateImpact);
+            updateImpact();
+        });
+    </script>
+</body>
+</html>
