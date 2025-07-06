@@ -57,6 +57,7 @@
             setLoading(true);
             setError('');
             try {
+              // ログイン処理を呼び出すだけ。画面遷移はAppコンポーネントが検知する
               await Auth.signIn(email, password);
             } catch (err) {
               setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
@@ -132,7 +133,10 @@
         function App() {
           const [user, setUser] = useState(null);
 
+          // ★★★ 修正点 ★★★
+          // 認証状態の変化を監視し、Stateを更新するロジックを強化
           useEffect(() => {
+            // 認証状態の変更を監視するリスナーを設定
             const hubListener = (data) => {
               switch (data.payload.event) {
                 case 'signIn':
@@ -141,12 +145,11 @@
                 case 'signOut':
                   setUser(null);
                   break;
-                default:
-                  break;
               }
             };
             Hub.listen('auth', hubListener);
 
+            // 初期表示時に現在の認証状態を確認
             const checkUser = async () => {
               try {
                 const currentUser = await Auth.currentAuthenticatedUser();
@@ -157,9 +160,12 @@
             };
             
             checkUser();
-            return () => Hub.remove('auth', hubListener);
-          }, []);
 
+            // コンポーネントがアンマウントされる時にリスナーを削除
+            return () => Hub.remove('auth', hubListener);
+          }, []); // 空の配列を渡すことで、このeffectは初回レンダリング時に一度だけ実行される
+
+          // ログアウト処理
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
@@ -168,6 +174,7 @@
             }
           };
 
+          // user Stateの状態に応じて表示するコンポーネントを切り替える
           if (user) {
             return <DashboardPage user={user} onSignOut={handleSignOut} />;
           }
