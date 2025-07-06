@@ -97,19 +97,14 @@
         // 3. ダッシュボード画面コンポーネント
         // ==================================================================================
         const DashboardPage = ({ user, onSignOut }) => {
-          const userEmail = user && user.attributes ? user.attributes.email : '...';
-          
           // ★★★ 修正点 ★★★
-          // サンプルデータを削除し、空の配列で初期化
+          // name属性があればそれを、なければemailを表示する
+          const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
+          
           const [history, setHistory] = useState([]);
           const [searchTerm, setSearchTerm] = useState('');
           const [currentPage, setCurrentPage] = useState(1);
           const itemsPerPage = 20;
-
-          // 今後、useEffectを使ってデータベースから履歴を取得する処理をここに追加します。
-          // useEffect(() => {
-          //   // fetchHistoryFromDB();
-          // }, []);
 
           const filteredHistory = history.filter(item => 
             item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -132,7 +127,8 @@
                     <span className="font-bold text-xl text-blue-600">Auto間取り図</span>
                     <div className="flex items-center space-x-4">
                        <span className="text-gray-600">🔔</span>
-                       <span className="text-sm text-gray-700 hidden sm:block">{userEmail}</span>
+                       {/* ★★★ 修正点 ★★★ */}
+                       <span className="text-sm text-gray-700 hidden sm:block">{displayName}</span>
                        <button onClick={onSignOut} className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 rounded-md">
                         ログアウト
                        </button>
@@ -142,7 +138,8 @@
               </header>
               <main className="container mx-auto p-4 sm:p-8">
                 <div className="bg-white p-6 rounded-lg shadow-md text-center mb-8">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-700">新しい間取り図を作成する</h2>
+                    {/* ★★★ 修正点 ★★★ */}
+                    <h2 className="text-xl font-semibold mb-4 text-gray-700">ようこそ、{displayName}さん</h2>
                     <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 px-8 text-xl rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-xl flex items-center mx-auto">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
