@@ -45,7 +45,7 @@
         // ==================================================================================
         // 2. ログイン画面コンポーネント
         // ==================================================================================
-        const LoginPage = () => {
+        const LoginPage = ({ onSignIn }) => {
           const [email, setEmail] = useState('');
           const [password, setPassword] = useState('');
           const [error, setError] = useState('');
@@ -57,10 +57,14 @@
             setLoading(true);
             setError('');
             try {
-              // ログイン処理を呼び出すだけ。
-              // 成功すれば、AppコンポーネントのHubリスナーが検知して画面を切り替える。
-              await Auth.signIn(email, password);
+              console.log('Attempting to sign in...');
+              const user = await Auth.signIn(email, password);
+              console.log('Sign in successful:', user);
+              // ★★★ 修正点 ★★★
+              // ログイン成功を親コンポーネントに直接通知
+              onSignIn(user);
             } catch (err) {
+              console.error('Sign in failed:', err);
               setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
               setLoading(false);
             }
@@ -134,12 +138,9 @@
         // 4. メインアプリケーションコンポーネント
         // ==================================================================================
         function App() {
-          const [user, setUser] = useState(null);
-          const [isLoading, setIsLoading] = useState(true);
+          const [user, setUser] = useState(undefined);
 
           useEffect(() => {
-            // ★★★ 修正点 ★★★
-            // AmplifyのHub（イベントバス）を使って認証状態の変更を一元管理する、最も堅牢な方法
             const checkUser = async () => {
               try {
                 const currentUser = await Auth.currentAuthenticatedUser();
@@ -147,43 +148,28 @@
               } catch (error) {
                 setUser(null);
               }
-              setIsLoading(false);
             };
-
-            const hubListener = (data) => {
-              switch (data.payload.event) {
-                case 'signIn':
-                case 'autoSignIn':
-                  checkUser();
-                  break;
-                case 'signOut':
-                  setUser(null);
-                  break;
-              }
-            };
-            Hub.listen('auth', hubListener);
-
-            checkUser(); // 初期表示時に認証状態を確認
-            
-            return () => Hub.remove('auth', hubListener); // クリーンアップ
+            checkUser();
           }, []);
 
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
+              setUser(null);
             } catch (error) {
               console.error('Error signing out: ', error);
             }
           };
           
-          if (isLoading) {
+          if (user === undefined) {
             return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
           }
 
-          if (user) {
-            return <DashboardPage user={user} onSignOut={handleSignOut} />;
-          }
-          return <LoginPage />;
+          return user ? (
+            <DashboardPage user={user} onSignOut={handleSignOut} />
+          ) : (
+            <LoginPage onSignIn={setUser} />
+          );
         }
 
         ReactDOM.render(<App />, document.getElementById('root'));
