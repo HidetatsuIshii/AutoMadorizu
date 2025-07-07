@@ -28,7 +28,7 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { Amplify, Auth, Hub } = window.aws_amplify;
+        const { Amplify, Auth } = window.aws_amplify;
 
         // ==================================================================================
         // 1. AWS Amplifyの設定
@@ -43,27 +43,16 @@
         Amplify.configure(awsconfig);
 
         // ==================================================================================
-        // 2. ログイン画面コンポーネント (UIとログイン試行のみに責務を限定)
+        // 2. ログイン画面コンポーネント (UIとログイン試行の通知のみに責務を限定)
         // ==================================================================================
-        const LoginPage = () => {
+        const LoginPage = ({ onLogin, loading, error }) => {
           const [email, setEmail] = useState('');
           const [password, setPassword] = useState('');
-          const [error, setError] = useState('');
-          const [loading, setLoading] = useState(false);
 
-          const handleLogin = async (e) => {
+          const handleSubmit = (e) => {
             e.preventDefault();
-            if (loading) return;
-            setLoading(true);
-            setError('');
-            try {
-              // ログイン処理を呼び出すだけ。
-              // 成功すれば、AppコンポーネントのHubリスナーが検知して画面を切り替える。
-              await Auth.signIn(email, password);
-            } catch (err) {
-              setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
-              setLoading(false);
-            }
+            // 親コンポーネント(App)にログイン処理を依頼
+            onLogin(email, password);
           };
 
           return (
@@ -73,7 +62,7 @@
                   <h1 className="text-3xl font-bold text-blue-600">Auto間取り図</h1>
                   <p className="text-gray-500 mt-2">ログインしてください</p>
                 </div>
-                <form onSubmit={handleLogin} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   <div>
                     <label htmlFor="email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
                     <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
@@ -136,46 +125,45 @@
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
+          const [loginLoading, setLoginLoading] = useState(false);
+          const [loginError, setLoginError] = useState('');
 
           // ★★★ 修正点 ★★★
-          // AmplifyのHub（イベントバス）を使って認証状態の変更を一元管理する
+          // アプリケーション起動時に一度だけ、現在の認証状態を確認する
           useEffect(() => {
-            // 認証状態を確認し、Stateを更新する関数
-            const updateUserState = async () => {
+            const checkCurrentUser = async () => {
               try {
+                // bypassCache: true で常に最新のユーザー情報を取得
                 const currentUser = await Auth.currentAuthenticatedUser({ bypassCache: true });
                 setUser(currentUser);
-              } catch (e) {
+              } catch (error) {
                 setUser(null);
               }
             };
+            checkCurrentUser();
+          }, []);
 
-            // Hubリスナー: 認証イベントを監視
-            const hubListener = (data) => {
-              switch (data.payload.event) {
-                case 'signIn':
-                case 'autoSignIn':
-                  updateUserState();
-                  break;
-                case 'signOut':
-                  setUser(null);
-                  break;
-              }
-            };
-            Hub.listen('auth', hubListener);
-
-            // 初期表示時に現在の認証状態を確認
-            updateUserState();
-            
-            // クリーンアップ関数: コンポーネントがアンマウントされる時にリスナーを削除
-            return () => Hub.remove('auth', hubListener);
-          }, []); // 空の配列を渡すことで、このeffectは初回レンダリング時に一度だけ実行される
+          // ログイン処理をAppコンポーネントで一元管理
+          const handleLogin = async (email, password) => {
+            if (loginLoading) return;
+            setLoginLoading(true);
+            setLoginError('');
+            try {
+              const loggedInUser = await Auth.signIn(email, password);
+              // ログイン成功後、取得したユーザー情報でStateを更新
+              setUser(loggedInUser);
+            } catch (err) {
+              setLoginError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
+            } finally {
+              setLoginLoading(false);
+            }
+          };
 
           // ログアウト処理
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
-              // HubリスナーがsignOutイベントを検知して、userステートをnullに設定する
+              setUser(null);
             } catch (error) {
               console.error('Error signing out: ', error);
             }
@@ -186,11 +174,13 @@
             return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
           }
 
+          // ★★★ 修正点 ★★★
           // user Stateの状態に応じて表示するコンポーネントを切り替える
+          // LoginPageに、Appコンポーネントが管理する処理をpropsとして渡す
           return user ? (
             <DashboardPage user={user} onSignOut={handleSignOut} />
           ) : (
-            <LoginPage />
+            <LoginPage onLogin={handleLogin} loading={loginLoading} error={loginError} />
           );
         }
 
