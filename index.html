@@ -132,6 +132,27 @@
         const DashboardPage = ({ user, onSignOut }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
           
+          // ★★★ 修正点 ★★★
+          // サンプルデータを削除し、空の配列で初期化
+          const [history, setHistory] = useState([]);
+          const [searchTerm, setSearchTerm] = useState('');
+          const [currentPage, setCurrentPage] = useState(1);
+          const itemsPerPage = 20;
+
+          const filteredHistory = history.filter(item => 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.creator.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+
+          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+          const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+          const handlePageChange = (pageNumber) => {
+            if (pageNumber < 1 || pageNumber > totalPages) return;
+            setCurrentPage(pageNumber);
+          };
+
           return (
             <div className="min-h-screen bg-gray-100">
               <header className="bg-white shadow-sm">
@@ -157,6 +178,83 @@
                       </svg>
                       新規作成を開始
                     </button>
+                </div>
+                
+                {/* ★★★ 修正点 ★★★ */}
+                {/* 履歴セクション全体をカードで囲む */}
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-2xl sm:text-3xl font-bold">作成履歴</h1>
+                    </div>
+
+                    <div className="mb-4">
+                        <input 
+                            type="text"
+                            placeholder="物件番号、物件名、作成者名で検索..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <ul className="divide-y divide-gray-200 min-w-[600px]">
+                            {paginatedHistory.length > 0 ? paginatedHistory.map(item => (
+                                <li key={item.id} className="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                    <div className="flex items-center mb-2 sm:mb-0">
+                                        <span className="text-gray-400 mr-3">📋</span>
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{item.id}　{item.name}</p>
+                                            <p className="text-sm text-gray-500">{item.date}&nbsp;&nbsp;作成者: {item.creator}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex space-x-2 flex-wrap">
+                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">▶プレビュー</button>
+                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">💾PDF</button>
+                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">✏️編集</button>
+                                        <button className="text-sm text-red-500 hover:text-red-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">🗑️削除</button>
+                                    </div>
+                                </li>
+                            )) : (
+                                <li className="p-8 text-center text-gray-500">
+                                    作成された履歴はありません。
+                                    <br />
+                                    まずは「新規作成」から間取り図を作成してみましょう。
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                    
+                    {totalPages > 1 && (
+                        <div className="flex justify-center items-center mt-6 space-x-2">
+                            <button 
+                                onClick={() => handlePageChange(currentPage - 1)} 
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                前へ
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                <button 
+                                    key={page}
+                                    onClick={() => handlePageChange(page)}
+                                    className={`px-4 py-2 border rounded-md text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                            <button 
+                                onClick={() => handlePageChange(currentPage + 1)} 
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                次へ
+                            </button>
+                        </div>
+                    )}
                 </div>
               </main>
             </div>
@@ -208,10 +306,8 @@
             setError('');
             try {
               const requiredAttributes = tempUser.challengeParam.userAttributes;
-              // ★★★ 修正点 ★★★
-              // Cognitoが変更を許可しない属性を送信しないようにする
               delete requiredAttributes.email_verified;
-              delete requiredAttributes.email; // ← この行を追加
+              delete requiredAttributes.email;
 
               const loggedInUser = await Auth.completeNewPassword(
                 tempUser,
@@ -219,7 +315,7 @@
                 requiredAttributes
               );
               setUser(loggedInUser);
-              setTempUser(null); // 一時ユーザー情報をクリア
+              setTempUser(null);
             } catch (err) {
               setError(err.message || 'パスワードの設定に失敗しました。');
             } finally {
