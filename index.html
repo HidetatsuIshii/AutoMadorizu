@@ -28,7 +28,7 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { Amplify, Auth, Hub } = window.aws_amplify;
+        const { Amplify, Auth } = window.aws_amplify;
 
         // ==================================================================================
         // 1. AWS Amplifyの設定
@@ -45,24 +45,13 @@
         // ==================================================================================
         // 2. ログイン画面コンポーネント
         // ==================================================================================
-        const LoginPage = ({ onSignIn }) => {
+        const LoginPage = ({ onLogin, loading, error }) => {
           const [email, setEmail] = useState('');
           const [password, setPassword] = useState('');
-          const [error, setError] = useState('');
-          const [loading, setLoading] = useState(false);
 
-          const handleLogin = async (e) => {
+          const handleSubmit = (e) => {
             e.preventDefault();
-            if (loading) return;
-            setLoading(true);
-            setError('');
-            try {
-              const user = await Auth.signIn(email, password);
-              onSignIn(user);
-            } catch (err) {
-              setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
-              setLoading(false);
-            }
+            onLogin(email, password);
           };
 
           return (
@@ -72,7 +61,7 @@
                   <h1 className="text-3xl font-bold text-blue-600">Auto間取り図</h1>
                   <p className="text-gray-500 mt-2">ログインしてください</p>
                 </div>
-                <form onSubmit={handleLogin} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   <div>
                     <label htmlFor="email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
                     <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
@@ -97,8 +86,6 @@
         // 3. ダッシュボード画面コンポーネント
         // ==================================================================================
         const DashboardPage = ({ user, onSignOut }) => {
-          // ★★★ 修正点 ★★★
-          // name属性があればそれを、なければemailを表示する
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
           
           const [history, setHistory] = useState([]);
@@ -127,7 +114,6 @@
                     <span className="font-bold text-xl text-blue-600">Auto間取り図</span>
                     <div className="flex items-center space-x-4">
                        <span className="text-gray-600">🔔</span>
-                       {/* ★★★ 修正点 ★★★ */}
                        <span className="text-sm text-gray-700 hidden sm:block">{displayName}</span>
                        <button onClick={onSignOut} className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 rounded-md">
                         ログアウト
@@ -138,7 +124,6 @@
               </header>
               <main className="container mx-auto p-4 sm:p-8">
                 <div className="bg-white p-6 rounded-lg shadow-md text-center mb-8">
-                    {/* ★★★ 修正点 ★★★ */}
                     <h2 className="text-xl font-semibold mb-4 text-gray-700">ようこそ、{displayName}さん</h2>
                     <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 px-8 text-xl rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-xl flex items-center mx-auto">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,98 +132,53 @@
                       新規作成を開始
                     </button>
                 </div>
-
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl sm:text-3xl font-bold">作成履歴</h1>
-                </div>
-
-                <div className="mb-4">
-                    <input 
-                        type="text"
-                        placeholder="物件番号、物件名、作成者名で検索..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                        className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-
-                <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <ul className="divide-y divide-gray-200">
-                        {paginatedHistory.length > 0 ? paginatedHistory.map(item => (
-                            <li key={item.id} className="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                                <div className="flex items-center mb-2 sm:mb-0">
-                                    <span className="text-gray-400 mr-3">📋</span>
-                                    <div>
-                                        <p className="font-semibold text-gray-800">{item.id}　{item.name}</p>
-                                        <p className="text-sm text-gray-500">{item.date}&nbsp;&nbsp;作成者: {item.creator}</p>
-                                    </div>
-                                </div>
-                                <div className="flex space-x-2 flex-wrap">
-                                    <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">▶プレビュー</button>
-                                    <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">💾PDF</button>
-                                    <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">✏️編集</button>
-                                    <button className="text-sm text-red-500 hover:text-red-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">🗑️削除</button>
-                                </div>
-                            </li>
-                        )) : (
-                            <li className="p-4 text-center text-gray-500">該当する履歴はありません。</li>
-                        )}
-                    </ul>
-                </div>
-                
-                {totalPages > 1 && (
-                    <div className="flex justify-center items-center mt-6 space-x-2">
-                        <button 
-                            onClick={() => handlePageChange(currentPage - 1)} 
-                            disabled={currentPage === 1}
-                            className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            前へ
-                        </button>
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                            <button 
-                                key={page}
-                                onClick={() => handlePageChange(page)}
-                                className={`px-4 py-2 border rounded-md text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                            >
-                                {page}
-                            </button>
-                        ))}
-                        <button 
-                            onClick={() => handlePageChange(currentPage + 1)} 
-                            disabled={currentPage === totalPages}
-                            className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            次へ
-                        </button>
-                    </div>
-                )}
               </main>
             </div>
           );
         };
 
         // ==================================================================================
-        // 4. メインアプリケーションコンポーネント
+        // 4. メインアプリケーションコンポーネント (認証ロジックをここに集約)
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
+          const [loginLoading, setLoginLoading] = useState(false);
+          const [loginError, setLoginError] = useState('');
 
+          // ★★★ 修正点 ★★★
+          // 認証状態を確認し、Stateを更新する関数
+          const fetchUser = async () => {
+            try {
+              // bypassCache: true で常に最新のユーザー情報を取得
+              const userData = await Auth.currentAuthenticatedUser({ bypassCache: true });
+              setUser(userData);
+            } catch (e) {
+              setUser(null);
+            }
+          };
+
+          // アプリケーション起動時に一度だけ、現在の認証状態を確認する
           useEffect(() => {
-            const checkUser = async () => {
-              try {
-                const currentUser = await Auth.currentAuthenticatedUser();
-                setUser(currentUser);
-              } catch (error) {
-                setUser(null);
-              }
-            };
-            checkUser();
+            fetchUser();
           }, []);
 
+          // ログイン処理
+          const handleLogin = async (email, password) => {
+            if (loginLoading) return;
+            setLoginLoading(true);
+            setLoginError('');
+            try {
+              await Auth.signIn(email, password);
+              // ログイン成功後、必ず最新のユーザー情報を再取得する
+              await fetchUser();
+            } catch (err) {
+              setLoginError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
+            } finally {
+              setLoginLoading(false);
+            }
+          };
+
+          // ログアウト処理
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
@@ -248,14 +188,16 @@
             }
           };
           
+          // 最初のユーザー情報取得が終わるまでは「読み込み中」を表示
           if (user === undefined) {
             return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
           }
 
+          // user Stateの状態に応じて表示するコンポーネントを切り替える
           return user ? (
             <DashboardPage user={user} onSignOut={handleSignOut} />
           ) : (
-            <LoginPage onSignIn={setUser} />
+            <LoginPage onLogin={handleLogin} loading={loginLoading} error={loginError} />
           );
         }
 
