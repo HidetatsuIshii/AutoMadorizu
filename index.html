@@ -317,6 +317,23 @@
             const API_ENDPOINT = 'https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1';
 
             useEffect(() => {
+                const getStatusLabel = (status) => {
+                  switch (status) {
+                    case 'CONFIRMED':
+                      return '利用可能';
+                    case 'UNCONFIRMED':
+                      return 'メール確認前';
+                    case 'FORCE_CHANGE_PASSWORD':
+                      return 'パスワード変更待ち';
+                    case 'ARCHIVED':
+                      return '使用停止';
+                    case 'COMPROMISED':
+                      return 'セキュリティ異常';
+                    default:
+                      return '不明';
+                  }
+                };
+                
                 const fetchUsers = async () => {
                     setIsLoading(true);
                     setError('');
@@ -393,7 +410,7 @@
                                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名前</th>
                                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メールアドレス</th>
                                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン日</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン日時</th>
                                                 <th scope="col" className="relative px-6 py-3"><span className="sr-only">アクション</span></th>
                                             </tr>
                                         </thead>
@@ -402,9 +419,11 @@
                                                 <tr key={user.userId}>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{user.status}</span>
-                                                    </td>
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                      user.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                                    }`}>
+                                                      {getStatusLabel(user.status)}
+                                                    </span>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                       {user.lastLogin
                                                         ? new Date(user.lastLogin).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
