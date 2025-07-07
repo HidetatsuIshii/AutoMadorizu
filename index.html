@@ -28,7 +28,7 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { Amplify, Auth } = window.aws_amplify;
+        const { Amplify, Auth, Hub } = window.aws_amplify;
 
         // ==================================================================================
         // 1. AWS Amplifyの設定
@@ -43,15 +43,27 @@
         Amplify.configure(awsconfig);
 
         // ==================================================================================
-        // 2. ログイン画面コンポーネント
+        // 2. ログイン画面コンポーネント (UIとログイン試行のみに責務を限定)
         // ==================================================================================
-        const LoginPage = ({ onLogin, loading, error }) => {
+        const LoginPage = () => {
           const [email, setEmail] = useState('');
           const [password, setPassword] = useState('');
+          const [error, setError] = useState('');
+          const [loading, setLoading] = useState(false);
 
-          const handleSubmit = (e) => {
+          const handleLogin = async (e) => {
             e.preventDefault();
-            onLogin(email, password);
+            if (loading) return;
+            setLoading(true);
+            setError('');
+            try {
+              // ログイン処理を呼び出すだけ。
+              // 成功すれば、AppコンポーネントのHubリスナーが検知して画面を切り替える。
+              await Auth.signIn(email, password);
+            } catch (err) {
+              setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
+              setLoading(false);
+            }
           };
 
           return (
@@ -61,7 +73,7 @@
                   <h1 className="text-3xl font-bold text-blue-600">Auto間取り図</h1>
                   <p className="text-gray-500 mt-2">ログインしてください</p>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleLogin} className="space-y-6">
                   <div>
                     <label htmlFor="email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
                     <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
@@ -88,24 +100,6 @@
         const DashboardPage = ({ user, onSignOut }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
           
-          const [history, setHistory] = useState([]);
-          const [searchTerm, setSearchTerm] = useState('');
-          const [currentPage, setCurrentPage] = useState(1);
-          const itemsPerPage = 20;
-
-          const filteredHistory = history.filter(item => 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.creator.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-
-          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-          const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-          const handlePageChange = (pageNumber) => {
-            setCurrentPage(pageNumber);
-          };
-
           return (
             <div className="min-h-screen bg-gray-100">
               <header className="bg-white shadow-sm">
@@ -142,47 +136,46 @@
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
-          const [loginLoading, setLoginLoading] = useState(false);
-          const [loginError, setLoginError] = useState('');
 
           // ★★★ 修正点 ★★★
-          // 認証状態を確認し、Stateを更新する関数
-          const fetchUser = async () => {
-            try {
-              // bypassCache: true で常に最新のユーザー情報を取得
-              const userData = await Auth.currentAuthenticatedUser({ bypassCache: true });
-              setUser(userData);
-            } catch (e) {
-              setUser(null);
-            }
-          };
-
-          // アプリケーション起動時に一度だけ、現在の認証状態を確認する
+          // AmplifyのHub（イベントバス）を使って認証状態の変更を一元管理する
           useEffect(() => {
-            fetchUser();
-          }, []);
+            // 認証状態を確認し、Stateを更新する関数
+            const updateUserState = async () => {
+              try {
+                const currentUser = await Auth.currentAuthenticatedUser({ bypassCache: true });
+                setUser(currentUser);
+              } catch (e) {
+                setUser(null);
+              }
+            };
 
-          // ログイン処理
-          const handleLogin = async (email, password) => {
-            if (loginLoading) return;
-            setLoginLoading(true);
-            setLoginError('');
-            try {
-              await Auth.signIn(email, password);
-              // ログイン成功後、必ず最新のユーザー情報を再取得する
-              await fetchUser();
-            } catch (err) {
-              setLoginError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
-            } finally {
-              setLoginLoading(false);
-            }
-          };
+            // Hubリスナー: 認証イベントを監視
+            const hubListener = (data) => {
+              switch (data.payload.event) {
+                case 'signIn':
+                case 'autoSignIn':
+                  updateUserState();
+                  break;
+                case 'signOut':
+                  setUser(null);
+                  break;
+              }
+            };
+            Hub.listen('auth', hubListener);
+
+            // 初期表示時に現在の認証状態を確認
+            updateUserState();
+            
+            // クリーンアップ関数: コンポーネントがアンマウントされる時にリスナーを削除
+            return () => Hub.remove('auth', hubListener);
+          }, []); // 空の配列を渡すことで、このeffectは初回レンダリング時に一度だけ実行される
 
           // ログアウト処理
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
-              setUser(null);
+              // HubリスナーがsignOutイベントを検知して、userステートをnullに設定する
             } catch (error) {
               console.error('Error signing out: ', error);
             }
@@ -197,7 +190,7 @@
           return user ? (
             <DashboardPage user={user} onSignOut={handleSignOut} />
           ) : (
-            <LoginPage onLogin={handleLogin} loading={loginLoading} error={loginError} />
+            <LoginPage />
           );
         }
 
