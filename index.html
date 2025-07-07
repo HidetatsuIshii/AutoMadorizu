@@ -91,7 +91,7 @@
             </div>
           );
         };
-
+        
         // ==================================================================================
         // 3. ユーザー登録画面コンポーネント
         // ==================================================================================
@@ -186,6 +186,22 @@
           const [searchTerm, setSearchTerm] = useState('');
           const [currentPage, setCurrentPage] = useState(1);
           const itemsPerPage = 20;
+          const [isMenuOpen, setIsMenuOpen] = useState(false);
+          const menuRef = useRef(null);
+          
+          const isAdmin = user?.signInUserSession?.accessToken?.payload['cognito:groups']?.includes('Admins') ?? false;
+
+          useEffect(() => {
+            const handleClickOutside = (event) => {
+              if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsMenuOpen(false);
+              }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => {
+              document.removeEventListener('mousedown', handleClickOutside);
+            };
+          }, []);
 
           const filteredHistory = history.filter(item => 
             (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -209,11 +225,14 @@
                     <span className="font-bold text-xl text-blue-600">Auto間取り図</span>
                     <div className="flex items-center space-x-4">
                        <span className="text-gray-600">🔔</span>
-                       <div className="relative group">
-                            <button className="text-sm text-gray-700 hidden sm:block">{displayName}</button>
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 hidden group-hover:block">
-                                <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile'); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">プロフィール設定</a>
-                                <a href="#" onClick={(e) => { e.preventDefault(); onSignOut(); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">ログアウト</a>
+                       <div className="relative" ref={menuRef}>
+                            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-sm text-gray-700 hidden sm:block cursor-pointer">{displayName}</button>
+                            <div className={`absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 ${isMenuOpen ? 'block' : 'hidden'}`}>
+                                {isAdmin && (
+                                    <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('admin'); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">管理者メニュー</a>
+                                )}
+                                <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile'); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">プロフィール設定</a>
+                                <a href="#" onClick={(e) => { e.preventDefault(); onSignOut(); setIsMenuOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">ログアウト</a>
                             </div>
                        </div>
                     </div>
@@ -290,8 +309,6 @@
         // 6. 間取り作成画面コンポーネント
         // ==================================================================================
         const CreatePage = ({ onNavigate }) => {
-            {/* ★★★ 修正点 ★★★ */}
-            {/* 新規作成画面のコンテンツを復元 */}
             const [file, setFile] = useState(null);
             const [isDragOver, setIsDragOver] = useState(false);
             const [previewUrl, setPreviewUrl] = useState(null);
@@ -467,10 +484,33 @@
                 </div>
             );
         };
-
+        
+        // ==================================================================================
+        // 8. 管理者ページコンポーネント
+        // ==================================================================================
+        const AdminPage = ({ onNavigate }) => {
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    <header className="bg-white shadow-sm">
+                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <h1 className="text-xl font-bold text-red-600">管理者ページ</h1>
+                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
+                            </div>
+                        </nav>
+                    </header>
+                    <main className="container mx-auto p-4 sm:p-8">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-2xl font-bold mb-4">ユーザー管理</h2>
+                            <p>ここにユーザー一覧やログイン履歴などを表示する機能を実装します。</p>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
 
         // ==================================================================================
-        // 8. メインアプリケーションコンポーネント
+        // 9. メインアプリケーションコンポーネント
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
@@ -586,6 +626,9 @@
               }
               if (view === 'profile') {
                 return <ProfilePage user={user} onNavigate={setView} onProfileUpdate={handleProfileUpdate} />;
+              }
+              if (view === 'admin') {
+                return <AdminPage onNavigate={setView} />;
               }
           }
           
