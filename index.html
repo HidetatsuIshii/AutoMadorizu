@@ -43,7 +43,7 @@
         Amplify.configure(awsconfig);
 
         // ==================================================================================
-        // 2. ログイン画面コンポーネント (UIとログイン試行の通知のみに責務を限定)
+        // 2. ログイン画面コンポーネント
         // ==================================================================================
         const LoginPage = ({ onLogin, loading, error }) => {
           const [email, setEmail] = useState('');
@@ -51,12 +51,11 @@
 
           const handleSubmit = (e) => {
             e.preventDefault();
-            // 親コンポーネント(App)にログイン処理を依頼
             onLogin(email, password);
           };
 
           return (
-            <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
+            <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
               <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-md">
                 <div className="text-center mb-8">
                   <h1 className="text-3xl font-bold text-blue-600">Auto間取り図</h1>
@@ -74,7 +73,7 @@
                   {error && <p className="text-sm text-red-500 text-center">{error}</p>}
                   <div>
                     <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
-                      {loading ? 'ログイン中...' : 'ログイン'}
+                      {loading ? '処理中...' : 'ログイン'}
                     </button>
                   </div>
                 </form>
@@ -84,7 +83,51 @@
         };
 
         // ==================================================================================
-        // 3. ダッシュボード画面コンポーネント
+        // 3. 初回パスワード変更画面コンポーネント
+        // ==================================================================================
+        const NewPasswordRequiredPage = ({ onSubmit, loading, error }) => {
+            const [newPassword, setNewPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (newPassword !== confirmPassword) {
+                    alert('新しいパスワードが一致しません。');
+                    return;
+                }
+                onSubmit(newPassword);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
+                    <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-md">
+                        <div className="text-center mb-8">
+                            <h1 className="text-2xl font-bold text-blue-600">初回ログイン</h1>
+                            <p className="text-gray-500 mt-2">新しいパスワードを設定してください。</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div>
+                                <label htmlFor="newPassword" className="text-sm font-bold text-gray-600 block">新しいパスワード</label>
+                                <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            <div>
+                                <label htmlFor="confirmPassword" className="text-sm font-bold text-gray-600 block">新しいパスワード（確認）</label>
+                                <input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+                            <div>
+                                <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
+                                    {loading ? '設定中...' : 'パスワードを設定してログイン'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================================================================================
+        // 4. ダッシュボード画面コンポーネント
         // ==================================================================================
         const DashboardPage = ({ user, onSignOut }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
@@ -121,19 +164,17 @@
         };
 
         // ==================================================================================
-        // 4. メインアプリケーションコンポーネント (認証ロジックをここに集約)
+        // 5. メインアプリケーションコンポーネント (認証ロジックをここに集約)
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
-          const [loginLoading, setLoginLoading] = useState(false);
-          const [loginError, setLoginError] = useState('');
+          const [loading, setLoading] = useState(false);
+          const [error, setError] = useState('');
+          const [tempUser, setTempUser] = useState(null);
 
-          // ★★★ 修正点 ★★★
-          // アプリケーション起動時に一度だけ、現在の認証状態を確認する
           useEffect(() => {
             const checkCurrentUser = async () => {
               try {
-                // bypassCache: true で常に最新のユーザー情報を取得
                 const currentUser = await Auth.currentAuthenticatedUser({ bypassCache: true });
                 setUser(currentUser);
               } catch (error) {
@@ -143,45 +184,70 @@
             checkCurrentUser();
           }, []);
 
-          // ログイン処理をAppコンポーネントで一元管理
           const handleLogin = async (email, password) => {
-            if (loginLoading) return;
-            setLoginLoading(true);
-            setLoginError('');
+            if (loading) return;
+            setLoading(true);
+            setError('');
             try {
-              const loggedInUser = await Auth.signIn(email, password);
-              // ログイン成功後、取得したユーザー情報でStateを更新
-              setUser(loggedInUser);
+              const cognitoUser = await Auth.signIn(email, password);
+              if (cognitoUser.challengeName === 'NEW_PASSWORD_REQUIRED') {
+                setTempUser(cognitoUser);
+              } else {
+                setUser(cognitoUser);
+              }
             } catch (err) {
-              setLoginError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
+              setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
             } finally {
-              setLoginLoading(false);
+              setLoading(false);
             }
           };
 
-          // ログアウト処理
+          const handleNewPasswordSubmit = async (newPassword) => {
+            if (loading) return;
+            setLoading(true);
+            setError('');
+            try {
+              const requiredAttributes = tempUser.challengeParam.userAttributes;
+              // ★★★ 修正点 ★★★
+              // Cognitoが変更を許可しない属性を送信しないようにする
+              delete requiredAttributes.email_verified;
+              delete requiredAttributes.email; // ← この行を追加
+
+              const loggedInUser = await Auth.completeNewPassword(
+                tempUser,
+                newPassword,
+                requiredAttributes
+              );
+              setUser(loggedInUser);
+              setTempUser(null); // 一時ユーザー情報をクリア
+            } catch (err) {
+              setError(err.message || 'パスワードの設定に失敗しました。');
+            } finally {
+              setLoading(false);
+            }
+          };
+
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
               setUser(null);
+              setTempUser(null);
             } catch (error) {
               console.error('Error signing out: ', error);
             }
           };
           
-          // 最初のユーザー情報取得が終わるまでは「読み込み中」を表示
           if (user === undefined) {
             return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
           }
 
-          // ★★★ 修正点 ★★★
-          // user Stateの状態に応じて表示するコンポーネントを切り替える
-          // LoginPageに、Appコンポーネントが管理する処理をpropsとして渡す
-          return user ? (
-            <DashboardPage user={user} onSignOut={handleSignOut} />
-          ) : (
-            <LoginPage onLogin={handleLogin} loading={loginLoading} error={loginError} />
-          );
+          if (user) {
+            return <DashboardPage user={user} onSignOut={handleSignOut} />;
+          }
+          if (tempUser) {
+            return <NewPasswordRequiredPage onSubmit={handleNewPasswordSubmit} loading={loading} error={error} />;
+          }
+          return <LoginPage onLogin={handleLogin} loading={loading} error={error} />;
         }
 
         ReactDOM.render(<App />, document.getElementById('root'));
