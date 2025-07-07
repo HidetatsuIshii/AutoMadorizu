@@ -176,16 +176,12 @@
                 </div>
             );
         };
-
+        
         // ==================================================================================
         // 5. ダッシュボード画面コンポーネント
         // ==================================================================================
         const DashboardPage = ({ user, onSignOut, onNavigate }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
-          const [history, setHistory] = useState([]);
-          const [searchTerm, setSearchTerm] = useState('');
-          const [currentPage, setCurrentPage] = useState(1);
-          const itemsPerPage = 20;
           const [isMenuOpen, setIsMenuOpen] = useState(false);
           const menuRef = useRef(null);
           
@@ -202,20 +198,6 @@
               document.removeEventListener('mousedown', handleClickOutside);
             };
           }, []);
-
-          const filteredHistory = history.filter(item => 
-            (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (item.id && item.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (item.creator && item.creator.toLowerCase().includes(searchTerm.toLowerCase()))
-          );
-
-          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-          const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-          const handlePageChange = (pageNumber) => {
-            if (pageNumber < 1 || pageNumber > totalPages) return;
-            setCurrentPage(pageNumber);
-          };
 
           return (
             <div className="min-h-screen bg-gray-100">
@@ -249,64 +231,215 @@
                       新規作成を開始
                     </button>
                 </div>
-                {/* ★★★ 修正点 ★★★ */}
-                {/* 履歴セクションを復元 */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                    <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-2xl sm:text-3xl font-bold">作成履歴</h1>
-                    </div>
-                    <div className="mb-4">
-                        <input 
-                            type="text"
-                            placeholder="物件番号、物件名、作成者名で検索..."
-                            value={searchTerm}
-                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                    <div className="overflow-x-auto">
-                        <ul className="divide-y divide-gray-200 min-w-[600px]">
-                            {filteredHistory.length > 0 ? paginatedHistory.map(item => (
-                                <li key={item.id} className="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                                    <div className="flex items-center mb-2 sm:mb-0">
-                                        <span className="text-gray-400 mr-3">📋</span>
-                                        <div>
-                                            <p className="font-semibold text-gray-800">{item.id}　{item.name}</p>
-                                            <p className="text-sm text-gray-500">{item.date}&nbsp;&nbsp;作成者: {item.creator}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex space-x-2 flex-wrap">
-                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">▶プレビュー</button>
-                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">💾PDF</button>
-                                        <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">✏️編集</button>
-                                        <button className="text-sm text-red-500 hover:text-red-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">🗑️削除</button>
-                                    </div>
-                                </li>
-                            )) : (
-                                <li className="p-8 text-center text-gray-500">
-                                    作成された履歴はありません。
-                                </li>
-                            )}
-                        </ul>
-                    </div>
-                    
-                    {totalPages > 1 && (
-                        <div className="flex justify-center items-center mt-6 space-x-2">
-                            <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">前へ</button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                <button key={page} onClick={() => handlePageChange(page)} className={`px-4 py-2 border rounded-md text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{page}</button>
-                            ))}
-                            <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">次へ</button>
-                        </div>
-                    )}
-                </div>
               </main>
             </div>
           );
         };
 
         // ==================================================================================
-        // 6. 間取り作成画面コンポーネント
+        // 6. 管理者ページコンポーネント
+        // ==================================================================================
+        const AdminPage = ({ onNavigate }) => {
+            const [activeTab, setActiveTab] = useState('users');
+            const [users, setUsers] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            const API_ENDPOINT = 'https://xhp2qeftr6.execute-api.ap-northeast-1.amazonaws.com/v1';
+
+            useEffect(() => {
+                const fetchUsers = async () => {
+                    if (API_ENDPOINT === 'YOUR_API_GATEWAY_INVOKE_URL') {
+                        setError('APIエンドポイントが設定されていません。コードを編集してください。');
+                        return;
+                    }
+                    setIsLoading(true);
+                    setError('');
+                    try {
+                        const session = await Auth.currentSession();
+                        const jwtToken = session.getIdToken().getJwtToken();
+
+                        const response = await fetch(`${API_ENDPOINT}/users`, {
+                            headers: {
+                                Authorization: jwtToken,
+                            },
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'ユーザー情報の取得に失敗しました。');
+                        }
+                        const data = await response.json();
+                        setUsers(data);
+                    } catch (err) {
+                        setError(err.message);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                
+                if (activeTab === 'users') {
+                    fetchUsers();
+                }
+            }, [activeTab]);
+
+
+            const filteredUsers = users.filter(user =>
+                (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    <header className="bg-white shadow-sm">
+                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <h1 className="text-xl font-bold text-red-600">管理者ページ</h1>
+                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
+                            </div>
+                        </nav>
+                    </header>
+                    <main className="container mx-auto p-4 sm:p-8">
+                        <div className="mb-4 border-b border-gray-200">
+                            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                                <button onClick={() => setActiveTab('users')} className={`${activeTab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>
+                                    ユーザー管理
+                                </button>
+                                <button onClick={() => setActiveTab('logs')} className={`${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>
+                                    利用状況ログ
+                                </button>
+                            </nav>
+                        </div>
+
+                        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
+
+                        {isLoading ? (
+                            <div className="text-center p-8">読み込み中...</div>
+                        ) : activeTab === 'users' ? (
+                            <div className="bg-white p-6 rounded-lg shadow-md">
+                                <h2 className="text-2xl font-bold mb-4">ユーザー一覧</h2>
+                                <div className="mb-4">
+                                    <input type="text" placeholder="名前、メールアドレスで検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名前</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メールアドレス</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン日</th>
+                                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">アクション</span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {filteredUsers.map(user => (
+                                                <tr key={user.userId}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{user.status}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.lastLogin ? new Date(user.lastLogin).toLocaleString('ja-JP') : 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <a href="#" className="text-blue-600 hover:text-blue-900">編集</a>
+                                                        <a href="#" className="text-red-600 hover:text-red-900 ml-4">削除</a>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                             <div className="bg-white p-6 rounded-lg shadow-md">
+                                <h2 className="text-2xl font-bold mb-4">利用状況ログ</h2>
+                                <p className="text-gray-600">現在開発中です。</p>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+        
+        // ==================================================================================
+        // 7. プロフィール設定画面コンポーネント
+        // ==================================================================================
+        const ProfilePage = ({ user, onNavigate, onProfileUpdate }) => {
+            const [name, setName] = useState(user.attributes.name || '');
+            const [email, setEmail] = useState(user.attributes.email || '');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [success, setSuccess] = useState('');
+            const isMounted = useRef(true);
+
+            useEffect(() => {
+                isMounted.current = true;
+                return () => {
+                    isMounted.current = false;
+                };
+            }, []);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!isMounted.current) return;
+                setLoading(true);
+                setError('');
+                setSuccess('');
+                try {
+                    await onProfileUpdate({ name, email });
+                    if (isMounted.current) {
+                        setSuccess('プロフィールを更新しました。メールアドレスを変更した場合は、認証が必要です。');
+                    }
+                } catch(err) {
+                    if (isMounted.current) {
+                        setError(err.message || '更新に失敗しました。');
+                    }
+                } finally {
+                    if (isMounted.current) {
+                        setLoading(false);
+                    }
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                     <header className="bg-white shadow-sm">
+                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <h1 className="text-xl font-bold text-gray-800">プロフィール設定</h1>
+                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
+                            </div>
+                        </nav>
+                    </header>
+                    <main className="container mx-auto p-4 sm:p-8">
+                        <div className="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-md">
+                             <form onSubmit={handleSubmit} className="space-y-6">
+                                <div>
+                                    <label htmlFor="profile-name" className="text-sm font-bold text-gray-600 block">お名前</label>
+                                    <input id="profile-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="profile-email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
+                                    <input id="profile-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                </div>
+                                {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+                                {success && <p className="text-sm text-green-500 text-center">{success}</p>}
+                                <div>
+                                    <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
+                                        {loading ? '更新中...' : '変更を保存'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // ==================================================================================
+        // 8. 間取り作成画面コンポーネント
         // ==================================================================================
         const CreatePage = ({ onNavigate }) => {
             const [file, setFile] = useState(null);
@@ -404,105 +537,6 @@
                                     <p>ここに生成された間取り図が表示されます</p>
                                 </div>
                             </div>
-                        </div>
-                    </main>
-                </div>
-            );
-        };
-        
-        // ==================================================================================
-        // 7. プロフィール設定画面コンポーネント
-        // ==================================================================================
-        const ProfilePage = ({ user, onNavigate, onProfileUpdate }) => {
-            const [name, setName] = useState(user.attributes.name || '');
-            const [email, setEmail] = useState(user.attributes.email || '');
-            const [loading, setLoading] = useState(false);
-            const [error, setError] = useState('');
-            const [success, setSuccess] = useState('');
-            const isMounted = useRef(true);
-
-            useEffect(() => {
-                isMounted.current = true;
-                return () => {
-                    isMounted.current = false;
-                };
-            }, []);
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if (!isMounted.current) return;
-                setLoading(true);
-                setError('');
-                setSuccess('');
-                try {
-                    await onProfileUpdate({ name, email });
-                    if (isMounted.current) {
-                        setSuccess('プロフィールを更新しました。メールアドレスを変更した場合は、認証が必要です。');
-                    }
-                } catch(err) {
-                    if (isMounted.current) {
-                        setError(err.message || '更新に失敗しました。');
-                    }
-                } finally {
-                    if (isMounted.current) {
-                        setLoading(false);
-                    }
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-gray-100">
-                     <header className="bg-white shadow-sm">
-                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex items-center justify-between h-16">
-                                <h1 className="text-xl font-bold text-gray-800">プロフィール設定</h1>
-                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
-                            </div>
-                        </nav>
-                    </header>
-                    <main className="container mx-auto p-4 sm:p-8">
-                        <div className="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-md">
-                             <form onSubmit={handleSubmit} className="space-y-6">
-                                <div>
-                                    <label htmlFor="profile-name" className="text-sm font-bold text-gray-600 block">お名前</label>
-                                    <input id="profile-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
-                                </div>
-                                <div>
-                                    <label htmlFor="profile-email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
-                                    <input id="profile-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
-                                </div>
-                                {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-                                {success && <p className="text-sm text-green-500 text-center">{success}</p>}
-                                <div>
-                                    <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
-                                        {loading ? '更新中...' : '変更を保存'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </main>
-                </div>
-            );
-        };
-        
-        // ==================================================================================
-        // 8. 管理者ページコンポーネント
-        // ==================================================================================
-        const AdminPage = ({ onNavigate }) => {
-            return (
-                <div className="min-h-screen bg-gray-100">
-                    <header className="bg-white shadow-sm">
-                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex items-center justify-between h-16">
-                                <h1 className="text-xl font-bold text-red-600">管理者ページ</h1>
-                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
-                            </div>
-                        </nav>
-                    </header>
-                    <main className="container mx-auto p-4 sm:p-8">
-                        <div className="bg-white p-6 rounded-lg shadow-md">
-                            <h2 className="text-2xl font-bold mb-4">ユーザー管理</h2>
-                            <p>ここにユーザー一覧やログイン履歴などを表示する機能を実装します。</p>
                         </div>
                     </main>
                 </div>
