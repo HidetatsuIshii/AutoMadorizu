@@ -21,13 +21,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans JP', 'Inter', sans-serif; }
+        .file-upload-area {
+            border: 2px dashed #d1d5db;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .file-upload-area.drag-over {
+            background-color: #e0f2fe;
+            border-color: #3b82f6;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
         const { Amplify, Auth } = window.aws_amplify;
 
         // ==================================================================================
@@ -45,7 +53,7 @@
         // ==================================================================================
         // 2. ログイン画面コンポーネント
         // ==================================================================================
-        const LoginPage = ({ onLogin, loading, error }) => {
+        const LoginPage = ({ onLogin, onNavigate, loading, error }) => {
           const [email, setEmail] = useState('');
           const [password, setPassword] = useState('');
 
@@ -59,7 +67,6 @@
               <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-md">
                 <div className="text-center mb-8">
                   <h1 className="text-3xl font-bold text-blue-600">Auto間取り図</h1>
-                  <p className="text-gray-500 mt-2">ログインしてください</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div>
@@ -77,72 +84,113 @@
                     </button>
                   </div>
                 </form>
+                <div className="text-center mt-4">
+                    <button onClick={() => onNavigate('signUp')} className="text-sm text-blue-600 hover:underline">新規登録はこちら</button>
+                </div>
               </div>
             </div>
           );
         };
 
         // ==================================================================================
-        // 3. 初回パスワード変更画面コンポーネント
+        // 3. ユーザー登録画面コンポーネント
         // ==================================================================================
-        const NewPasswordRequiredPage = ({ onSubmit, loading, error }) => {
-            const [newPassword, setNewPassword] = useState('');
-            const [confirmPassword, setConfirmPassword] = useState('');
+        const SignUpPage = ({ onSignUp, onNavigate, loading, error }) => {
+            const [name, setName] = useState('');
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                if (newPassword !== confirmPassword) {
-                    alert('新しいパスワードが一致しません。');
-                    return;
-                }
-                onSubmit(newPassword);
+                onSignUp(name, email, password);
             };
 
             return (
                 <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
                     <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-md">
                         <div className="text-center mb-8">
-                            <h1 className="text-2xl font-bold text-blue-600">初回ログイン</h1>
-                            <p className="text-gray-500 mt-2">新しいパスワードを設定してください。</p>
+                            <h1 className="text-3xl font-bold text-blue-600">ユーザー新規登録</h1>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
-                                <label htmlFor="newPassword" className="text-sm font-bold text-gray-600 block">新しいパスワード</label>
-                                <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                <label htmlFor="name" className="text-sm font-bold text-gray-600 block">お名前</label>
+                                <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                             </div>
                             <div>
-                                <label htmlFor="confirmPassword" className="text-sm font-bold text-gray-600 block">新しいパスワード（確認）</label>
-                                <input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                <label htmlFor="signup-email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
+                                <input id="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            <div>
+                                <label htmlFor="signup-password" className="text-sm font-bold text-gray-600 block">パスワード</label>
+                                <input id="signup-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                             </div>
                             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
                             <div>
                                 <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
-                                    {loading ? '設定中...' : 'パスワードを設定してログイン'}
+                                    {loading ? '処理中...' : '登録する'}
                                 </button>
                             </div>
                         </form>
+                        <div className="text-center mt-4">
+                            <button onClick={() => onNavigate('login')} className="text-sm text-blue-600 hover:underline">ログイン画面に戻る</button>
+                        </div>
                     </div>
                 </div>
             );
         };
 
         // ==================================================================================
-        // 4. ダッシュボード画面コンポーネント
+        // 4. メール認証画面コンポーネント
         // ==================================================================================
-        const DashboardPage = ({ user, onSignOut }) => {
+        const VerificationPage = ({ onVerify, onResend, email, loading, error }) => {
+            const [code, setCode] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onVerify(code);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
+                    <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-md">
+                        <div className="text-center mb-8">
+                            <h1 className="text-2xl font-bold text-blue-600">メール認証</h1>
+                            <p className="text-gray-500 mt-2">{email} に送信された認証コードを入力してください。</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div>
+                                <label htmlFor="code" className="text-sm font-bold text-gray-600 block">認証コード</label>
+                                <input id="code" type="text" value={code} onChange={(e) => setCode(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+                            <div>
+                                <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
+                                    {loading ? '処理中...' : '認証する'}
+                                </button>
+                            </div>
+                        </form>
+                         <div className="text-center mt-4">
+                            <button onClick={onResend} className="text-sm text-blue-600 hover:underline">認証コードを再送信</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================================================================================
+        // 5. ダッシュボード画面コンポーネント
+        // ==================================================================================
+        const DashboardPage = ({ user, onSignOut, onNavigate }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
-          
-          // ★★★ 修正点 ★★★
-          // サンプルデータを削除し、空の配列で初期化
           const [history, setHistory] = useState([]);
           const [searchTerm, setSearchTerm] = useState('');
           const [currentPage, setCurrentPage] = useState(1);
           const itemsPerPage = 20;
 
           const filteredHistory = history.filter(item => 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.creator.toLowerCase().includes(searchTerm.toLowerCase())
+            (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (item.id && item.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (item.creator && item.creator.toLowerCase().includes(searchTerm.toLowerCase()))
           );
 
           const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
@@ -161,10 +209,13 @@
                     <span className="font-bold text-xl text-blue-600">Auto間取り図</span>
                     <div className="flex items-center space-x-4">
                        <span className="text-gray-600">🔔</span>
-                       <span className="text-sm text-gray-700 hidden sm:block">{displayName}</span>
-                       <button onClick={onSignOut} className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 rounded-md">
-                        ログアウト
-                       </button>
+                       <div className="relative group">
+                            <button className="text-sm text-gray-700 hidden sm:block">{displayName}</button>
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20 hidden group-hover:block">
+                                <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('profile'); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">プロフィール設定</a>
+                                <a href="#" onClick={(e) => { e.preventDefault(); onSignOut(); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">ログアウト</a>
+                            </div>
+                       </div>
                     </div>
                   </div>
                 </nav>
@@ -172,37 +223,31 @@
               <main className="container mx-auto p-4 sm:p-8">
                 <div className="bg-white p-6 rounded-lg shadow-md text-center mb-8">
                     <h2 className="text-xl font-semibold mb-4 text-gray-700">ようこそ、{displayName}さん</h2>
-                    <button className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 px-8 text-xl rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-xl flex items-center mx-auto">
+                    <button onClick={() => onNavigate('create')} className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 px-8 text-xl rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-xl flex items-center mx-auto">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                       新規作成を開始
                     </button>
                 </div>
-                
                 {/* ★★★ 修正点 ★★★ */}
-                {/* 履歴セクション全体をカードで囲む */}
+                {/* 履歴セクションを復元 */}
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     <div className="flex justify-between items-center mb-4">
                         <h1 className="text-2xl sm:text-3xl font-bold">作成履歴</h1>
                     </div>
-
                     <div className="mb-4">
                         <input 
                             type="text"
                             placeholder="物件番号、物件名、作成者名で検索..."
                             value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
-
                     <div className="overflow-x-auto">
                         <ul className="divide-y divide-gray-200 min-w-[600px]">
-                            {paginatedHistory.length > 0 ? paginatedHistory.map(item => (
+                            {filteredHistory.length > 0 ? paginatedHistory.map(item => (
                                 <li key={item.id} className="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                                     <div className="flex items-center mb-2 sm:mb-0">
                                         <span className="text-gray-400 mr-3">📋</span>
@@ -221,8 +266,6 @@
                             )) : (
                                 <li className="p-8 text-center text-gray-500">
                                     作成された履歴はありません。
-                                    <br />
-                                    まずは「新規作成」から間取り図を作成してみましょう。
                                 </li>
                             )}
                         </ul>
@@ -230,29 +273,11 @@
                     
                     {totalPages > 1 && (
                         <div className="flex justify-center items-center mt-6 space-x-2">
-                            <button 
-                                onClick={() => handlePageChange(currentPage - 1)} 
-                                disabled={currentPage === 1}
-                                className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                前へ
-                            </button>
+                            <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">前へ</button>
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                <button 
-                                    key={page}
-                                    onClick={() => handlePageChange(page)}
-                                    className={`px-4 py-2 border rounded-md text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                                >
-                                    {page}
-                                </button>
+                                <button key={page} onClick={() => handlePageChange(page)} className={`px-4 py-2 border rounded-md text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{page}</button>
                             ))}
-                            <button 
-                                onClick={() => handlePageChange(currentPage + 1)} 
-                                disabled={currentPage === totalPages}
-                                className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                次へ
-                            </button>
+                            <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">次へ</button>
                         </div>
                     )}
                 </div>
@@ -262,24 +287,211 @@
         };
 
         // ==================================================================================
-        // 5. メインアプリケーションコンポーネント (認証ロジックをここに集約)
+        // 6. 間取り作成画面コンポーネント
+        // ==================================================================================
+        const CreatePage = ({ onNavigate }) => {
+            {/* ★★★ 修正点 ★★★ */}
+            {/* 新規作成画面のコンテンツを復元 */}
+            const [file, setFile] = useState(null);
+            const [isDragOver, setIsDragOver] = useState(false);
+            const [previewUrl, setPreviewUrl] = useState(null);
+
+            const handleFileSelect = (selectedFile) => {
+                if (!selectedFile) return;
+                setFile(selectedFile);
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+                if (selectedFile.type.startsWith('image/')) {
+                    setPreviewUrl(URL.createObjectURL(selectedFile));
+                } else if (selectedFile.type === 'application/pdf') {
+                    setPreviewUrl('https://placehold.co/100x100/EF4444/FFFFFF?text=PDF');
+                } else {
+                    setPreviewUrl('https://placehold.co/100x100/F9FAFB/9CA3AF?text=File');
+                }
+            };
+
+            const handleFileChange = (e) => { handleFileSelect(e.target.files[0]); };
+            const handleDrop = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files[0]); };
+            const handleDragEvents = (e) => { e.preventDefault(); e.stopPropagation(); };
+            const handleDragEnter = (e) => { handleDragEvents(e); setIsDragOver(true); };
+            const handleDragLeave = (e) => { handleDragEvents(e); setIsDragOver(false); };
+            
+            const removeFile = () => {
+                setFile(null);
+                setPreviewUrl(null);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    <header className="bg-white shadow-sm">
+                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <h1 className="text-xl font-bold text-gray-800">間取り図の新規作成</h1>
+                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
+                            </div>
+                        </nav>
+                    </header>
+                    <main className="container mx-auto p-4 sm:p-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold border-b pb-2 mb-4">Step 1: 図面ファイルアップロード</h3>
+                                    {!file ? (
+                                        <div 
+                                            className={`file-upload-area p-8 text-center rounded-lg ${isDragOver ? 'drag-over' : ''}`}
+                                            onDrop={handleDrop} onDragOver={handleDragEnter} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
+                                        >
+                                            <input type="file" id="file-upload" className="hidden" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
+                                            <label htmlFor="file-upload" className="cursor-pointer">
+                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                                <p className="mt-2 text-blue-600 font-semibold">ファイルを選択</p>
+                                                <p className="mt-1 text-sm text-gray-500">または、ここにドラッグ＆ドロップ</p>
+                                                <p className="mt-1 text-xs text-gray-400">PDF, JPG, PNG形式に対応</p>
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 border rounded-lg">
+                                            <p className="text-sm font-medium text-gray-700 mb-2">アップロード済みファイル:</p>
+                                            <div className="flex items-center space-x-4">
+                                                <img src={previewUrl} alt="Preview" className="h-20 w-20 object-cover rounded-md border" />
+                                                <div className="flex-1">
+                                                    <p className="text-sm text-gray-800 font-semibold">{file.name}</p>
+                                                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+                                                </div>
+                                                <button onClick={removeFile} className="text-red-500 hover:text-red-700">削除</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold border-b pb-2 mb-4">Step 2: 物件情報と補足の入力</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label htmlFor="prop-id" className="text-sm font-medium text-gray-700">物件番号</label>
+                                            <input type="text" id="prop-id" className="w-full p-2 mt-1 border border-gray-300 rounded-md" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="prop-name" className="text-sm font-medium text-gray-700">物件名</label>
+                                            <input type="text" id="prop-name" className="w-full p-2 mt-1 border border-gray-300 rounded-md" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="prop-memo" className="text-sm font-medium text-gray-700">補足情報 (例: 3LDK 洋6×2 LDK15床)</label>
+                                            <textarea id="prop-memo" rows="3" className="w-full p-2 mt-1 border border-gray-300 rounded-md"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors">間取り図を生成</button>
+                            </div>
+                            <div className="bg-white p-6 rounded-lg shadow-md flex items-center justify-center min-h-[400px]">
+                                <div className="text-center text-gray-400">
+                                    <p>ここに生成された間取り図が表示されます</p>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+        
+        // ==================================================================================
+        // 7. プロフィール設定画面コンポーネント
+        // ==================================================================================
+        const ProfilePage = ({ user, onNavigate, onProfileUpdate }) => {
+            const [name, setName] = useState(user.attributes.name || '');
+            const [email, setEmail] = useState(user.attributes.email || '');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [success, setSuccess] = useState('');
+            const isMounted = useRef(true);
+
+            useEffect(() => {
+                isMounted.current = true;
+                return () => {
+                    isMounted.current = false;
+                };
+            }, []);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!isMounted.current) return;
+                setLoading(true);
+                setError('');
+                setSuccess('');
+                try {
+                    await onProfileUpdate({ name, email });
+                    if (isMounted.current) {
+                        setSuccess('プロフィールを更新しました。メールアドレスを変更した場合は、認証が必要です。');
+                    }
+                } catch(err) {
+                    if (isMounted.current) {
+                        setError(err.message || '更新に失敗しました。');
+                    }
+                } finally {
+                    if (isMounted.current) {
+                        setLoading(false);
+                    }
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                     <header className="bg-white shadow-sm">
+                        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <h1 className="text-xl font-bold text-gray-800">プロフィール設定</h1>
+                                <button onClick={() => onNavigate('dashboard')} className="text-sm text-blue-600 hover:underline">ダッシュボードに戻る</button>
+                            </div>
+                        </nav>
+                    </header>
+                    <main className="container mx-auto p-4 sm:p-8">
+                        <div className="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-md">
+                             <form onSubmit={handleSubmit} className="space-y-6">
+                                <div>
+                                    <label htmlFor="profile-name" className="text-sm font-bold text-gray-600 block">お名前</label>
+                                    <input id="profile-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="profile-email" className="text-sm font-bold text-gray-600 block">メールアドレス</label>
+                                    <input id="profile-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 mt-1 bg-gray-100 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                                </div>
+                                {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+                                {success && <p className="text-sm text-green-500 text-center">{success}</p>}
+                                <div>
+                                    <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
+                                        {loading ? '更新中...' : '変更を保存'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+
+        // ==================================================================================
+        // 8. メインアプリケーションコンポーネント
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
           const [loading, setLoading] = useState(false);
           const [error, setError] = useState('');
-          const [tempUser, setTempUser] = useState(null);
+          const [view, setView] = useState('login'); 
+          const [verificationEmail, setVerificationEmail] = useState('');
 
-          useEffect(() => {
-            const checkCurrentUser = async () => {
+          const fetchUser = async () => {
               try {
                 const currentUser = await Auth.currentAuthenticatedUser({ bypassCache: true });
                 setUser(currentUser);
+                setView('dashboard');
               } catch (error) {
                 setUser(null);
+                setView('login');
               }
-            };
-            checkCurrentUser();
+          };
+
+          useEffect(() => {
+            fetchUser();
           }, []);
 
           const handleLogin = async (email, password) => {
@@ -287,12 +499,9 @@
             setLoading(true);
             setError('');
             try {
-              const cognitoUser = await Auth.signIn(email, password);
-              if (cognitoUser.challengeName === 'NEW_PASSWORD_REQUIRED') {
-                setTempUser(cognitoUser);
-              } else {
-                setUser(cognitoUser);
-              }
+              const loggedInUser = await Auth.signIn(email, password);
+              setUser(loggedInUser);
+              setView('dashboard');
             } catch (err) {
               setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
             } finally {
@@ -300,34 +509,56 @@
             }
           };
 
-          const handleNewPasswordSubmit = async (newPassword) => {
+          const handleSignUp = async (name, email, password) => {
             if (loading) return;
             setLoading(true);
             setError('');
             try {
-              const requiredAttributes = tempUser.challengeParam.userAttributes;
-              delete requiredAttributes.email_verified;
-              delete requiredAttributes.email;
-
-              const loggedInUser = await Auth.completeNewPassword(
-                tempUser,
-                newPassword,
-                requiredAttributes
-              );
-              setUser(loggedInUser);
-              setTempUser(null);
+                await Auth.signUp({ username: email, password, attributes: { name, email } });
+                setVerificationEmail(email);
+                setView('verify');
             } catch (err) {
-              setError(err.message || 'パスワードの設定に失敗しました。');
+                setError(err.message || '登録に失敗しました。');
             } finally {
-              setLoading(false);
+                setLoading(false);
             }
+          };
+
+          const handleVerification = async (code) => {
+            if (loading) return;
+            setLoading(true);
+            setError('');
+            try {
+                await Auth.confirmSignUp(verificationEmail, code);
+                alert('認証が完了しました。ログインしてください。');
+                setView('login');
+            } catch (err) {
+                setError(err.message || '認証に失敗しました。');
+            } finally {
+                setLoading(false);
+            }
+          };
+          
+          const handleResendCode = async () => {
+              try {
+                  await Auth.resendSignUp(verificationEmail);
+                  alert('認証コードを再送信しました。');
+              } catch (err) {
+                  alert(err.message || '再送信に失敗しました。');
+              }
+          };
+          
+          const handleProfileUpdate = async (attributes) => {
+              const currentUser = await Auth.currentAuthenticatedUser();
+              await Auth.updateUserAttributes(currentUser, attributes);
+              await fetchUser();
           };
 
           const handleSignOut = async () => {
             try {
               await Auth.signOut();
               setUser(null);
-              setTempUser(null);
+              setView('login');
             } catch (error) {
               console.error('Error signing out: ', error);
             }
@@ -337,13 +568,28 @@
             return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
           }
 
+          if (view === 'login') {
+            return <LoginPage onLogin={handleLogin} onNavigate={setView} loading={loading} error={error} />;
+          }
+          if (view === 'signUp') {
+            return <SignUpPage onSignUp={handleSignUp} onNavigate={setView} loading={loading} error={error} />;
+          }
+          if (view === 'verify') {
+            return <VerificationPage onVerify={handleVerification} onResend={handleResendCode} email={verificationEmail} loading={loading} error={error} />;
+          }
           if (user) {
-            return <DashboardPage user={user} onSignOut={handleSignOut} />;
+              if (view === 'dashboard') {
+                return <DashboardPage user={user} onSignOut={handleSignOut} onNavigate={setView} />;
+              }
+              if (view === 'create') {
+                return <CreatePage onNavigate={setView} />;
+              }
+              if (view === 'profile') {
+                return <ProfilePage user={user} onNavigate={setView} onProfileUpdate={handleProfileUpdate} />;
+              }
           }
-          if (tempUser) {
-            return <NewPasswordRequiredPage onSubmit={handleNewPasswordSubmit} loading={loading} error={error} />;
-          }
-          return <LoginPage onLogin={handleLogin} loading={loading} error={error} />;
+          
+          return <LoginPage onLogin={handleLogin} onNavigate={setView} loading={loading} error={error} />;
         }
 
         ReactDOM.render(<App />, document.getElementById('root'));
