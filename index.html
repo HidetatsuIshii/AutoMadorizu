@@ -62,7 +62,8 @@
         };
         Amplify.configure(awsconfig);
 
-        // ★ 変更点: ログ記録用の共通関数
+        // ==================================================================================
+        // 2. ログ記録用の共通関数
         // ==================================================================================
         const logAction = async (action, user, details = {}) => {
             const API_ENDPOINT = 'https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1';
@@ -75,7 +76,6 @@
             };
 
             try {
-                // ログ記録はバックグラウンドで実行し、失敗してもユーザー操作を妨げない
                 await fetch(`${API_ENDPOINT}/logs`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -87,8 +87,7 @@
         };
 
         // ==================================================================================
-        // (省略) 2. LoginPage, 3. SignUpPage, 4. VerificationPage, 5. DashboardPage コンポーネント
-        // ※これらのコンポーネントは変更ありません
+        // 3. ログイン画面コンポーネント
         // ==================================================================================
         const LoginPage = ({ onLogin, onNavigate, loading, error }) => {
           const [email, setEmail] = useState('');
@@ -128,6 +127,10 @@
             </div>
           );
         };
+        
+        // ==================================================================================
+        // 4. ユーザー登録画面コンポーネント
+        // ==================================================================================
         const SignUpPage = ({ onSignUp, onNavigate, loading, error }) => {
             const [name, setName] = useState('');
             const [email, setEmail] = useState('');
@@ -171,6 +174,10 @@
                 </div>
             );
         };
+
+        // ==================================================================================
+        // 5. メール認証画面コンポーネント
+        // ==================================================================================
         const VerificationPage = ({ onVerify, onResend, email, loading, error }) => {
             const [code, setCode] = useState('');
 
@@ -205,6 +212,10 @@
                 </div>
             );
         };
+        
+        // ==================================================================================
+        // 6. ダッシュボード画面コンポーネント
+        // ==================================================================================
         const DashboardPage = ({ user, onSignOut, onNavigate }) => {
           const displayName = user && user.attributes ? (user.attributes.name || user.attributes.email) : '...';
           const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -330,68 +341,84 @@
         };
 
         // ==================================================================================
-        // 6. 管理者ページコンポーネント
+        // 7. 管理者ページコンポーネント (★修正版)
         // ==================================================================================
         const AdminPage = ({ onNavigate }) => {
             const [activeTab, setActiveTab] = useState('users');
-            const [users, setUsers] = useState([]);
-            const [isLoading, setIsLoading] = useState(true);
-            const [error, setError] = useState('');
-            const [searchTerm, setSearchTerm] = useState('');
             
+            // User Management State
+            const [users, setUsers] = useState([]);
+            const [isUsersLoading, setIsUsersLoading] = useState(false);
+            const [usersError, setUsersError] = useState('');
+            const [searchTerm, setSearchTerm] = useState('');
             const [modal, setModal] = useState({ type: null, user: null });
             
+            // Log Viewer State
+            const [logs, setLogs] = useState([]);
+            const [isLogsLoading, setIsLogsLoading] = useState(false);
+            const [logsError, setLogsError] = useState('');
+            const [logMonth, setLogMonth] = useState(new Date().toISOString().substring(0, 7));
+
             const API_ENDPOINT = 'https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1';
 
             const fetchUsers = async () => {
-                setIsLoading(true);
-                setError('');
+                setIsUsersLoading(true);
+                setUsersError('');
                 try {
                     const session = await Auth.currentSession();
                     const jwtToken = session.getIdToken().getJwtToken();
-
-                    const response = await fetch(`${API_ENDPOINT}/users`, {
-                        headers: { Authorization: jwtToken },
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'ユーザー情報の取得に失敗しました。');
-                    }
+                    const response = await fetch(`${API_ENDPOINT}/users`, { headers: { Authorization: jwtToken } });
+                    if (!response.ok) throw new Error('ユーザー情報の取得に失敗しました。');
                     const data = await response.json();
                     setUsers(data);
                 } catch (err) {
-                    setError(err.message);
+                    setUsersError(err.message);
                 } finally {
-                    setIsLoading(false);
+                    setIsUsersLoading(false);
+                }
+            };
+
+            const fetchLogs = async () => {
+                setIsLogsLoading(true);
+                setLogsError('');
+                try {
+                    const session = await Auth.currentSession();
+                    const jwtToken = session.getIdToken().getJwtToken();
+                    const response = await fetch(`${API_ENDPOINT}/logs?month=${logMonth}`, {
+                        headers: { Authorization: jwtToken },
+                    });
+                    if (!response.ok) throw new Error('ログの取得に失敗しました。');
+                    const data = await response.json();
+                    setLogs(data);
+                } catch (err) {
+                    setLogsError(err.message);
+                } finally {
+                    setIsLogsLoading(false);
                 }
             };
 
             useEffect(() => {
                 if (activeTab === 'users') {
                     fetchUsers();
+                } else if (activeTab === 'logs') {
+                    fetchLogs();
                 }
-            }, [activeTab]);
+            }, [activeTab, logMonth]);
 
             const handleUpdateUserStatus = async (user, action) => {
                 try {
                     const session = await Auth.currentSession();
                     const jwtToken = session.getIdToken().getJwtToken();
                     const username = user.email;
-
                     await fetch(`${API_ENDPOINT}/users/${encodeURIComponent(username)}`, {
                         method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: jwtToken,
-                        },
+                        headers: { 'Content-Type': 'application/json', Authorization: jwtToken },
                         body: JSON.stringify({ action: action }),
                     });
-                    
                     fetchUsers();
                     setModal({ type: null, user: null });
                 } catch (err) {
-                    setError(err.message);
+                    setUsersError(err.message);
                 }
             };
 
@@ -400,26 +427,19 @@
                     const session = await Auth.currentSession();
                     const jwtToken = session.getIdToken().getJwtToken();
                     const username = user.email;
-
                     await fetch(`${API_ENDPOINT}/users/${encodeURIComponent(username)}`, {
                         method: 'DELETE',
-                        headers: {
-                            Authorization: jwtToken,
-                        },
+                        headers: { Authorization: jwtToken },
                     });
-
                     setUsers(prevUsers => prevUsers.filter(u => u.userId !== user.userId));
                     setModal({ type: null, user: null });
                 } catch (err) {
-                    setError(err.message);
+                    setUsersError(err.message);
                 }
             };
-
-            const filteredUsers = users.filter(user =>
-                (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-            );
-
+            
+            const filteredUsers = users.filter(user => (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) || (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())));
+            
             const getStatusLabel = (status) => {
                 switch (status) {
                     case 'CONFIRMED': return '利用可能';
@@ -443,24 +463,33 @@
                     default: return 'bg-gray-100 text-gray-800';
                 }
             };
+            
+            const getActionLabel = (action) => {
+                const labels = {
+                    'LOGIN_SUCCESS': 'ログイン成功',
+                    'LOGIN_FAILURE': 'ログイン失敗',
+                    'LOGOUT': 'ログアウト',
+                    'PROFILE_UPDATE': 'プロフィール変更',
+                    'CREATE_STARTED': '新規作成開始',
+                    'GENERATE_FLOORPLAN': '間取り図生成',
+                    'PREVIEW_FLOORPLAN': 'プレビュー表示',
+                    'DOWNLOAD_PDF': 'PDFダウンロード',
+                    'ADMIN_UPDATE_USER': 'ユーザー状態変更',
+                    'ADMIN_DELETE_USER': 'ユーザー削除',
+                };
+                return labels[action] || action;
+            };
+
+            const handleMonthChange = (increment) => {
+                const currentDate = new Date(`${logMonth}-02`);
+                currentDate.setMonth(currentDate.getMonth() + increment);
+                setLogMonth(currentDate.toISOString().substring(0, 7));
+            };
 
             return (
                 <>
-                    {modal.type === 'edit' && modal.user && (
-                        <EditUserModal 
-                            user={modal.user}
-                            onClose={() => setModal({ type: null, user: null })}
-                            onUpdate={handleUpdateUserStatus}
-                            getStatusLabel={getStatusLabel}
-                        />
-                    )}
-                    {modal.type === 'delete' && modal.user && (
-                        <DeleteUserModal
-                            user={modal.user}
-                            onClose={() => setModal({ type: null, user: null })}
-                            onConfirm={handleDeleteUser}
-                        />
-                    )}
+                    {modal.type === 'edit' && modal.user && ( <EditUserModal user={modal.user} onClose={() => setModal({ type: null, user: null })} onUpdate={handleUpdateUserStatus} getStatusLabel={getStatusLabel}/> )}
+                    {modal.type === 'delete' && modal.user && ( <DeleteUserModal user={modal.user} onClose={() => setModal({ type: null, user: null })} onConfirm={handleDeleteUser}/> )}
 
                     <div className="min-h-screen bg-gray-100">
                         <header className="bg-white shadow-sm">
@@ -474,61 +503,97 @@
                         <main className="container mx-auto p-4 sm:p-8">
                             <div className="mb-4 border-b border-gray-200">
                                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                                    <button onClick={() => setActiveTab('users')} className={`${activeTab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>
-                                        ユーザー管理
-                                    </button>
-                                    <button onClick={() => setActiveTab('logs')} className={`${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>
-                                        利用状況ログ
-                                    </button>
+                                    <button onClick={() => setActiveTab('users')} className={`${activeTab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>ユーザー管理</button>
+                                    <button onClick={() => setActiveTab('logs')} className={`${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>利用状況ログ</button>
                                 </nav>
                             </div>
 
-                            {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
-
-                            {isLoading ? (
-                                <div className="text-center p-8">読み込み中...</div>
-                            ) : activeTab === 'users' ? (
-                                <div className="bg-white p-6 rounded-lg shadow-md">
-                                    <h2 className="text-2xl font-bold mb-4">ユーザー一覧</h2>
-                                    <div className="mb-4">
-                                        <input type="text" placeholder="名前、メールアドレスで検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名前</th>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メールアドレス</th>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン日時</th>
-                                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">アクション</span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {filteredUsers.map(user => (
-                                                    <tr key={user.userId}>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(user.status)}`}>
-                                                                {getStatusLabel(user.status)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.lastLogin ? new Date(user.lastLogin).toLocaleString('ja-JP') : 'N/A'}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            <button onClick={() => setModal({ type: 'edit', user: user })} className="text-blue-600 hover:text-blue-900">編集</button>
-                                                            <button onClick={() => setModal({ type: 'delete', user: user })} className="text-red-600 hover:text-red-900 ml-4">削除</button>
-                                                        </td>
+                            {activeTab === 'users' && (
+                                <>
+                                {usersError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{usersError}</div>}
+                                {isUsersLoading ? ( <div className="text-center p-8">読み込み中...</div> ) : (
+                                    <div className="bg-white p-6 rounded-lg shadow-md">
+                                        <h2 className="text-2xl font-bold mb-4">ユーザー一覧</h2>
+                                        <div className="mb-4">
+                                            <input type="text" placeholder="名前、メールアドレスで検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名前</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メールアドレス</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン日時</th>
+                                                        <th scope="col" className="relative px-6 py-3"><span className="sr-only">アクション</span></th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-200">
+                                                    {filteredUsers.map(user => (
+                                                        <tr key={user.userId}>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(user.status)}`}>
+                                                                    {getStatusLabel(user.status)}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.lastLogin ? new Date(user.lastLogin).toLocaleString('ja-JP') : 'N/A'}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                                <button onClick={() => setModal({ type: 'edit', user: user })} className="text-blue-600 hover:text-blue-900">編集</button>
+                                                                <button onClick={() => setModal({ type: 'delete', user: user })} className="text-red-600 hover:text-red-900 ml-4">削除</button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
+                                )}
+                                </>
+                            )}
+
+                            {activeTab === 'logs' && (
                                 <div className="bg-white p-6 rounded-lg shadow-md">
-                                    <h2 className="text-2xl font-bold mb-4">利用状況ログ</h2>
-                                    <p className="text-gray-600">現在開発中です。</p>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h2 className="text-2xl font-bold">利用状況ログ</h2>
+                                        <div className="flex items-center space-x-2">
+                                            <button onClick={() => handleMonthChange(-1)} className="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300">‹ 前月</button>
+                                            <span className="font-semibold text-lg">{logMonth}</span>
+                                            <button onClick={() => handleMonthChange(1)} className="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300">次月 ›</button>
+                                        </div>
+                                    </div>
+                                    
+                                    {logsError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{logsError}</div>}
+                                    
+                                    {isLogsLoading ? (<div className="text-center p-8">読み込み中...</div>) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日時</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ユーザー名</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IPアドレス</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-200">
+                                                    {logs.length > 0 ? logs.map(log => (
+                                                        <tr key={log.logId}>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(log.timestamp).toLocaleString('ja-JP')}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.userName}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getActionLabel(log.action)}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.ipAddress}</td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr>
+                                                            <td colSpan="4" className="px-6 py-8 text-center text-gray-500">この月のログはありません。</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </main>
@@ -537,6 +602,9 @@
             );
         };
 
+        // ==================================================================================
+        // 8. モーダル等のコンポーネント
+        // ==================================================================================
         const EditUserModal = ({ user, onClose, onUpdate, getStatusLabel }) => {
             return (
                 <div className="modal-backdrop">
@@ -579,10 +647,6 @@
             );
         };
         
-        // ==================================================================================
-        // 7. ProfilePage, 8. CreatePage コンポーネント (省略)
-        // ※これらのコンポーネントは変更ありません
-        // ==================================================================================
         const ProfilePage = ({ user, onNavigate, onProfileUpdate }) => {
             const [name, setName] = useState(user.attributes.name || '');
             const [email, setEmail] = useState(user.attributes.email || '');
@@ -654,6 +718,7 @@
                 </div>
             );
         };
+
         const CreatePage = ({ onNavigate }) => {
             const [file, setFile] = useState(null);
             const [isDragOver, setIsDragOver] = useState(false);
@@ -787,12 +852,10 @@
             setError('');
             try {
               const loggedInUser = await Auth.signIn(email, password);
-              // ★ 変更点: ログイン成功ログを記録
               await logAction('LOGIN_SUCCESS', loggedInUser);
               setUser(loggedInUser);
               setView('dashboard');
             } catch (err) {
-              // ★ 変更点: ログイン失敗ログを記録
               await logAction('LOGIN_FAILURE', null, { userName: email, error: err.message });
               setError(err.message || 'メールアドレスまたはパスワードが正しくありません。');
             } finally {
@@ -814,7 +877,7 @@
                 setLoading(false);
             }
           };
-
+          
           const handleVerification = async (code) => {
             if (loading) return;
             setLoading(true);
@@ -847,7 +910,6 @@
 
           const handleSignOut = async () => {
             try {
-              // ★ 変更点: ログアウト操作のログを記録
               await logAction('LOGOUT', user);
               await Auth.signOut();
               setUser(null);
@@ -892,22 +954,3 @@
     </script>
 </body>
 </html>
-```
-
-### 今回の変更点
-
--   **ログ記録用の共通関数 `logAction` を追加**:
-    今後、様々な場所からログを送信するために、API呼び出しをカプセル化した便利な共通関数を用意しました。
--   **認証イベントのログを記録**:
-    -   `handleLogin`関数を修正し、ログインが成功した時 (`LOGIN_SUCCESS`) と失敗した時 (`LOGIN_FAILURE`) の両方で、`logAction`を呼び出してログを記録するようにしました。
-    -   `handleSignOut`関数を修正し、ユーザーがログアウトする直前に`LOGOUT`のログを記録するようにしました。
-
-### 次のステップ
-
-1.  **動作確認**:
-    一度、テストユーザーで**ログイン**、**ログアウト**、そして**わざとパスワードを間違えてログイン失敗**を試してみてください。
-2.  **DynamoDBの確認**:
-    AWSコンソールでDynamoDBの`AutoMadorizu-Logs`テーブルを開き、「テーブルアイテムを検索」を実行して、対応するログが記録されているかご確認ください。`ipAddress`も記録されているはずです。
-
-この確認が取れましたら、【フェーズ3】の**管理者ページでのログ表示機能の実装**に進みます。
-引き続きよろしくお願いいたし
