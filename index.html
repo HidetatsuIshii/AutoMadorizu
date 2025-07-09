@@ -48,17 +48,24 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        const { Amplify, Auth } = window.aws_amplify;
+        const { Amplify, Auth, Storage } = window.aws_amplify;
 
         // ==================================================================================
         // 1. AWS Amplifyの設定
         // ==================================================================================
         const awsconfig = {
           Auth: {
+            identityPoolId: 'ap-northeast-1:f7a257e9-3de2-4d6a-8a12-3241e6f9e4b1',
             region: 'ap-northeast-1',
             userPoolId: 'ap-northeast-1_fH3jt4wg6',
             userPoolWebClientId: '1nhvf8pe01vbhb1cjmng8p8n22',
           },
+          Storage: {
+              AWSS3: {
+                  bucket: 'automadorizu-upload-891377349958', 
+                  region: 'ap-northeast-1',
+              }
+          }
         };
         Amplify.configure(awsconfig);
 
@@ -341,19 +348,17 @@
         };
 
         // ==================================================================================
-        // 7. 管理者ページコンポーネント (★修正版)
+        // 7. 管理者ページコンポーネント
         // ==================================================================================
         const AdminPage = ({ onNavigate }) => {
             const [activeTab, setActiveTab] = useState('users');
             
-            // User Management State
             const [users, setUsers] = useState([]);
             const [isUsersLoading, setIsUsersLoading] = useState(false);
             const [usersError, setUsersError] = useState('');
             const [searchTerm, setSearchTerm] = useState('');
             const [modal, setModal] = useState({ type: null, user: null });
             
-            // Log Viewer State
             const [logs, setLogs] = useState([]);
             const [isLogsLoading, setIsLogsLoading] = useState(false);
             const [logsError, setLogsError] = useState('');
@@ -719,22 +724,29 @@
             );
         };
 
-        const CreatePage = ({ onNavigate }) => {
+        const CreatePage = ({ onNavigate, user }) => {
             const [file, setFile] = useState(null);
             const [isDragOver, setIsDragOver] = useState(false);
             const [previewUrl, setPreviewUrl] = useState(null);
+            
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analysisResult, setAnalysisResult] = useState(null);
+            const [analysisError, setAnalysisError] = useState('');
+            
+            const API_ENDPOINT = 'https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1';
 
             const handleFileSelect = (selectedFile) => {
                 if (!selectedFile) return;
                 setFile(selectedFile);
+                setAnalysisResult(null);
+                setAnalysisError('');
+                
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
 
                 if (selectedFile.type.startsWith('image/')) {
                     setPreviewUrl(URL.createObjectURL(selectedFile));
-                } else if (selectedFile.type === 'application/pdf') {
-                    setPreviewUrl('https://placehold.co/100x100/EF4444/FFFFFF?text=PDF');
                 } else {
-                    setPreviewUrl('https://placehold.co/100x100/F9FAFB/9CA3AF?text=File');
+                    setPreviewUrl(null);
                 }
             };
 
@@ -747,6 +759,55 @@
             const removeFile = () => {
                 setFile(null);
                 setPreviewUrl(null);
+                setAnalysisResult(null);
+                setAnalysisError('');
+            };
+
+            const handleAnalyzeClick = async () => {
+                if (!file) return;
+
+                setIsAnalyzing(true);
+                setAnalysisError('');
+                setAnalysisResult(null);
+
+                try {
+                    const fileName = `${Date.now()}-${file.name}`;
+                    // ★ 修正点: アップロードレベルを 'public' に変更
+                    const stored = await Storage.put(fileName, file, {
+                        level: 'public', 
+                        contentType: file.type,
+                    });
+                    
+                    const session = await Auth.currentSession();
+                    const jwtToken = session.getIdToken().getJwtToken();
+                    
+                    const response = await fetch(`${API_ENDPOINT}/analyze`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: jwtToken,
+                        },
+                        body: JSON.stringify({
+                            bucket: awsconfig.Storage.AWSS3.bucket,
+                            // ★ 修正点: 'public/' プレフィックスをキーに手動で追加
+                            key: `public/${stored.key}`
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'AI分析に失敗しました。');
+                    }
+
+                    const result = await response.json();
+                    setAnalysisResult(result.data);
+
+                } catch (err) {
+                    console.error("Analysis failed:", err);
+                    setAnalysisError(err.message);
+                } finally {
+                    setIsAnalyzing(false);
+                }
             };
 
             return (
@@ -769,12 +830,12 @@
                                             className={`file-upload-area p-8 text-center rounded-lg ${isDragOver ? 'drag-over' : ''}`}
                                             onDrop={handleDrop} onDragOver={handleDragEnter} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
                                         >
-                                            <input type="file" id="file-upload" className="hidden" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
+                                            <input type="file" id="file-upload" className="hidden" onChange={handleFileChange} accept=".jpg,.jpeg,.png" />
                                             <label htmlFor="file-upload" className="cursor-pointer">
                                                 <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                                 <p className="mt-2 text-blue-600 font-semibold">ファイルを選択</p>
                                                 <p className="mt-1 text-sm text-gray-500">または、ここにドラッグ＆ドロップ</p>
-                                                <p className="mt-1 text-xs text-gray-400">PDF, JPG, PNG形式に対応</p>
+                                                <p className="mt-1 text-xs text-gray-400">JPG, PNG形式に対応</p>
                                             </label>
                                         </div>
                                     ) : (
@@ -791,29 +852,45 @@
                                         </div>
                                     )}
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold border-b pb-2 mb-4">Step 2: 物件情報と補足の入力</h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label htmlFor="prop-id" className="text-sm font-medium text-gray-700">物件番号</label>
-                                            <input type="text" id="prop-id" className="w-full p-2 mt-1 border border-gray-300 rounded-md" />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="prop-name" className="text-sm font-medium text-gray-700">物件名</label>
-                                            <input type="text" id="prop-name" className="w-full p-2 mt-1 border border-gray-300 rounded-md" />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="prop-memo" className="text-sm font-medium text-gray-700">補足情報 (例: 3LDK 洋6×2 LDK15床)</label>
-                                            <textarea id="prop-memo" rows="3" className="w-full p-2 mt-1 border border-gray-300 rounded-md"></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors">間取り図を生成</button>
+                                <button 
+                                    onClick={handleAnalyzeClick}
+                                    disabled={!file || isAnalyzing}
+                                    className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    {isAnalyzing ? '分析中...' : '間取り図を分析'}
+                                </button>
+                                {analysisError && <p className="text-sm text-red-500 text-center">{analysisError}</p>}
                             </div>
-                            <div className="bg-white p-6 rounded-lg shadow-md flex items-center justify-center min-h-[400px]">
-                                <div className="text-center text-gray-400">
-                                    <p>ここに生成された間取り図が表示されます</p>
-                                </div>
+                            
+                            <div className="bg-white p-6 rounded-lg shadow-md flex items-center justify-center min-h-[400px] relative">
+                                {!previewUrl ? (
+                                    <div className="text-center text-gray-400">
+                                        <p>ここに分析結果が表示されます</p>
+                                    </div>
+                                ) : (
+                                    <div className="relative w-full h-full">
+                                        <img src={previewUrl} alt="Analysis Preview" className="max-w-full max-h-full object-contain" />
+                                        {analysisResult && analysisResult.map((item, index) => (
+                                            <div
+                                                key={index}
+                                                className="absolute border-2 border-red-500 bg-red-500 bg-opacity-20"
+                                                style={{
+                                                    left: `${item.geometry.Left * 100}%`,
+                                                    top: `${item.geometry.Top * 100}%`,
+                                                    width: `${item.geometry.Width * 100}%`,
+                                                    height: `${item.geometry.Height * 100}%`,
+                                                }}
+                                            >
+                                                <span className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 rounded-sm">{item.text}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {isAnalyzing && (
+                                    <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
+                                        <p className="text-lg font-semibold">AIが分析中です...</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </main>
@@ -822,7 +899,7 @@
         };
 
         // ==================================================================================
-        // 9. メインアプリケーションコンポーネント
+        // 10. メインアプリケーションコンポーネント (App)
         // ==================================================================================
         function App() {
           const [user, setUser] = useState(undefined);
@@ -937,7 +1014,7 @@
                 return <DashboardPage user={user} onSignOut={handleSignOut} onNavigate={setView} />;
               }
               if (view === 'create') {
-                return <CreatePage onNavigate={setView} />;
+                return <CreatePage onNavigate={setView} user={user} />;
               }
               if (view === 'profile') {
                 return <ProfilePage user={user} onNavigate={setView} onProfileUpdate={handleProfileUpdate} />;
