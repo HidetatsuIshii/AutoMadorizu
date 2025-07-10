@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>AWS SDK Test</title>
+</head>
+<body>
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1648.0.min.js"></script>
+  <script>
+    window.onload = () => {
+      console.log("AWS:", typeof AWS);
+      console.log("AWS.Textract:", typeof AWS.Textract);
+
+      if (typeof AWS === "undefined" || typeof AWS.Textract === "undefined") {
+        alert("AWS SDK または Textract が正しく読み込まれていません。");
+      } else {
+        alert("AWS SDK と Textract は正しく読み込まれています。");
+      }
+    };
+  </script>
+</body>
+</html>
