@@ -1,22 +1,174 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>AWS SDK Test</title>
+    <meta charset="UTF-8">
+    <title>Textract バックエンド処理テスト</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1648.0.min.js"></script>
-  <script>
-    window.onload = () => {
-      console.log("AWS:", typeof AWS);
-      console.log("AWS.Textract:", typeof AWS.Textract);
+<body class="bg-gray-100">
+    <div id="root" class="container mx-auto p-8"></div>
 
-      if (typeof AWS === "undefined" || typeof AWS.Textract === "undefined") {
-        alert("AWS SDK または Textract が正しく読み込まれていません。");
-      } else {
-        alert("AWS SDK と Textract は正しく読み込まれています。");
-      }
-    };
-  </script>
+    <!-- ライブラリを同期的に読み込み -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/aws-amplify@4/dist/aws-amplify.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Amplify, Auth, Storage } = window.aws_amplify;
+
+        // --- AWS Amplifyの設定 ---
+        const awsconfig = {
+            Auth: {
+                identityPoolId: 'ap-northeast-1:f7a257e9-3de2-4d6a-8a12-3241e6f9e4b1',
+                region: 'ap-northeast-1',
+                userPoolId: 'ap-northeast-1_fH3jt4wg6',
+                userPoolWebClientId: '1nhvf8pe01vbhb1cjmng8p8n22',
+            },
+            Storage: {
+                AWSS3: {
+                    bucket: 'automadorizu-upload-891377349958', 
+                    region: 'ap-northeast-1',
+                }
+            }
+        };
+        Amplify.configure(awsconfig);
+
+        function TextractBackendTest() {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [user, setUser] = useState(null);
+            const [file, setFile] = useState(null);
+            const [status, setStatus] = useState('ログイン待機中...');
+            const [result, setResult] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setIsLoading(true);
+                setStatus('ログイン処理中...');
+                try {
+                    const cognitoUser = await Auth.signIn(email, password);
+                    setUser(cognitoUser);
+                    setStatus('ログイン成功！分析するファイルを選択してください。');
+                } catch (err) {
+                    setStatus(`ログイン失敗: ${err.message}`);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleFileChange = (e) => {
+                setFile(e.target.files[0]);
+            };
+
+            const handleAnalyze = async () => {
+                if (!file) {
+                    setStatus('ファイルが選択されていません。');
+                    return;
+                }
+                setIsLoading(true);
+                setStatus('S3へファイルをアップロード中...');
+                setResult('');
+
+                try {
+                    const fileName = `${Date.now()}-${file.name}`;
+                    // `protected`領域にアップロード
+                    await Storage.put(fileName, file, {
+                        level: 'protected',
+                        contentType: file.type,
+                    });
+                    
+                    setStatus('アップロード成功。サーバーでのOCR処理の完了を待っています...');
+                    
+                    // 結果ファイルをポーリング（定期的に確認）
+                    await pollForResult(fileName);
+
+                } catch (err) {
+                    setStatus(`エラーが発生しました: ${err.message}`);
+                    console.error("Error:", err);
+                    setIsLoading(false);
+                }
+            };
+
+            const pollForResult = async (originalFileName) => {
+                const resultFileName = `${originalFileName}.json`;
+                const maxAttempts = 30; // 最大30回試行 (30 * 4秒 = 120秒)
+                let attempt = 0;
+
+                const intervalId = setInterval(async () => {
+                    if (attempt >= maxAttempts) {
+                        clearInterval(intervalId);
+                        setStatus('エラー: 処理がタイムアウトしました。Lambdaの実行ログを確認してください。');
+                        setIsLoading(false);
+                        return;
+                    }
+                    attempt++;
+                    setStatus(`サーバーでのOCR処理の完了を待っています... (${attempt}/${maxAttempts})`);
+
+                    try {
+                        // 結果ファイルは 'public' レベルで取得を試みる
+                        const resultUrl = await Storage.get(`results/${resultFileName}`, { level: 'public' });
+                        const response = await fetch(resultUrl);
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            clearInterval(intervalId);
+                            setStatus('分析成功！結果を取得しました。');
+                            setResult(JSON.stringify(data, null, 2));
+                            setIsLoading(false);
+                        }
+                    } catch (error) {
+                        // ファイルが存在しない場合は404エラーとなり、catchブロックに入る想定
+                        console.log(`Attempt ${attempt}: Result not ready yet. Error: ${error.message}`);
+                    }
+                }, 4000); // 4秒ごとに確認
+            };
+
+            return (
+                <div className="bg-white p-8 rounded-lg shadow-md">
+                    <h1 className="text-2xl font-bold mb-4">Textract バックエンド処理テスト</h1>
+                    {!user ? (
+                        <form onSubmit={handleLogin}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700 text-sm font-bold mb-2">メールアドレス:</label>
+                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required />
+                            </div>
+                            <div className="mb-6">
+                                <label className="block text-gray-700 text-sm font-bold mb-2">パスワード:</label>
+                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline" required />
+                            </div>
+                            <button type="submit" disabled={isLoading} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400">
+                                {isLoading ? 'ログイン中...' : 'ログイン'}
+                            </button>
+                        </form>
+                    ) : (
+                        <div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700 text-sm font-bold mb-2">画像ファイル:</label>
+                                <input type="file" onChange={handleFileChange} accept="image/jpeg,image/png" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                            </div>
+                            <button onClick={handleAnalyze} disabled={isLoading || !file} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400">
+                                {isLoading ? '処理中...' : '分析実行'}
+                            </button>
+                        </div>
+                    )}
+                    <div className="mt-6">
+                        <h2 className="text-lg font-bold">ステータス:</h2>
+                        <p className="p-2 bg-gray-100 rounded mt-2">{status}</p>
+                    </div>
+                    {result && (
+                        <div className="mt-6">
+                            <h2 className="text-lg font-bold">分析結果:</h2>
+                            <pre className="p-4 bg-black text-white rounded-md mt-2 overflow-x-auto text-sm">{result}</pre>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<TextractBackendTest />, document.getElementById('root'));
+    </script>
 </body>
 </html>
