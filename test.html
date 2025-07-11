@@ -2,173 +2,423 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Textract バックエンド処理テスト</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>間取り図エディタ</title>
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100">
-    <div id="root" class="container mx-auto p-8"></div>
-
-    <!-- ライブラリを同期的に読み込み -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/aws-amplify@4/dist/aws-amplify.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .editor-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+        }
+        .scroll-wrapper {
+            width: 5000px;
+            height: 5000px;
+            position: relative;
+        }
+        .editor-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            transform-origin: center center;
+        }
+        .editor-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: center center;
+            max-width: 100%;
+            max-height: 100%;
+            pointer-events: none;
+        }
+        .editor-canvas, .editor-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .editor-svg {
+            pointer-events: none;
+        }
+        .editor-canvas {
+            cursor: crosshair;
+        }
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
-        const { Amplify, Auth, Storage } = window.aws_amplify;
+        const { useState, useEffect, useRef, useCallback } = React;
 
-        // --- AWS Amplifyの設定 ---
-        const awsconfig = {
-            Auth: {
-                identityPoolId: 'ap-northeast-1:f7a257e9-3de2-4d6a-8a12-3241e6f9e4b1',
-                region: 'ap-northeast-1',
-                userPoolId: 'ap-northeast-1_fH3jt4wg6',
-                userPoolWebClientId: '1nhvf8pe01vbhb1cjmng8p8n22',
-            },
-            Storage: {
-                AWSS3: {
-                    bucket: 'automadorizu-upload-891377349958', 
-                    region: 'ap-northeast-1',
-                }
-            }
+        const DUMMY_OCR_DATA = {
+            "Blocks": [
+                { "id": "block-1", "type": "LDK", "Text": "LDK 12.5帖", "Geometry": { "BoundingBox": { "Width": 0.25, "Height": 0.05, "Left": 0.4, "Top": 0.5 }}},
+                { "id": "block-2", "type": "洋室", "Text": "洋室 6.0帖", "Geometry": { "BoundingBox": { "Width": 0.2, "Height": 0.05, "Left": 0.1, "Top": 0.2 }}},
+                { "id": "block-3", "type": "浴室", "Text": "浴室", "Geometry": { "BoundingBox": { "Width": 0.1, "Height": 0.04, "Left": 0.7, "Top": 0.2 }}},
+                { "id": "block-4", "type": "収納", "Text": "WIC", "Geometry": { "BoundingBox": { "Width": 0.08, "Height": 0.04, "Left": 0.15, "Top": 0.4 }}}
+            ]
         };
-        Amplify.configure(awsconfig);
 
-        function TextractBackendTest() {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [user, setUser] = useState(null);
-            const [file, setFile] = useState(null);
-            const [status, setStatus] = useState('ログイン待機中...');
-            const [result, setResult] = useState('');
-            const [isLoading, setIsLoading] = useState(false);
+        const ROOM_TYPES = ["LDK", "洋室", "和室", "浴室", "トイレ", "洗面所", "収納", "玄関", "その他"];
+        const SNAP_THRESHOLD = 10;
+        const DEFAULT_WIDTH = 1200;
+        const DEFAULT_HEIGHT = 900;
 
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setIsLoading(true);
-                setStatus('ログイン処理中...');
-                try {
-                    const cognitoUser = await Auth.signIn(email, password);
-                    setUser(cognitoUser);
-                    setStatus('ログイン成功！分析するファイルを選択してください。');
-                } catch (err) {
-                    setStatus(`ログイン失敗: ${err.message}`);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
+        function Editor() {
+            const [imageUrl, setImageUrl] = useState('');
+            const [ocrData, setOcrData] = useState(null);
+            const [svgElements, setSvgElements] = useState([]);
+            
+            const [history, setHistory] = useState([{ ocrData: null, svgElements: [] }]);
+            const [historyIndex, setHistoryIndex] = useState(0);
+
+            const [selectedBlockId, setSelectedBlockId] = useState(null);
+            const [drawingMode, setDrawingMode] = useState(null);
+            const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+            
+            const [wallStartPoint, setWallStartPoint] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [snapValue, setSnapValue] = useState(10); 
+            const [endpointSnap, setEndpointSnap] = useState(null);
+            const [imageOpacity, setImageOpacity] = useState(0.5);
+            const [zoom, setZoom] = useState(0.8);
+            const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+            const [imageScale, setImageScale] = useState(1);
+
+            const imageRef = useRef(null);
+            const canvasRef = useRef(null);
+            const editorAreaRef = useRef(null);
+            const editorContainerRef = useRef(null);
+            
+            const recordHistory = useCallback((newOcrData, newSvgElements) => {
+                const newHistory = history.slice(0, historyIndex + 1);
+                setHistory([...newHistory, { ocrData: newOcrData, svgElements: newSvgElements }]);
+                setHistoryIndex(newHistory.length);
+            }, [history, historyIndex]);
 
             const handleFileChange = (e) => {
-                setFile(e.target.files[0]);
+                const file = e.target.files[0];
+                if (file) {
+                    if (imageUrl) URL.revokeObjectURL(imageUrl);
+                    const newImageUrl = URL.createObjectURL(file);
+                    setImageUrl(newImageUrl);
+                    const initialOcrData = DUMMY_OCR_DATA;
+                    const initialSvgElements = [];
+                    setOcrData(initialOcrData);
+                    setSvgElements(initialSvgElements);
+                    setSelectedBlockId(null);
+                    setWallStartPoint(null);
+                    setHistory([{ ocrData: initialOcrData, svgElements: initialSvgElements }]);
+                    setHistoryIndex(0);
+                }
+            };
+            
+            const selectedBlock = ocrData?.Blocks.find(b => b.id === selectedBlockId);
+
+            const handleBlockUpdate = (field, value) => {
+                const newOcrData = {
+                    ...ocrData,
+                    Blocks: ocrData.Blocks.map(b => b.id === selectedBlockId ? { ...b, [field]: value } : b)
+                };
+                setOcrData(newOcrData);
+                recordHistory(newOcrData, svgElements);
             };
 
-            const handleAnalyze = async () => {
-                if (!file) {
-                    setStatus('ファイルが選択されていません。');
+            const getSnappedPoint = (start, end) => {
+                if (snapValue === 0 || !start) return end;
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const angleRad = Math.atan2(dy, dx);
+                const angleDeg = angleRad * 180 / Math.PI;
+                const snappedAngleDeg = Math.round(angleDeg / snapValue) * snapValue;
+                const snappedAngleRad = snappedAngleDeg * Math.PI / 180;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return { x: start.x + distance * Math.cos(snappedAngleRad), y: start.y + distance * Math.sin(snappedAngleRad) };
+            };
+
+            const handleCanvasClick = (e) => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                let x = (e.clientX - rect.left) / zoom;
+                let y = (e.clientY - rect.top) / zoom;
+
+                if (endpointSnap) {
+                    x = endpointSnap.x;
+                    y = endpointSnap.y;
+                }
+
+                if (drawingMode === 'wall') {
+                    if (!wallStartPoint) {
+                        setWallStartPoint({ x, y });
+                        setMousePos({ x, y }); 
+                    } else {
+                        const finalEndPoint = endpointSnap ? endpointSnap : getSnappedPoint(wallStartPoint, { x, y });
+                        const newWall = {
+                            id: `wall-${Date.now()}`, type: 'wall',
+                            x1: (wallStartPoint.x / dimensions.width) * 100, y1: (wallStartPoint.y / dimensions.height) * 100,
+                            x2: (finalEndPoint.x / dimensions.width) * 100, y2: (finalEndPoint.y / dimensions.height) * 100,
+                        };
+                        const newSvgElements = [...svgElements, newWall];
+                        setSvgElements(newSvgElements);
+                        recordHistory(ocrData, newSvgElements);
+                        setWallStartPoint(null);
+                    }
                     return;
                 }
-                setIsLoading(true);
-                setStatus('S3へファイルをアップロード中...');
-                setResult('');
-
-                try {
-                    const fileName = `${Date.now()}-${file.name}`;
-                    // `protected`領域にアップロード
-                    await Storage.put(fileName, file, {
-                        level: 'protected',
-                        contentType: file.type,
+                
+                if (drawingMode === 'door') {
+                    const newElement = {
+                        id: `svg-${Date.now()}`, type: 'door',
+                        x: (x / dimensions.width) * 100, y: (y / dimensions.height) * 100,
+                    };
+                    setSvgElements(prev => {
+                        const newElements = [...prev, newElement];
+                        recordHistory(ocrData, newElements);
+                        return newElements;
                     });
-                    
-                    setStatus('アップロード成功。サーバーでのOCR処理の完了を待っています...');
-                    
-                    // 結果ファイルをポーリング（定期的に確認）
-                    await pollForResult(fileName);
-
-                } catch (err) {
-                    setStatus(`エラーが発生しました: ${err.message}`);
-                    console.error("Error:", err);
-                    setIsLoading(false);
+                    return;
                 }
+
+                const clickedBlock = ocrData?.Blocks.find(block => {
+                    const geo = block.Geometry.BoundingBox;
+                    const rectX = geo.Left * dimensions.width;
+                    const rectY = geo.Top * dimensions.height;
+                    const rectWidth = geo.Width * dimensions.width;
+                    const rectHeight = geo.Height * dimensions.height;
+                    return x >= rectX && x <= rectX + rectWidth && y >= rectY && y <= rectY + rectHeight;
+                });
+
+                setSelectedBlockId(clickedBlock ? clickedBlock.id : null);
+                setDrawingMode(null);
+                setWallStartPoint(null);
             };
 
-            const pollForResult = async (originalFileName) => {
-                const resultFileName = `${originalFileName}.json`;
-                const maxAttempts = 30; // 最大30回試行 (30 * 4秒 = 120秒)
-                let attempt = 0;
+            const handleCanvasMouseMove = (e) => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                const currentPos = { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
 
-                const intervalId = setInterval(async () => {
-                    if (attempt >= maxAttempts) {
-                        clearInterval(intervalId);
-                        setStatus('エラー: 処理がタイムアウトしました。Lambdaの実行ログを確認してください。');
-                        setIsLoading(false);
-                        return;
-                    }
-                    attempt++;
-                    setStatus(`サーバーでのOCR処理の完了を待っています... (${attempt}/${maxAttempts})`);
-
-                    try {
-                        // 結果ファイルは 'public' レベルで取得を試みる
-                        const resultUrl = await Storage.get(`results/${resultFileName}`, { level: 'public' });
-                        const response = await fetch(resultUrl);
+                let snappedToEndpoint = null;
+                for (const el of svgElements) {
+                    if (el.type === 'wall') {
+                        const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
+                        const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
+                        const dist1 = Math.sqrt(Math.pow(currentPos.x - p1.x, 2) + Math.pow(currentPos.y - p1.y, 2));
+                        const dist2 = Math.sqrt(Math.pow(currentPos.x - p2.x, 2) + Math.pow(currentPos.y - p2.y, 2));
                         
-                        if (response.ok) {
-                            const data = await response.json();
-                            clearInterval(intervalId);
-                            setStatus('分析成功！結果を取得しました。');
-                            setResult(JSON.stringify(data, null, 2));
-                            setIsLoading(false);
-                        }
-                    } catch (error) {
-                        // ファイルが存在しない場合は404エラーとなり、catchブロックに入る想定
-                        console.log(`Attempt ${attempt}: Result not ready yet. Error: ${error.message}`);
+                        if (dist1 < SNAP_THRESHOLD / zoom) { snappedToEndpoint = p1; break; }
+                        if (dist2 < SNAP_THRESHOLD / zoom) { snappedToEndpoint = p2; break; }
                     }
-                }, 4000); // 4秒ごとに確認
+                }
+                setEndpointSnap(snappedToEndpoint);
+
+                if (wallStartPoint) {
+                    const finalPos = snappedToEndpoint ? snappedToEndpoint : getSnappedPoint(wallStartPoint, currentPos);
+                    setMousePos(finalPos);
+                }
+            };
+            
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (ocrData?.Blocks) {
+                    ocrData.Blocks.forEach(block => {
+                        const geo = block.Geometry.BoundingBox;
+                        const rectX = geo.Left * dimensions.width;
+                        const rectY = geo.Top * dimensions.height;
+                        const rectWidth = geo.Width * dimensions.width;
+                        const rectHeight = geo.Height * dimensions.height;
+                        const isSelected = block.id === selectedBlockId;
+                        ctx.fillStyle = isSelected ? "blue" : "red";
+                        ctx.font = "16px Arial";
+                        ctx.fillText(block.Text, rectX, rectY - 5);
+                        ctx.strokeStyle = isSelected ? "rgba(0, 0, 255, 0.9)" : "rgba(255, 0, 0, 0.7)";
+                        ctx.lineWidth = isSelected ? 3 : 2;
+                        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+                    });
+                }
+                
+                if (endpointSnap) {
+                    ctx.beginPath();
+                    ctx.arc(endpointSnap.x, endpointSnap.y, SNAP_THRESHOLD / zoom, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                    ctx.fill();
+                }
+            }, [ocrData, selectedBlockId, endpointSnap, dimensions, zoom]);
+
+            useEffect(() => {
+                if (editorAreaRef.current) {
+                    const area = editorAreaRef.current;
+                    area.scrollTop = (area.scrollHeight - area.clientHeight) / 2;
+                    area.scrollLeft = (area.scrollWidth - area.clientWidth) / 2;
+                }
+            }, []);
+
+            const handleUndo = () => {
+                if (historyIndex > 0) {
+                    const newIndex = historyIndex - 1;
+                    setHistoryIndex(newIndex);
+                    const prevState = history[newIndex];
+                    setOcrData(prevState.ocrData);
+                    setSvgElements(prevState.svgElements);
+                }
+            };
+            const handleRedo = () => {
+                if (historyIndex < history.length - 1) {
+                    const newIndex = historyIndex + 1;
+                    setHistoryIndex(newIndex);
+                    const nextState = history[newIndex];
+                    setOcrData(nextState.ocrData);
+                    setSvgElements(nextState.svgElements);
+                }
             };
 
             return (
-                <div className="bg-white p-8 rounded-lg shadow-md">
-                    <h1 className="text-2xl font-bold mb-4">Textract バックエンド処理テスト</h1>
-                    {!user ? (
-                        <form onSubmit={handleLogin}>
-                            <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">メールアドレス:</label>
-                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required />
+                <div className="flex flex-col h-screen">
+                    <header className="bg-white shadow-md p-2 flex items-center justify-between z-30">
+                        <span className="text-xl font-bold text-gray-800 ml-4">間取り図エディタ</span>
+                        <div className="flex items-center space-x-4">
+                            <button onClick={handleUndo} disabled={historyIndex === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">戻る</button>
+                            <button onClick={handleRedo} disabled={historyIndex === history.length - 1} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">進む</button>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => setZoom(z => Math.max(0.2, z - 0.1))} className="px-3 py-1 bg-gray-200 rounded">-</button>
+                                <span>{Math.round(zoom * 100)}%</span>
+                                <button onClick={() => setZoom(z => Math.min(3, z + 0.1))} className="px-3 py-1 bg-gray-200 rounded">+</button>
                             </div>
-                            <div className="mb-6">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">パスワード:</label>
-                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline" required />
-                            </div>
-                            <button type="submit" disabled={isLoading} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400">
-                                {isLoading ? 'ログイン中...' : 'ログイン'}
-                            </button>
-                        </form>
-                    ) : (
-                        <div>
-                            <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">画像ファイル:</label>
-                                <input type="file" onChange={handleFileChange} accept="image/jpeg,image/png" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                            </div>
-                            <button onClick={handleAnalyze} disabled={isLoading || !file} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400">
-                                {isLoading ? '処理中...' : '分析実行'}
+                        </div>
+                    </header>
+                    {/* ★★★ 修正点: レイアウト構造を修正 ★★★ */}
+                    <div className="flex flex-1 overflow-hidden">
+                        <div className="relative flex-1">
+                            <main ref={editorAreaRef} className="editor-area bg-gray-200">
+                                <div className="scroll-wrapper">
+                                    <div 
+                                        ref={editorContainerRef}
+                                        className="editor-container" 
+                                        style={{ 
+                                            width: dimensions.width, 
+                                            height: dimensions.height, 
+                                            transform: `translate(-50%, -50%) scale(${zoom})` 
+                                        }}
+                                    >
+                                        {imageUrl && (
+                                            <img ref={imageRef} src={imageUrl} alt="間取り図" className="editor-image" style={{ opacity: imageOpacity, transform: `translate(-50%, -50%) scale(${imageScale})` }} />
+                                        )}
+                                        <canvas ref={canvasRef} className="editor-canvas" onClick={handleCanvasClick} onMouseMove={handleCanvasMouseMove} onMouseLeave={() => setEndpointSnap(null)} width={dimensions.width} height={dimensions.height} />
+                                        <svg className="editor-svg" width={dimensions.width} height={dimensions.height}>
+                                            {svgElements.map(el => {
+                                                if (el.type === 'wall') {
+                                                    return <line key={el.id} x1={el.x1 + '%'} y1={el.y1 + '%'} x2={el.x2 + '%'} y2={el.y2 + '%'} stroke="green" strokeWidth="3" />;
+                                                }
+                                                if (el.type === 'door') {
+                                                    return <rect key={el.id} x={el.x + '%'} y={el.y + '%'} width="5%" height="5%" transform={`translate(-${(dimensions.width * 0.025)}, -${(dimensions.height * 0.025)})`} fill="rgba(139, 69, 19, 0.7)" />;
+                                                }
+                                                return null;
+                                            })}
+                                            {wallStartPoint && (
+                                                <line x1={wallStartPoint.x} y1={wallStartPoint.y} x2={mousePos.x} y2={mousePos.y} stroke="rgba(0, 255, 0, 0.7)" strokeWidth="2" strokeDasharray="5,5" />
+                                            )}
+                                        </svg>
+                                    </div>
+                                </div>
+                            </main>
+                            <aside className={`sidebar absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 overflow-y-auto space-y-6 shadow-lg transition-transform duration-300 ease-in-out z-20 ${isSidebarVisible ? 'translate-x-0' : '-translate-x-full'}`}>
+                                <div>
+                                    <h2 className="text-lg font-semibold mb-2">コントロールパネル</h2>
+                                    <input type="file" onChange={handleFileChange} accept="image/*" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                                </div>
+                                <hr/>
+                                <div>
+                                    <h2 className="text-lg font-semibold mb-2">表示設定</h2>
+                                    <label htmlFor="opacity-slider" className="block text-sm font-medium text-gray-700">下絵の透明度: {Math.round(imageOpacity * 100)}%</label>
+                                    <input id="opacity-slider" type="range" min="0" max="1" step="0.05" value={imageOpacity} onChange={(e) => setImageOpacity(e.target.value)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                    <label htmlFor="image-scale-slider" className="block text-sm font-medium text-gray-700 mt-4">下絵のサイズ: {Math.round(imageScale * 100)}%</label>
+                                    <input id="image-scale-slider" type="range" min="0.1" max="3" step="0.1" value={imageScale} onChange={(e) => setImageScale(e.target.value)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                </div>
+                                <hr/>
+                                <div>
+                                    <h2 className="text-lg font-semibold mb-2">図形描画</h2>
+                                    <div className="flex space-x-2">
+                                         <button onClick={() => { setDrawingMode('wall'); setWallStartPoint(null); setSelectedBlockId(null); }} className={`w-full px-4 py-2 rounded ${drawingMode === 'wall' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>壁を編集</button>
+                                         <button onClick={() => { setDrawingMode('door'); setWallStartPoint(null); setSelectedBlockId(null); }} className={`w-full px-4 py-2 rounded ${drawingMode === 'door' ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>ドアを編集</button>
+                                    </div>
+                                    {drawingMode === 'wall' && <p className="text-sm text-indigo-600 mt-2">{wallStartPoint ? '壁の終点をクリックしてください。' : '壁の始点をクリックしてください。'}</p>}
+                                    {drawingMode === 'door' && <p className="text-sm text-indigo-600 mt-2">ドアを配置したい場所をクリックしてください。</p>}
+                                    {drawingMode === 'wall' && (
+                                        <div className="mt-4">
+                                            <label className="block text-sm font-medium text-gray-700">描画オプション</label>
+                                            <div className="mt-2 space-y-2">
+                                                <div className="flex items-center">
+                                                    <input id="snap-10" name="snap-option" type="radio" checked={snapValue === 10} onChange={() => setSnapValue(10)} className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300" />
+                                                    <label htmlFor="snap-10" className="ml-3 block text-sm font-medium text-gray-700">角度をスナップ (10°ごと)</label>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input id="snap-15" name="snap-option" type="radio" checked={snapValue === 15} onChange={() => setSnapValue(15)} className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300" />
+                                                    <label htmlFor="snap-15" className="ml-3 block text-sm font-medium text-gray-700">角度をスナップ (15°ごと)</label>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input id="snap-off" name="snap-option" type="radio" checked={snapValue === 0} onChange={() => setSnapValue(0)} className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300" />
+                                                    <label htmlFor="snap-off" className="ml-3 block text-sm font-medium text-gray-700">フリーハンド</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <hr/>
+                                {selectedBlock && (
+                                    <div>
+                                        <h2 className="text-lg font-semibold mb-2">選択項目の編集</h2>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">テキスト</label>
+                                                <input type="text" value={selectedBlock.Text} onChange={(e) => handleBlockUpdate('Text', e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">部屋タイプ</label>
+                                                <select value={selectedBlock.type} onChange={(e) => handleBlockUpdate('type', e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                                    {ROOM_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </aside>
+                            
+                            <button 
+                                onClick={() => setIsSidebarVisible(!isSidebarVisible)} 
+                                className="absolute top-1/2 -translate-y-1/2 bg-gray-700 text-white w-6 h-24 rounded-r-lg flex items-center justify-center hover:bg-gray-800 transition-transform duration-300 ease-in-out z-30"
+                                style={{ transform: isSidebarVisible ? 'translateX(20rem)' : 'translateX(0rem)' }}
+                            >
+                                {isSidebarVisible ? '«' : '»'}
                             </button>
                         </div>
-                    )}
-                    <div className="mt-6">
-                        <h2 className="text-lg font-bold">ステータス:</h2>
-                        <p className="p-2 bg-gray-100 rounded mt-2">{status}</p>
                     </div>
-                    {result && (
-                        <div className="mt-6">
-                            <h2 className="text-lg font-bold">分析結果:</h2>
-                            <pre className="p-4 bg-black text-white rounded-md mt-2 overflow-x-auto text-sm">{result}</pre>
-                        </div>
-                    )}
                 </div>
             );
         }
 
-        ReactDOM.render(<TextractBackendTest />, document.getElementById('root'));
+        ReactDOM.render(<Editor />, document.getElementById('root'));
     </script>
 </body>
 </html>
