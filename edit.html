@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>間取り図エディタ</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React Development versions -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-    <!-- Babel Standalone for in-browser JSX transformation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         body {
@@ -22,7 +20,6 @@
             overflow: auto;
         }
         .scroll-wrapper {
-            /* エディタコンテナの広いスクロール領域を作成するための寸法 */
             width: 5000px;
             height: 5000px;
             position: relative;
@@ -34,7 +31,6 @@
             background-color: white;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             transform-origin: center center;
-            /* ズームによってエディタコンテナ自体が変形可能であることを保証 */
         }
         .editor-image {
             position: absolute;
@@ -43,7 +39,7 @@
             transform-origin: center center;
             max-width: 100%;
             max-height: 100%;
-            pointer-events: none; /* SVG/Canvasにクリックが透過するようにする */
+            pointer-events: none;
         }
         .editor-canvas, .editor-svg {
             position: absolute;
@@ -53,21 +49,16 @@
             height: 100%;
         }
         .editor-svg {
-            /* SVG要素は独自のポインターイベントを処理する */
-            pointer-events: all; /* SVG自体へのクリックを許可し、背景描画を可能にする */
-        }
-        .editor-svg > * {
-            /* 個々のSVG要素はクリック/ドラッグ可能であるべき */
             pointer-events: all;
         }
-        /* さまざまなインタラクションモードのカーソルスタイル */
+        .editor-svg > * {
+            pointer-events: all;
+        }
         .cursor-crosshair { cursor: crosshair; }
         .cursor-pointer { cursor: pointer; }
         .cursor-grab { cursor: grab; }
         .cursor-grabbing { cursor: grabbing; }
         .cursor-default { cursor: default; }
-
-        /* デフォルトのブラウザの外観を削除するためのselect要素のカスタムスタイル */
         select {
             -webkit-appearance: none;
             -moz-appearance: none;
@@ -76,13 +67,13 @@
             background-repeat: no-repeat;
             background-position: right 0.75rem center;
             background-size: 0.8rem 0.8rem;
-            padding-right: 2.5rem; /* カスタム矢印のためのスペース */
-            border: 1px solid #D1D5DB; /* デフォルトのボーダー色 */
-            border-radius: 0.375rem; /* rounded-md */
+            padding-right: 2.5rem;
+            border: 1px solid #D1D5DB;
+            border-radius: 0.375rem;
         }
         select:focus {
-            border-color: #6366F1; /* focus:border-indigo-500 */
-            box-shadow: 0 0 0 1px #6366F1; /* focus:ring-indigo-500 */
+            border-color: #6366F1;
+            box-shadow: 0 0 0 1px #6366F1;
             outline: none;
         }
     </style>
@@ -91,11 +82,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // Reactフックを簡潔に記述するために分割代入
         const { useState, useEffect, useRef, useCallback } = React;
 
         // --- 定数とダミーデータ ---
-        // デモンストレーション用のダミーOCRデータ。実際のアプリケーションではOCRサービスから取得する。
         const DUMMY_OCR_DATA = {
             "Blocks": [
                 { "id": "block-1", "type": "LDK", "Text": "LDK 12.5帖", "Geometry": { "BoundingBox": { "Width": 0.25, "Height": 0.05, "Left": 0.4, "Top": 0.5 }}},
@@ -104,35 +93,30 @@
                 { "id": "block-4", "type": "収納", "Text": "WIC", "Geometry": { "BoundingBox": { "Width": 0.08, "Height": 0.04, "Left": 0.15, "Top": 0.4 }}}
             ]
         };
-        // 選択肢として事前に定義された部屋のタイプ
         const ROOM_TYPES = ["LDK", "洋室", "和室", "浴室", "トイレ", "洗面所", "収納", "玄関", "その他"];
-        // 「柱」を含む事前に定義された空間タイプ
         const SPACE_TYPES = ["LDK", "DK", "K", "居室", "和室", "収納", "洗面所", "浴室", "トイレ", "玄関", "バルコニー", "柱", "その他"];
-        // テキスト要素の事前に定義されたフォントファミリー
         const FONT_FAMILIES = [
             { id: 'sans-serif', name: 'ゴシック体' },
             { id: 'serif', name: '明朝体' },
             { id: 'monospace', name: '等幅フォント' },
             { id: 'cursive', name: '筆記体' }
         ];
-        const SNAP_THRESHOLD = 10; // 端点へのスナップのピクセル数
-        const DEFAULT_WIDTH = 1200; // エディタキャンバスのデフォルト幅
-        const DEFAULT_HEIGHT = 900; // エディタキャンバスのデフォルト高さ
-        const SELECTED_ELEMENT_COLOR = '#3b82f6'; // 選択された要素のハイライト色
-        const DEFAULT_STROKE_COLOR = '#000000'; // 新しい要素のデフォルトの線色
-        const DEFAULT_STROKE_WIDTH = 3; // 新しい要素のデフォルトの線幅
+        const SNAP_THRESHOLD = 10;
+        const DEFAULT_WIDTH = 1200;
+        const DEFAULT_HEIGHT = 900;
+        const SELECTED_ELEMENT_COLOR = '#3b82f6';
+        const DEFAULT_STROKE_COLOR = '#000000';
+        const DEFAULT_STROKE_WIDTH = 3;
 
-        // SVGのdashArrayプロパティを持つ線種
         const LINE_STYLES = [
             { id: 'solid', name: '実線', dashArray: 'none' },
             { id: 'dashed', name: '破線', dashArray: '10, 5' },
             { id: 'dotted', name: '点線', dashArray: '2, 5' },
             { id: 'chain', name: '一点鎖線', dashArray: '10, 4, 2, 4' },
             { id: 'double-chain', name: '二点鎖線', dashArray: '10, 4, 2, 4, 2, 4' },
-            { id: 'wavy', name: '波線', dashArray: null } // 波線はカスタムパスジェネレーターが必要
+            { id: 'wavy', name: '波線', dashArray: null }
         ];
 
-        // 異なる空間タイプのデフォルトの塗りつぶし色
         const DEFAULT_FILL_COLORS = {
             "LDK": "#fef3c7", "DK": "#fef3c7", "K": "#fef3c7",
             "居室": "#f5e5d4",
@@ -143,11 +127,10 @@
             "トイレ": "#dbeafe",
             "玄関": "#dedede",
             "バルコニー": "#f5f5f5",
-            "柱": "#000000", // 柱のデフォルト色は黒
+            "柱": "#000000",
             "その他": "#fafafa"
         };
 
-        // SVGパスとテキストラベルを使用した方位記号テンプレート
         const COMPASS_TEMPLATES = [
             { id: 'dsynbol01', src:'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/dsymbol01.svg'},
             { id: 'dsynbol02', src:'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/dsymbol02.svg'},
@@ -162,7 +145,6 @@
             { id: 'dsynbol11', src:'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/dsymbol11.svg'}
         ];
 
-        // 部屋のタイプ別に分類された設備記号テンプレート
         const FIXTURE_TEMPLATES = {
             kitchen: [
                 { id: 'kitchen-sink', name: 'シンク', path: 'M-20,-10 H20 V10 H-20 Z M-10,-10 V10 M0,-10 V10', defaultSize: 40, defaultFill: '#cccccc', defaultStroke: '#000000', defaultStrokeWidth: 1 },
@@ -204,136 +186,117 @@
             ]
         };
 
-        // 長さ、スイング方向、内側/外側の開口部に基づいて動的にパスを生成するドア記号テンプレート
         const DOOR_TEMPLATES = [
-            // 開き戸 (右開き) - 左に蝶番、右に開く
             { id: 'swing-right', name: '開き戸 (右)',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const doorThickness = wallThickness || 10; // 壁の厚さを考慮
-                  const sweepFlag = swingDirection === 'clockwise' ? 1 : 0;
-                  // パスの開始点を (0,0) とし、length を基準に描画
-                  return `M0,0 L${length},0 M0,0 L0,${isInner ? doorThickness : -doorThickness} M0,0 A${length},${length} 0 0,${sweepFlag} ${length},${isInner ? length : -length}`;
-              },
-              previewPath: 'M0,0 L40,0 M0,0 L0,10 M0,0 A40,40 0 0,1 40,40' // デフォルトは右開き、内側
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const doorThickness = wallThickness || 10;
+                    const sweepFlag = swingDirection === 'clockwise' ? 1 : 0;
+                    return `M0,0 L${length},0 M0,0 L0,${isInner ? doorThickness : -doorThickness} M0,0 A${length},${length} 0 0,${sweepFlag} ${length},${isInner ? length : -length}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,0 L0,10 M0,0 A40,40 0 0,1 40,40'
             },
-            // 開き戸 (左開き) - 右に蝶番、左に開く
             { id: 'swing-left', name: '開き戸 (左)',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const doorThickness = wallThickness || 10; // 壁の厚さを考慮
-                  const sweepFlag = swingDirection === 'clockwise' ? 0 : 1; // 左スイングのために掃引を反転
-                  // パスの開始点を (0,0) とし、length を基準に描画
-                  return `M0,0 L${length},0 M${length},0 L${length},${isInner ? doorThickness : -doorThickness} M${length},0 A${length},${length} 0 0,${sweepFlag} 0,${isInner ? length : -length}`;
-              },
-              previewPath: 'M0,0 L40,0 M40,0 L40,10 M40,0 A40,40 0 0,0 0,40' // デフォルトは左開き、内側
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const doorThickness = wallThickness || 10;
+                    const sweepFlag = swingDirection === 'clockwise' ? 0 : 1;
+                    return `M0,0 L${length},0 M${length},0 L${length},${isInner ? doorThickness : -doorThickness} M${length},0 A${length},${length} 0 0,${sweepFlag} 0,${isInner ? length : -length}`;
+                },
+                previewPath: 'M0,0 L40,0 M40,0 L40,10 M40,0 A40,40 0 0,0 0,40'
             },
-            // 引き戸 (片引き)
             { id: 'sliding-single', name: '引き戸 (片)',
-              path: (length, swingDirection, isInner, wallThickness) => { // wallThicknessを追加
-                  const doorOffset = (wallThickness || 10) / 2; // 壁の厚みの半分でオフセット
-                  // パスの開始点を (0,0) とし、length を基準に描画
-                  return `M0,0 L${length},0 M0,${doorOffset} L${length},${doorOffset}`; // 壁の開口部と引き戸の線
-              },
-              previewPath: 'M0,0 L40,0 M0,5 L40,5' // 簡易表現
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const doorOffset = (wallThickness || 10) / 2;
+                    return `M0,0 L${length},0 M0,${doorOffset} L${length},${doorOffset}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,5 L40,5'
             },
-            // 両開き戸
             { id: 'double-swing', name: '両開き戸',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const halfLength = length / 2;
-                  const doorThickness = wallThickness || 10; // 壁の厚さを考慮
-                  const sweepFlag1 = swingDirection === 'clockwise' ? 1 : 0; // 左ドアの掃引
-                  const sweepFlag2 = swingDirection === 'clockwise' ? 0 : 1; // 右ドアの掃引
-                  // パスの開始点を (0,0) とし、length を基準に描画
-                  return `M0,0 L${length},0 ` + // 壁の開口部
-                         `M0,0 L0,${isInner ? doorThickness : -doorThickness} ` + // 左ドアの厚み
-                         `M${halfLength},0 L${halfLength},${isInner ? doorThickness : -doorThickness} ` + // 右ドアの厚み
-                         `M0,0 A${halfLength},${halfLength} 0 0,${sweepFlag1} ${halfLength},${isInner ? halfLength : -halfLength} ` + // 左ドアの弧
-                         `M${length},0 A${halfLength},${halfLength} 0 0,${sweepFlag2} ${halfLength},${isInner ? halfLength : -halfLength}`; // 右ドアの弧
-              },
-              previewPath: 'M20,0 L0,0 M20,0 L40,0 M0,0 A20,20 0 0,1 20,20 M40,0 A20,20 0 0,0 20,20'
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const halfLength = length / 2;
+                    const doorThickness = wallThickness || 10;
+                    const sweepFlag1 = swingDirection === 'clockwise' ? 1 : 0;
+                    const sweepFlag2 = swingDirection === 'clockwise' ? 0 : 1;
+                    return `M0,0 L${length},0 ` +
+                           `M0,0 L0,${isInner ? doorThickness : -doorThickness} ` +
+                           `M${halfLength},0 L${halfLength},${isInner ? doorThickness : -doorThickness} ` +
+                           `M0,0 A${halfLength},${halfLength} 0 0,${sweepFlag1} ${halfLength},${isInner ? halfLength : -halfLength} ` +
+                           `M${length},0 A${halfLength},${halfLength} 0 0,${sweepFlag2} ${halfLength},${isInner ? halfLength : -halfLength}`;
+                },
+                previewPath: 'M20,0 L0,0 M20,0 L40,0 M0,0 A20,20 0 0,1 20,20 M40,0 A20,20 0 0,0 20,20'
             },
-            // 親子ドア (新しいテンプレート)
             { id: 'parent-child-door', name: '親子ドア',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const doorThickness = wallThickness || 10;
-                  const parentLength = length * 0.7; // 親ドアは全体の70%
-                  const childLength = length * 0.3; // 子ドアは全体の30%
-                  const sweepFlagParent = swingDirection === 'clockwise' ? 1 : 0;
-                  const sweepFlagChild = swingDirection === 'clockwise' ? 1 : 0; // 子ドアも同じ方向に開く
-
-                  return `M0,0 L${length},0 ` + // 壁の開口部
-                         `M0,0 L0,${isInner ? doorThickness : -doorThickness} ` + // 親ドアの厚み
-                         `M${parentLength},0 L${parentLength},${isInner ? doorThickness : -doorThickness} ` + // 子ドアの厚み
-                         `M0,0 A${parentLength},${parentLength} 0 0,${sweepFlagParent} ${parentLength},${isInner ? parentLength : -parentLength} ` + // 親ドアの弧
-                         `M${parentLength},0 A${childLength},${childLength} 0 0,${sweepFlagChild} ${length},${isInner ? childLength : -childLength}`; // 子ドアの弧
-              },
-              previewPath: 'M0,0 L40,0 M0,0 L0,10 M28,0 L28,10 M0,0 A28,28 0 0,1 28,28 M28,0 A12,12 0 0,1 40,12' // 親子ドアのプレビュー
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const doorThickness = wallThickness || 10;
+                    const parentLength = length * 0.7;
+                    const childLength = length * 0.3;
+                    const sweepFlagParent = swingDirection === 'clockwise' ? 1 : 0;
+                    const sweepFlagChild = swingDirection === 'clockwise' ? 1 : 0;
+                    return `M0,0 L${length},0 ` +
+                           `M0,0 L0,${isInner ? doorThickness : -doorThickness} ` +
+                           `M${parentLength},0 L${parentLength},${isInner ? doorThickness : -doorThickness} ` +
+                           `M0,0 A${parentLength},${parentLength} 0 0,${sweepFlagParent} ${parentLength},${isInner ? parentLength : -parentLength} ` +
+                           `M${parentLength},0 A${childLength},${childLength} 0 0,${sweepFlagChild} ${length},${isInner ? childLength : -childLength}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,0 L0,10 M28,0 L28,10 M0,0 A28,28 0 0,1 28,28 M28,0 A12,12 0 0,1 40,12'
             },
-            // 折れ戸
             { id: 'bifold', name: '折れ戸',
-              path: (length, swingDirection, isInner, wallThickness) => { // wallThicknessを追加
-                  const doorThickness = wallThickness || 10;
-                  const segmentLength = length / 4;
-                  const offset = isInner ? doorThickness : -doorThickness;
-                  return `M0,0 L${length},0 ` + // 壁の開口部
-                         `M0,${offset} L${segmentLength},0 ` +
-                         `M${segmentLength},0 L${segmentLength * 2},${offset} ` +
-                         `M${segmentLength * 2},${offset} L${segmentLength * 3},0 ` +
-                         `M${segmentLength * 3},0 L${length},${offset}`;
-              },
-              previewPath: 'M0,0 L40,0 M0,10 L10,0 M10,0 L20,10 M20,10 L30,0 M30,0 L40,10'
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const doorThickness = wallThickness || 10;
+                    const segmentLength = length / 4;
+                    const offset = isInner ? doorThickness : -doorThickness;
+                    return `M0,0 L${length},0 ` +
+                           `M0,${offset} L${segmentLength},0 ` +
+                           `M${segmentLength},0 L${segmentLength * 2},${offset} ` +
+                           `M${segmentLength * 2},${offset} L${segmentLength * 3},0 ` +
+                           `M${segmentLength * 3},0 L${length},${offset}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,10 L10,0 M10,0 L20,10 M20,10 L30,0 M30,0 L40,10'
             }
         ];
 
-        // 動的なパス生成を持つ窓記号テンプレート
         const WINDOW_TEMPLATES = [
-            // 引き違い窓
             { id: 'sliding-window', name: '引き違い窓',
-              path: (length, swingDirection, isInner, wallThickness) => { // wallThicknessを追加
-                  const windowThickness = wallThickness || 10;
-                  const offset = windowThickness / 2; // 壁の中央に配置
-                  return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,${offset} L${length},${offset}`; // 2本の線と中央線
-              },
-              previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,5 L40,5'
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const windowThickness = wallThickness || 10;
+                    const offset = windowThickness / 2;
+                    return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,${offset} L${length},${offset}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,5 L40,5'
             },
-            // 片開き窓
             { id: 'casement-single', name: '片開き窓',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const windowThickness = wallThickness || 10;
-                  const arcSweep = swingDirection === 'clockwise' ? 1 : 0;
-                  // 壁の厚みを考慮して窓のフレームを調整
-                  return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,0 L0,${windowThickness} M${length},0 A${windowThickness},${windowThickness} 0 0,${arcSweep} ${length - windowThickness},0`; // フレームと簡易的な開閉弧
-              },
-              previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,0 L0,10 M40,0 A10,10 0 0,1 30,0' // デフォルトは右開き
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const windowThickness = wallThickness || 10;
+                    const arcSweep = swingDirection === 'clockwise' ? 1 : 0;
+                    return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,0 L0,${windowThickness} M${length},0 A${windowThickness},${windowThickness} 0 0,${arcSweep} ${length - windowThickness},0`;
+                },
+                previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,0 L0,10 M40,0 A10,10 0 0,1 30,0'
             },
-            // 両開き窓
             { id: 'casement-double', name: '両開き窓',
-              path: (length, swingDirection, isInner, wallThickness) => {
-                  const halfLength = length / 2;
-                  const windowThickness = wallThickness || 10;
-                  const arcSweep1 = swingDirection === 'clockwise' ? 1 : 0;
-                  const arcSweep2 = swingDirection === 'clockwise' ? 0 : 1;
-                  return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M${halfLength},0 L${halfLength},${windowThickness} M0,0 A${windowThickness},${windowThickness} 0 0,${arcSweep1} ${windowThickness},0 M${length},0 A${windowThickness},${windowThickness} 0 0,${arcSweep2} ${length-windowThickness},0`;
-              },
-              previewPath: 'M0,0 L40,0 M0,10 L40,10 M20,0 L20,10 M0,0 A10,10 0 0,1 10,0 M40,0 A10,10 0 0,0 30,0' // デフォルトは外開き
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const halfLength = length / 2;
+                    const windowThickness = wallThickness || 10;
+                    const arcSweep1 = swingDirection === 'clockwise' ? 1 : 0;
+                    const arcSweep2 = swingDirection === 'clockwise' ? 0 : 1;
+                    return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M${halfLength},0 L${halfLength},${windowThickness} M0,0 A${windowThickness},${windowThickness} 0 0,${arcSweep1} ${windowThickness},0 M${length},0 A${windowThickness},${windowThickness} 0 0,${arcSweep2} ${length-windowThickness},0`;
+                },
+                previewPath: 'M0,0 L40,0 M0,10 L40,10 M20,0 L20,10 M0,0 A10,10 0 0,1 10,0 M40,0 A10,10 0 0,0 30,0'
             },
-            // FIX窓
             { id: 'fixed-window', name: 'FIX窓',
-              path: (length, swingDirection, isInner, wallThickness) => { // wallThicknessを追加
-                  const windowThickness = wallThickness || 10;
-                  return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,0 L0,${windowThickness} M${length},0 L${length},${windowThickness} M0,0 L${length},${windowThickness} M${length},0 L0,${windowThickness}`; // フレームと十字
-              },
-              previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,0 L0,10 M40,0 L40,10 M0,0 L40,10 M40,0 L0,10'
+                path: (length, swingDirection, isInner, wallThickness) => {
+                    const windowThickness = wallThickness || 10;
+                    return `M0,0 L${length},0 M0,${windowThickness} L${length},${windowThickness} M0,0 L0,${windowThickness} M${length},0 L${length},${windowThickness} M0,0 L${length},${windowThickness} M${length},0 L0,${windowThickness}`;
+                },
+                previewPath: 'M0,0 L40,0 M0,10 L40,10 M0,0 L0,10 M40,0 L40,10 M0,0 L40,10 M40,0 L0,10'
             }
         ];
 
 
         // --- ヘルパー関数 ---
-        // 2点間の波線のSVGパスデータを生成する
         const generateWavyPathD = (p1, p2) => {
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             const len = Math.sqrt(dx * dx + dy * dy);
-            if (len < 1) return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`; // 短すぎる場合は直線で返す
+            if (len < 1) return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
             const dirX = dx / len, dirY = dy / len, perpX = -dirY, perpY = dirX;
             const amplitude = 4, wavelength = 15;
             const numSegments = Math.max(1, Math.floor(len / wavelength));
@@ -344,81 +307,64 @@
                 const midY = p1.y + (i + 0.5) * segmentLen * dirY;
                 const segEndX = p1.x + (i + 1) * segmentLen * dirX;
                 const segEndY = p1.y + (i + 1) * segmentLen * dirY;
-                const amp = (i % 2 === 0) ? amplitude : -amplitude; // 波の効果のために振幅を交互にする
+                const amp = (i % 2 === 0) ? amplitude : -amplitude;
                 const controlX = midX + amp * perpX;
                 const controlY = midY + amp * perpY;
-                d += ` Q ${controlX} ${controlY} ${segEndX} ${segEndY}`; // 2次ベジェ曲線セグメント
+                d += ` Q ${controlX} ${controlY} ${segEndX} ${segEndY}`;
             }
             return d;
         };
 
-        // 点から線分までの最短距離を計算する
         const distToSegment = (p, v, w) => {
-            // vまたはwがundefinedの場合、非常に大きな距離を返すか、エラーをスローする代わりにInfinityを返す
-            // これにより、不正なデータが原因でクラッシュするのを防ぎます。
             if (!v || !w || typeof v.x !== 'number' || typeof v.y !== 'number' || typeof w.x !== 'number' || typeof w.y !== 'number' ||
-                isNaN(v.x) || isNaN(v.y) || isNaN(w.x) || isNaN(w.y)) { // NaNチェックも追加
+                isNaN(v.x) || isNaN(v.y) || isNaN(w.x) || isNaN(w.y)) {
                 console.error("Invalid point passed to distToSegment:", p, v, w);
                 return Infinity;
             }
             const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
-            if (l2 === 0) return Math.sqrt((p.x - v.x)**2 + (p.y - v.y)**2); // vとwが同じ点の場合
+            if (l2 === 0) return Math.sqrt((p.x - v.x)**2 + (p.y - v.y)**2);
             let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-            t = Math.max(0, Math.min(1, t)); // 線分投影のためにtを[0, 1]にクランプ
+            t = Math.max(0, Math.min(1, t));
             const proj = { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
             return Math.sqrt((p.x - proj.x)**2 + (p.y - proj.y)**2);
         };
 
-        // 点を線分に投影するヘルパー関数
         const projectPointOnLine = (p, p1, p2) => {
             const lineVec = { x: p2.x - p1.x, y: p2.y - p1.y };
             const pointVec = { x: p.x - p1.x, y: p.y - p1.y };
             const dotProduct = pointVec.x * lineVec.x + pointVec.y * lineVec.y;
             const lengthSq = lineVec.x * lineVec.x + lineVec.y * lineVec.y;
-
             let t = 0;
             if (lengthSq !== 0) {
                 t = dotProduct / lengthSq;
             }
-
-            // 投影が線分内にあることを保証するためにtを[0, 1]にクランプ
             t = Math.max(0, Math.min(1, t));
-
             return {
                 x: p1.x + t * lineVec.x,
                 y: p1.y + t * lineVec.y
             };
         };
 
-        // 壁検出のために長方形のセグメントを取得するヘルパー関数
         const getRectangleSegments = (rectElement, dimensions) => {
-            // プロパティが数値であることを確認し、不正な場合は0を使用
             const x = (typeof rectElement.x === 'number' && !isNaN(rectElement.x) ? rectElement.x : 0) / 100 * dimensions.width;
             const y = (typeof rectElement.y === 'number' && !isNaN(rectElement.y) ? rectElement.y : 0) / 100 * dimensions.height;
             const width = (typeof rectElement.width === 'number' && !isNaN(rectElement.width) ? rectElement.width : 0) / 100 * dimensions.width;
             const height = (typeof rectElement.height === 'number' && !isNaN(rectElement.height) ? rectElement.height : 0) / 100 * dimensions.height;
-
             const p1 = { x: x, y: y };
             const p2 = { x: x + width, y: y };
             const p3 = { x: x + width, y: y + height };
             const p4 = { x: x, y: y + height };
-
             return [
-                { p1: p1, p2: p2 }, // 上
-                { p1: p2, p2: p3 }, // 右
-                { p3: p3, p2: p4 }, // 下
-                { p1: p4, p2: p1 }  // 左
+                { p1: p1, p2: p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p4 }, { p1: p4, p2: p1 }
             ];
         };
 
         // --- UIコンポーネント ---
-        // 線種選択コンポーネント
         const LineStyleSelector = ({ selectedStyle, onChange, isRectShape }) => (
             <div>
                 <label className="block text-sm font-medium text-gray-700">線の種類</label>
                 <div className="mt-2 grid grid-cols-3 gap-1">
                     {LINE_STYLES.map(style => (
-                        // 波線は長方形には適用できないため非表示にする
                         (isRectShape && style.id === 'wavy') ? null : (
                             <button key={style.id} onClick={() => onChange(style.id)} className={`p-2 rounded-md border-2 ${selectedStyle === style.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'} hover:bg-gray-100`}>
                                 <div className="flex items-center justify-center">
@@ -433,38 +379,27 @@
             </div>
         );
 
-        // 方位記号テンプレート選択コンポーネント
         const CompassTemplateSelector = ({ selectedTemplateId, onChange }) => (
             <div>
                 <label className="block text-sm font-medium text-gray-700">方角の図形</label>
                 <div className="mt-2 grid grid-cols-4 gap-1">
                     {COMPASS_TEMPLATES.map(template => (
-                        <button 
-                            key={template.id} 
-                            onClick={() => onChange(template.id)} 
-                            className={`p-1 rounded-md border-2 ${selectedTemplateId === template.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'} hover:bg-gray-100 flex items-center justify-center h-12`} // 高さを固定
+                        <button
+                            key={template.id}
+                            onClick={() => onChange(template.id)}
+                            className={`p-1 rounded-md border-2 ${selectedTemplateId === template.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'} hover:bg-gray-100 flex items-center justify-center h-12`}
                         >
-                            {template.src ? (
-                                // srcプロパティがある場合：<img>タグでSVGファイルを表示
-                                <img 
-                                    src={template.src} 
-                                    alt={template.id} 
-                                    className="w-8 h-8 object-contain" // サイズを調整
-                                />
-                            ) : (
-                                // pathプロパティがある場合：従来通りSVGをインラインで描画
-                                <svg width="40" height="40" viewBox="-30 -30 60 60" className="flex-shrink-0">
-                                    <path d={template.path} fill="black" stroke="black" strokeWidth="1" />
-                                    {template.textLabel && <text x="0" y="-15" textAnchor="middle" alignmentBaseline="baseline" fontSize="12" fill="black">{template.textLabel}</text>}
-                                </svg>
-                            )}
+                           <img
+                                src={template.src}
+                                alt={template.id}
+                                className="w-8 h-8 object-contain"
+                            />
                         </button>
                     ))}
                 </div>
             </div>
         );
 
-        // カテゴリに基づいて設備テンプレートを選択するコンポーネント
         const FixtureTemplateSelector = ({ selectedTemplateId, onChange, category }) => {
             const templates = FIXTURE_TEMPLATES[category] || [];
             return (
@@ -483,7 +418,6 @@
             );
         };
 
-        // ドアテンプレート選択コンポーネント
         const DoorTemplateSelector = ({ selectedTemplateId, onChange }) => (
             <div>
                 <label className="block text-sm font-medium text-gray-700">ドアの種類</label>
@@ -502,7 +436,6 @@
             </div>
         );
 
-        // 窓テンプレート選択コンポーネント
         const WindowTemplateSelector = ({ selectedTemplateId, onChange }) => (
             <div>
                 <label className="block text-sm font-medium text-gray-700">窓の種類</label>
@@ -528,57 +461,55 @@
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
             const [imageUrl, setImageUrl] = useState('');
-            const [ocrData, setOcrData] = useState(null);
-            // 元に戻す/やり直す機能のための履歴ステート
             const [historyState, setHistoryState] = useState({
                 past: [],
                 present: { ocrData: null, svgElements: [] },
                 future: []
             });
-            // 現在のOCRデータとSVG要素へのアクセスを容易にするために現在のステートを分割代入
             const { ocrData: currentOcrData, svgElements } = historyState.present;
 
-            const [selectedBlockId, setSelectedBlockId] = useState(null); // OCRブロックのハイライト用
-            const [drawingMode, setDrawingMode] = useState('space'); // 現在の描画ツール: 'space', 'text', 'compass', 'fixture', 'door', 'window'
-            const [spaceEditMode, setSpaceEditMode] = useState('create'); // 新しい空間を「作成」するか、既存の空間を「編集」するか
-            const [spaceShape, setSpaceShape] = useState('rect'); // 空間描画の形状: 'rect'または'line'
-            const [selectedElementId, setSelectedElementId] = useState(null); // SVG要素の選択用
-            const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }); // 描画領域の寸法
-            const [startPoint, setStartPoint] = useState(null); // 2クリック描画（線、ドア、窓、方位記号）の開始点
-            const [mousePos, setMousePos] = useState({ x: 0, y: 0 }); // 一時的な描画プレビューのための現在のマウス位置
-            const [snapValue, setSnapValue] = useState(10); // 線の角度スナップ値
-            const [endpointSnap, setEndpointSnap] = useState(null); // 既存の端点に近い場合のスナップ点を格納
-            const [imageOpacity, setImageOpacity] = useState(0.5); // 背景画像の不透明度
-            const [drawingOpacity, setDrawingOpacity] = useState(0.6); // SVG描画レイヤーの不透明度
-            const [zoom, setZoom] = useState(0.8); // エディタのズームレベル
-            const [imageScale, setImageScale] = useState(1); // 背景画像のスケール
-            const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH); // 描画の線幅
-            const [strokeColor, setStrokeColor] = useState(DEFAULT_STROKE_COLOR); // 描画の線色
-            const [spaceType, setSpaceType] = useState('LDK'); // 描画中の空間のタイプ
-            const [fillColor, setFillColor] = useState(DEFAULT_FILL_COLORS[spaceType]); // 空間の塗りつぶし色
-            const [lineStyle, setLineStyle] = useState('solid'); // 線のスタイル
-            const [isGridVisible, setGridVisible] = useState(true); // グリッドの表示/非表示を切り替える
-            const [gridSize, setGridSize] = useState(10); // グリッドセルのサイズ
-            const [isDragging, setIsDragging] = useState(false); // 要素がドラッグされている場合はtrue
-            const [dragStartPos, setDragStartPos] = useState({x: 0, y: 0}); // ドラッグ開始時のマウス位置
-            const [fontSize, setFontSize] = useState(16); // テキスト要素のフォントサイズ
-            const [fontFamily, setFontFamily] = useState('sans-serif'); // テキスト要素のフォントファミリー
-            const [textAlign, setTextAlign] = useState('left'); // テキスト要素のテキスト配置
-            const [compassTemplateId, setCompassTemplateId] = useState(COMPASS_TEMPLATES[0].id); // 選択された方位記号テンプレート
-            const [fixtureCategory, setFixtureCategory] = useState('kitchen'); // 選択された設備カテゴリ
-            const [fixtureTemplateId, setFixtureTemplateId] = useState(FIXTURE_TEMPLATES.kitchen[0].id); // 選択された設備テンプレート
-            const [doorTemplateId, setDoorTemplateId] = useState(DOOR_TEMPLATES[0].id); // 選択されたドアテンプレート
-            const [windowTemplateId, setWindowTemplateId] = useState(WINDOW_TEMPLATES[0].id); // 選択された窓テンプレート
-            const [wallLineForDoorWindow, setWallLineForDoorWindow] = useState(null); // ドア/窓配置のためにクリックされた壁線を格納
-            // doorWindowPlacementStep: 0: アイドル, 1: 1回目のクリック (開始点), 2: 2回目のクリック (終了点/長さ), 3: 回転と開閉方向
-            const [doorWindowPlacementStep, setDoorWindowPlacementStep] = useState(0);
-            const [tempDoorWindowProps, setTempDoorWindowProps] = useState(null); // マルチステップ配置中にプロパティを格納
+            const [selectedBlockId, setSelectedBlockId] = useState(null);
+            const [drawingMode, setDrawingMode] = useState('space');
+            const [spaceEditMode, setSpaceEditMode] = useState('create');
+            const [spaceShape, setSpaceShape] = useState('rect');
+            const [selectedElementId, setSelectedElementId] = useState(null);
+            const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+            const [startPoint, setStartPoint] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [snapValue, setSnapValue] = useState(10);
+            const [endpointSnap, setEndpointSnap] = useState(null);
+            const [imageOpacity, setImageOpacity] = useState(0.5);
+            const [drawingOpacity, setDrawingOpacity] = useState(0.6);
+            const [zoom, setZoom] = useState(0.8);
+            const [imageScale, setImageScale] = useState(1);
+            const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
+            const [strokeColor, setStrokeColor] = useState(DEFAULT_STROKE_COLOR);
+            const [spaceType, setSpaceType] = useState('LDK');
+            const [fillColor, setFillColor] = useState(DEFAULT_FILL_COLORS[spaceType]);
+            const [lineStyle, setLineStyle] = useState('solid');
+            const [isGridVisible, setGridVisible] = useState(true);
+            const [gridSize, setGridSize] = useState(10);
+            const [fontSize, setFontSize] = useState(16);
+            const [fontFamily, setFontFamily] = useState('sans-serif');
+            const [textAlign, setTextAlign] = useState('left');
+            const [compassTemplateId, setCompassTemplateId] = useState(COMPASS_TEMPLATES[0].id);
+            const [fixtureCategory, setFixtureCategory] = useState('kitchen');
+            const [fixtureTemplateId, setFixtureTemplateId] = useState(FIXTURE_TEMPLATES.kitchen[0].id);
+            const [doorTemplateId, setDoorTemplateId] = useState(DOOR_TEMPLATES[0].id);
+            const [windowTemplateId, setWindowTemplateId] = useState(WINDOW_TEMPLATES[0].id);
+            
+            const [isDragging, setIsDragging] = useState(false);
 
             // --- Ref定義 ---
-            const imageRef = useRef(null); // 背景画像への参照
-            const canvasRef = useRef(null); // OCRオーバーレイ用のHTML Canvasへの参照
-            const editorAreaRef = useRef(null); // メインのスクロール可能なエディタ領域への参照
-            const svgRef = useRef(null); // SVG描画レイヤーへの参照
+            const imageRef = useRef(null);
+            const canvasRef = useRef(null);
+            const editorAreaRef = useRef(null);
+            const svgRef = useRef(null);
+            const displaySettingsRef = useRef(null);
+            const dragInfo = useRef(null);
+            const historyOnActionStart = useRef(null);
+            const mouseDownInfo = useRef(null);
+
 
             // プロパティ編集のためにsvgElementsから現在選択されている要素を見つける
             const selectedElement = selectedElementId ? svgElements.find(el => el.id === selectedElementId) : null;
@@ -589,7 +520,6 @@
                     const updatedSvgElements = prevState.present.svgElements.map(el => {
                         if (el.id === selectedElementId) {
                             const newEl = { ...el, [key]: value };
-                            // spaceTypeが変更された場合、そのタイプに応じたデフォルトの塗りつぶし色を更新
                             if (key === 'spaceType') {
                                 newEl.fill = DEFAULT_FILL_COLORS[value] || '#ffffff';
                             }
@@ -605,15 +535,6 @@
                 });
             }, [selectedElementId]);
 
-            // 元に戻す/やり直すのために現在のSVG要素の状態を記録する関数
-            const recordHistory = useCallback((newSvgElements) => {
-                setHistoryState(prevState => ({
-                    past: [...prevState.past, prevState.present],
-                    present: { ocrData: prevState.present.ocrData, svgElements: newSvgElements },
-                    future: []
-                }));
-            }, []);
-
             // 背景画像をロードするためのファイル入力の変更を処理する
             const handleFileChange = async (event) => {
                 const file = event.target.files[0];
@@ -621,11 +542,10 @@
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         setImageUrl(e.target.result);
-                        // 画像がロードされたときにダミーOCRデータを設定
                         const newOcrData = DUMMY_OCR_DATA;
                         setHistoryState(prevState => ({
                             past: [...prevState.past, prevState.present],
-                            present: { ocrData: newOcrData, svgElements: prevState.present.svgElements }, // 既存のSVG要素を保持
+                            present: { ocrData: newOcrData, svgElements: prevState.present.svgElements },
                             future: []
                         }));
                     };
@@ -658,12 +578,10 @@
             const getAngleSnappedPoint = useCallback((start, current) => {
                 const dx = current.x - start.x;
                 const dy = current.y - start.y;
-                let angle = Math.atan2(dy, dx) * 180 / Math.PI; // 角度を度数で取得
+                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
 
-                // 最も近いスナップ角度に丸める
                 const snappedAngle = Math.round(angle / snapValue) * snapValue;
 
-                // スナップされた角度から新しい終点の位置を計算
                 const length = Math.sqrt(dx * dx + dy * dy);
                 const newDx = length * Math.cos(snappedAngle * Math.PI / 180);
                 const newDy = length * Math.sin(snappedAngle * Math.PI / 180);
@@ -675,25 +593,21 @@
             const findAndCreateFill = useCallback((dimensionsArg, newLine, allElements, fill) => {
                 const { width, height } = dimensionsArg;
 
-                // 閉じたループを形成する可能性のある同じ空間タイプの線をフィルタリングする
                 const adj = new Map();
                 const addEdge = (p1, p2) => {
-                    // 点の文字列表現をマップのキーとして使用
                     const p1Str = `${p1.x},${p1.y}`;
                     const p2Str = `${p2.x},${p2.y}`;
                     if (!adj.has(p1Str)) adj.set(p1Str, []);
-                    if (!adj.has(p2Str)) adj.set(p2Str, []); // 両方の点がキーとして存在することを確認
+                    if (!adj.has(p2Str)) adj.set(p2Str, []);
                     adj.get(p1Str).push(p2Str);
                     adj.get(p2Str).push(p1Str);
                 };
 
-                // 既存の線をグラフに追加
                 allElements.filter(el =>
                     el.type === 'space' &&
                     el.shape === 'line' &&
                     el.spaceType === newLine.spaceType
                 ).forEach(line => {
-                    // 線要素の座標が有効であることを確認
                     const x1_val = typeof line.x1 === 'number' && !isNaN(line.x1) ? line.x1 : null;
                     const y1_val = typeof line.y1 === 'number' && !isNaN(line.y1) ? line.y1 : null;
                     const x2_val = typeof line.x2 === 'number' && !isNaN(line.x2) ? line.x2 : null;
@@ -706,7 +620,6 @@
                     }
                 });
 
-                // 新しい線をグラフに追加
                 const newLineP1 = { x: newLine.x1 / 100 * width, y: newLine.y1 / 100 * height };
                 const newLineP2 = { x: newLine.x2 / 100 * width, y: newLine.y2 / 100 * height };
                 addEdge(newLineP1, newLineP2);
@@ -714,12 +627,10 @@
                 const cycles = [];
                 const findCycles = (currentNode, path, visitedEdges) => {
                     if (path.length > 1 && currentNode === path[0]) {
-                        // サイクルが見つかった
                         const cycle = [...path];
-                        // 重複を避けるためにサイクルを正規化（例: [A,B,C,A] vs [B,C,A,B]）
                         const minNode = cycle.reduce((min, node) => node < min ? node : min, cycle[0]);
                         const startIndex = cycle.indexOf(minNode);
-                        const normalizedCycle = [...cycle.slice(startIndex), ...cycle.slice(0, startIndex)].join('-'); // 正規化のためのスライスを修正
+                        const normalizedCycle = [...cycle.slice(startIndex), ...cycle.slice(0, startIndex)].join('-');
                         if (!cycles.some(c => c.normalized === normalizedCycle)) {
                             cycles.push({ path: cycle, normalized: normalizedCycle });
                         }
@@ -728,17 +639,15 @@
 
                     const neighbors = adj.get(currentNode) || [];
                     for (const neighbor of neighbors) {
-                        const edgeKey = [currentNode, neighbor].sort().join('-'); // エッジキーを正規化
-                        // 現在のパスでこのエッジが訪問されていない場合のみ続行する（単純なグラフでの無限ループを避けるため）
+                        const edgeKey = [currentNode, neighbor].sort().join('-');
                         if (!visitedEdges.has(edgeKey)) {
                             visitedEdges.add(edgeKey);
                             findCycles(neighbor, [...path, neighbor], visitedEdges);
-                            visitedEdges.delete(edgeKey); // バックトラック
+                            visitedEdges.delete(edgeKey);
                         }
                     }
                 };
 
-                // すべてのノードを反復処理してサイクルを見つける
                 for (const node of adj.keys()) {
                     findCycles(node, [node], new Set());
                 }
@@ -752,7 +661,6 @@
                         return { x, y };
                     });
 
-                    // 新しい線がこのサイクルの一部であるかを確認する（両方向をチェック）
                     const isNewLineInCycle = pathNodes.some((p, i) => {
                         const nextP = pathNodes[(i + 1) % pathNodes.length];
                         const isMatch1 = (p.x === newLineP1.x && p.y === newLineP1.y && nextP.x === newLineP2.x && nextP.y === newLineP2.y);
@@ -761,7 +669,6 @@
                     });
 
                     if (isNewLineInCycle && pathNodes.length >= 3) {
-                        // 面積を計算する（シューレースの公式）
                         let area = 0;
                         for (let i = 0; i < pathNodes.length; i++) {
                             const p1 = pathNodes[i];
@@ -770,7 +677,7 @@
                         }
                         area = Math.abs(area / 2);
 
-                        if (area < minArea && area > 0) { // 面積が正でゼロではないことを確認
+                        if (area < minArea && area > 0) {
                             minArea = area;
                             bestCycle = pathNodes;
                         }
@@ -791,129 +698,200 @@
                 return null;
             }, []);
 
-            // ドラッグと描画の最初のクリックのためのマウスダウンイベントを処理する
-            const handleMouseDown = (e) => {
-                // 現在のモードが「作成」描画モードであるかを判断する
-                const isInCreationMode =
-                    (drawingMode === 'space' && spaceEditMode === 'create') ||
-                    drawingMode === 'text' ||
-                    drawingMode === 'compass' ||
-                    drawingMode === 'fixture' ||
-                    (drawingMode === 'door' && doorWindowPlacementStep < 2) || // ドア/窓の配置ステップが2未満の場合
-                    (drawingMode === 'window' && doorWindowPlacementStep < 2); // ドア/窓の配置ステップが2未満の場合
-
-                // 作成モードの場合、マウスダウンでドラッグや選択を開始しない。
-                // 描画のためのクリックはhandleSvgClickで処理する。
-                if (isInCreationMode) {
-                    return;
-                }
-
-                // 作成モードでない場合、ドラッグ/選択ロジックに進む
+            const handleCanvasClick = useCallback((e) => {
+                const clickPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
 
-                if (targetElement && (targetElement.type === 'text' || targetElement.type === 'compass' || targetElement.type === 'space' || targetElement.type === 'fixture' || targetElement.type === 'door' || targetElement.type === 'window')) {
-                    e.stopPropagation(); // ドラッグ開始直後のhandleSvgClickの発火を防ぐ
-                    setIsDragging(true);
-                    setSelectedElementId(targetId); // ドラッグ中の要素を選択
-                    setDragStartPos(getCanvasCoords(e));
-                }
-            };
+                // Case 1: 描画の2クリック目
+                if (startPoint) {
+                    let newElement = null;
 
-            // 描画プレビューと要素のドラッグのためのマウス移動イベントを処理する
-            const handleMouseMove = (e) => {
-                const currentPos = getCanvasCoords(e);
+                    if (drawingMode === 'space') {
+                        let finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        if (!isGridVisible && spaceShape === 'line') {
+                            finalEndPoint = endpointSnap ? endpointSnap : getAngleSnappedPoint(startPoint, finalEndPoint);
+                        }
+                        
+                        const currentStrokeColor = (spaceType === '柱') ? '#000000' : strokeColor;
+                        const currentFillColor = (spaceType === '柱') ? '#000000' : fillColor;
+                        const currentStrokeWidth = (spaceType === '柱') ? 1 : strokeWidth;
+                        const currentLineStyle = (spaceType === 'その他' || spaceShape === 'rect') ? 'solid' : lineStyle;
 
-                // グリッドが表示されていて、描画モードの場合、プレビューのためにマウス位置をグリッドにスナップする
-                let snappedMousePos = currentPos;
-                if (isGridVisible && ((drawingMode === 'space' && spaceEditMode === 'create') || (drawingMode === 'compass' && doorWindowPlacementStep === 1) || (drawingMode === 'door' && doorWindowPlacementStep <= 2) || (drawingMode === 'window' && doorWindowPlacementStep <= 2))) {
-                    snappedMousePos = getGridSnappedPoint(currentPos);
-                }
-                setMousePos(snappedMousePos); // 一時的な描画プレビューのために常にマウス位置を更新する
+                        if (spaceShape === 'rect') {
+                            newElement = { id: `space-${Date.now()}`, type: 'space', shape: 'rect', spaceType: spaceType, x: (Math.min(startPoint.x, finalEndPoint.x) / dimensions.width) * 100, y: (Math.min(startPoint.y, finalEndPoint.y) / dimensions.height) * 100, width: (Math.abs(startPoint.x - finalEndPoint.x) / dimensions.width) * 100, height: (Math.abs(startPoint.y - finalEndPoint.y) / dimensions.height) * 100, fill: currentFillColor, color: currentStrokeColor, strokeWidth: currentStrokeWidth, lineStyle: currentLineStyle };
+                        } else if (spaceShape === 'line') {
+                            newElement = { id: `space-${Date.now()}`, type: 'space', shape: 'line', spaceType: spaceType, x1: (startPoint.x / dimensions.width) * 100, y1: (startPoint.y / dimensions.height) * 100, x2: (finalEndPoint.x / dimensions.width) * 100, y2: (finalEndPoint.y / dimensions.height) * 100, strokeWidth: currentStrokeWidth, color: currentStrokeColor, lineStyle: currentLineStyle };
+                        }
+                    } else if (drawingMode === 'compass') {
+                        const finalEndPoint = clickPos; 
+                        const dx = finalEndPoint.x - startPoint.x;
+                        const dy = finalEndPoint.y - startPoint.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const size = Math.min(300, Math.max(20, distance));
+                        const rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+                        newElement = { id: `compass-${Date.now()}`, type: 'compass', x: (startPoint.x / dimensions.width) * 100, y: (startPoint.y / dimensions.height) * 100, size: size, rotation: rotation, templateId: compassTemplateId };
+                    } else if (drawingMode === 'door' || drawingMode === 'window') {
+                        const finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        const dx = finalEndPoint.x - startPoint.x;
+                        const dy = finalEndPoint.y - startPoint.y;
+                        const length = Math.sqrt(dx*dx + dy*dy);
+                        const baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                        newElement = {
+                            id: `${drawingMode}-${Date.now()}`,
+                            type: drawingMode,
+                            templateId: drawingMode === 'door' ? doorTemplateId : windowTemplateId,
+                            x1: (startPoint.x / dimensions.width) * 100,
+                            y1: (startPoint.y / dimensions.height) * 100,
+                            x2: (finalEndPoint.x / dimensions.width) * 100,
+                            y2: (finalEndPoint.y / dimensions.height) * 100,
+                            length: length,
+                            baseAngle: baseAngle,
+                            rotation: 0,
+                            isInner: true,
+                            swingDirection: 'clockwise',
+                            wallThickness: 10, 
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                        };
+                    }
 
-                if (isDragging && selectedElement) {
-                    const dx = currentPos.x - dragStartPos.x;
-                    const dy = currentPos.y - dragStartPos.y;
-
-                    const newElements = svgElements.map(el => {
-                        if (el.id === selectedElementId) {
-                            let newX, newY;
-                            if (el.type === 'space' && el.shape === 'rect' || el.type === 'fixture' || el.type === 'text' || el.type === 'compass') {
-                                // x, y座標を持つ要素の場合
-                                const originalX = el.x / 100 * dimensions.width;
-                                const originalY = el.y / 100 * dimensions.height;
-                                let tempX = originalX + dx;
-                                let tempY = originalY + dy;
-
-                                if (isGridVisible && (el.type === 'space' || el.type === 'fixture')) { // 空間と設備にグリッドスナップを適用
-                                    const snappedPoint = getGridSnappedPoint({x: tempX, y: tempY});
-                                    newX = (snappedPoint.x / dimensions.width) * 100;
-                                    newY = (snappedPoint.y / dimensions.height) * 100;
-                                } else {
-                                    newX = (tempX / dimensions.width) * 100;
-                                    newY = (tempY / dimensions.height) * 100;
-                                }
-                                return { ...el, x: newX, y: newY };
-                            } else if (el.type === 'door' || el.type === 'window') {
-                                // ドアと窓の場合、新しいx,y（中心）と元の長さ/角度に基づいてx1, y1, x2, y2を更新
-                                const originalP1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
-                                const originalP2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
-                                const currentCenter = { x: (originalP1.x + originalP2.x) / 2, y: (originalP1.y + originalP2.y) / 2 };
-
-                                let newCenter = { x: currentCenter.x + dx, y: currentCenter.y + dy };
-
-                                if (isGridVisible) {
-                                    newCenter = getGridSnappedPoint(newCenter);
-                                }
-
-                                const moveDx = newCenter.x - currentCenter.x;
-                                const moveDy = newCenter.y - currentCenter.y;
-
-                                return {
-                                    ...el,
-                                    x: (newCenter.x / dimensions.width) * 100, // 保存された中心を更新
-                                    y: (newCenter.y / dimensions.height) * 100, // 保存された中心を更新
-                                    x1: ((originalP1.x + moveDx) / dimensions.width) * 100,
-                                    y1: ((originalP1.y + moveDy) / dimensions.height) * 100,
-                                    x2: ((originalP2.x + moveDx) / dimensions.width) * 100,
-                                    y2: ((originalP2.y + moveDy) / dimensions.height) * 100,
-                                };
-                            } else if (el.type === 'space' && el.shape === 'line') {
-                                // 線の場合、開始点と終了点の両方を調整
-                                const originalX1 = el.x1 / 100 * dimensions.width;
-                                const originalY1 = el.y1 / 100 * dimensions.height;
-                                const originalX2 = el.x2 / 100 * dimensions.width;
-                                const originalY2 = el.y2 / 100 * dimensions.height;
-
-                                let tempP1 = {x: originalX1 + dx, y: originalY1 + dy};
-                                let tempP2 = {x: originalX2 + dx, y: originalY2 + dy};
-
-                                if (isGridVisible) {
-                                    tempP1 = getGridSnappedPoint(tempP1);
-                                    tempP2 = getGridSnappedPoint(tempP2);
-                                }
-                                return {
-                                    ...el,
-                                    x1: (tempP1.x / dimensions.width) * 100,
-                                    y1: (tempP1.y / dimensions.height) * 100,
-                                    x2: (tempP2.x / dimensions.width) * 100,
-                                    y2: (tempP2.y / dimensions.height) * 100
-                                };
+                    if (newElement) {
+                        setHistoryState(prevState => {
+                            let tempElements = [...prevState.present.svgElements, newElement];
+                            if (newElement.shape === 'line') {
+                                const newFill = findAndCreateFill(dimensions, newElement, tempElements, newElement.fill);
+                                if (newFill) { tempElements.push(newFill); }
                             }
+                            return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: tempElements }, future: [] };
+                        });
+                        setSelectedElementId(newElement.id);
+                    }
+                    setStartPoint(null);
+                    return;
+                }
+
+                // Case 2: 描画の1クリック目 or 選択
+                if (targetElement) {
+                    setSelectedElementId(targetId);
+                    return;
+                }
+
+                // Case 3: 背景クリック or 描画モードで空間上をクリック
+                const snappedStartPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                if (drawingMode === 'text' || drawingMode === 'fixture') {
+                    const newElement = drawingMode === 'text' ? {
+                        id: `text-${Date.now()}`, type: 'text',
+                        x: (snappedStartPoint.x / dimensions.width) * 100, y: (snappedStartPoint.y / dimensions.height) * 100,
+                        text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign,
+                    } : {
+                        id: `fixture-${Date.now()}`, type: 'fixture',
+                        x: (snappedStartPoint.x / dimensions.width) * 100, y: (snappedStartPoint.y / dimensions.height) * 100,
+                        templateId: fixtureTemplateId,
+                        size: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultSize,
+                        fill: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultFill,
+                        stroke: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultStroke,
+                        strokeWidth: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultStrokeWidth,
+                    };
+                    setHistoryState(prevState => ({
+                        past: [...prevState.past, prevState.present],
+                        present: { ...prevState.present, svgElements: [...prevState.present.svgElements, newElement] },
+                        future: []
+                    }));
+                    setSelectedElementId(newElement.id);
+                } else {
+                    setStartPoint(snappedStartPoint);
+                    setSelectedElementId(null);
+                }
+            }, [getCanvasCoords, svgElements, drawingMode, startPoint, isGridVisible, getGridSnappedPoint, dimensions, strokeColor, fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType, fillColor, strokeWidth, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, findAndCreateFill, endpointSnap, getAngleSnappedPoint, spaceShape]);
+
+            // SVG上でのマウスダウン処理
+            const handleMouseDown = useCallback((e) => {
+                e.stopPropagation();
+                mouseDownInfo.current = { x: e.clientX, y: e.clientY };
+
+                const startPos = getCanvasCoords(e);
+                const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
+                const targetElement = svgElements.find(el => el.id === targetId);
+
+                if (targetElement) {
+                    setIsDragging(true);
+                    setSelectedElementId(targetId);
+                    historyOnActionStart.current = historyState.present;
+                    dragInfo.current = {
+                        startMouseX: startPos.x,
+                        startMouseY: startPos.y,
+                        element: targetElement,
+                        initialX: targetElement.x !== undefined ? targetElement.x / 100 * dimensions.width : null,
+                        initialY: targetElement.y !== undefined ? targetElement.y / 100 * dimensions.height : null,
+                        initialX1: targetElement.x1 !== undefined ? targetElement.x1 / 100 * dimensions.width : null,
+                        initialY1: targetElement.y1 !== undefined ? targetElement.y1 / 100 * dimensions.height : null,
+                        initialX2: targetElement.x2 !== undefined ? targetElement.x2 / 100 * dimensions.width : null,
+                        initialY2: targetElement.y2 !== undefined ? targetElement.y2 / 100 * dimensions.height : null,
+                    };
+                } else {
+                    setSelectedElementId(null);
+                }
+            }, [getCanvasCoords, svgElements, historyState.present, dimensions]);
+
+            // ドキュメント全体でのマウス移動処理
+            // ★★★【変更箇所】D&Dのロジックを更新 ★★★
+            const handleMouseMove = useCallback((e) => {
+                const currentPos = getCanvasCoords(e);
+                setMousePos(currentPos);
+
+                if (isDragging && dragInfo.current) {
+                    const dx = currentPos.x - dragInfo.current.startMouseX;
+                    const dy = currentPos.y - dragInfo.current.startMouseY;
+
+                    const newElements = historyOnActionStart.current.svgElements.map(el => {
+                        if (el.id === selectedElementId) {
+                            const newEl = { ...el };
+                            if (el.type === 'space' && el.shape === 'rect' || el.type === 'fixture' || el.type === 'text' || el.type === 'compass') {
+                                let newPixelX = dragInfo.current.initialX + dx;
+                                let newPixelY = dragInfo.current.initialY + dy;
+                                if (isGridVisible) {
+                                    const snapped = getGridSnappedPoint({ x: newPixelX, y: newPixelY });
+                                    newPixelX = snapped.x;
+                                    newPixelY = snapped.y;
+                                }
+                                newEl.x = (newPixelX / dimensions.width) * 100;
+                                newEl.y = (newPixelY / dimensions.height) * 100;
+                            } else if (el.type === 'space' && el.shape === 'line' || el.type === 'door' || el.type === 'window') {
+                                let newX1 = dragInfo.current.initialX1 + dx;
+                                let newY1 = dragInfo.current.initialY1 + dy;
+                                let newX2 = dragInfo.current.initialX2 + dx;
+                                let newY2 = dragInfo.current.initialY2 + dy;
+                                if (isGridVisible) {
+                                    const snapped1 = getGridSnappedPoint({ x: newX1, y: newY1 });
+                                    const snapped2 = getGridSnappedPoint({ x: newX2, y: newY2 });
+                                    newX1 = snapped1.x; newY1 = snapped1.y;
+                                    newX2 = snapped2.x; newY2 = snapped2.y;
+                                }
+                                newEl.x1 = (newX1 / dimensions.width) * 100;
+                                newEl.y1 = (newY1 / dimensions.height) * 100;
+                                newEl.x2 = (newX2 / dimensions.width) * 100;
+                                newEl.y2 = (newY2 / dimensions.height) * 100;
+                                
+                                // ドアと窓の移動時に長さと角度を再計算
+                                if (el.type === 'door' || el.type === 'window') {
+                                    const newDx = newX2 - newX1;
+                                    const newDy = newY2 - newY1;
+                                    newEl.length = Math.sqrt(newDx * newDx + newDy * newDy);
+                                    newEl.baseAngle = Math.atan2(newDy, newDx) * 180 / Math.PI;
+                                }
+                            }
+                            return newEl;
                         }
                         return el;
                     });
-                    setHistoryState(prevState => ({
-                        past: [...prevState.past], // ドラッグ中は過去に追加せず、マウスアップ時のみ追加
-                        present: { ...prevState.present, svgElements: newElements },
-                        future: []
-                    }));
-                    setDragStartPos(currentPos);
-                } else if (!isGridVisible && ((drawingMode === 'space' && spaceEditMode === 'create' && startPoint) || (drawingMode === 'space' && spaceEditMode === 'edit') || (drawingMode === 'compass' && doorWindowPlacementStep === 0) || (drawingMode === 'fixture' && doorWindowPlacementStep === 0) || (drawingMode === 'door' && doorWindowPlacementStep === 0) || (drawingMode === 'window' && doorWindowPlacementStep === 0))) {
-                    // 描画または編集のための端点スナップ
+                    setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
+                }
+                
+                if (!isDragging && !isGridVisible) {
                     let snappedToEndpoint = null;
                     for (const el of svgElements) {
-                        if (el.type === 'space' && el.shape === 'line') {
+                         if (el.type === 'space' && el.shape === 'line') {
                             const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
                             const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
                             const dist1 = Math.sqrt(Math.pow(currentPos.x - p1.x, 2) + Math.pow(currentPos.y - p1.y, 2));
@@ -924,381 +902,39 @@
                     }
                     setEndpointSnap(snappedToEndpoint);
                 }
-            };
+            }, [isDragging, getCanvasCoords, selectedElementId, isGridVisible, getGridSnappedPoint, dimensions, zoom, SNAP_THRESHOLD, svgElements]);
 
-            // ドラッグ操作を確定するためのマウスアップイベントを処理する
-            const handleMouseUp = (e) => {
+            // ドキュメント全体でのマウスアップ処理
+            const handleMouseUp = useCallback((e) => {
+                const wasDragging = isDragging;
+
                 if (isDragging) {
-                    setIsDragging(false);
-                    // ドラッグ終了時に履歴を記録
-                    recordHistory(svgElements);
-                }
-            };
-
-            // 描画と選択のためのSVGキャンバス上のクリックイベントを処理する
-            const handleSvgClick = (e) => {
-                if (isDragging) { // ドラッグ操作が完了したばかりの場合、クリックとして処理しない
-                    return;
-                }
-                const clickPos = getCanvasCoords(e);
-
-                const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
-                const clickedElement = targetId ? svgElements.find(el => el.id === targetId) : null;
-
-                // 明示的に何かを選択する場合を除き、まず選択をリセットする
-                setSelectedElementId(null);
-                setSelectedBlockId(null);
-
-                // --- まず描画モードを処理する ---
-                if (drawingMode === 'space' && spaceEditMode === 'create') {
-                    let currentClickPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                    if (!startPoint) {
-                        setStartPoint(currentClickPoint);
-                    } else {
-                        let finalEndPoint = currentClickPoint;
-                        if (!isGridVisible) {
-                            finalEndPoint = endpointSnap ? endpointSnap : getAngleSnappedPoint(startPoint, currentClickPoint);
-                        }
-                        const currentStrokeColor = (spaceType === '柱') ? '#000000' : strokeColor;
-                        const currentFillColor = (spaceType === '柱') ? '#000000' : fillColor;
-                        const currentStrokeWidth = (spaceType === '柱') ? 1 : strokeWidth;
-                        const currentLineStyle = (spaceType === 'その他' || spaceShape === 'rect') ? 'solid' : lineStyle;
-
-                        const newElement = {
-                            id: `space-${Date.now()}`, type: 'space', shape: spaceShape, spaceType: spaceType,
-                            x1: (startPoint.x / dimensions.width) * 100, y1: (startPoint.y / dimensions.height) * 100,
-                            x2: (finalEndPoint.x / dimensions.width) * 100, y2: (finalEndPoint.y / dimensions.height) * 100,
-                            strokeWidth: currentStrokeWidth, color: currentStrokeColor,
-                            lineStyle: currentLineStyle,
-                            x: (Math.min(startPoint.x, finalEndPoint.x) / dimensions.width) * 100, // 長方形用
-                            y: (Math.min(startPoint.y, finalEndPoint.y) / dimensions.height) * 100, // 長方形用
-                            width: (Math.abs(startPoint.x - finalEndPoint.x) / dimensions.width) * 100, // 長方形用
-                            height: (Math.abs(startPoint.y - finalEndPoint.y) / dimensions.height) * 100, // 長方形用
-                            fill: currentFillColor, // 長方形用
-                        };
-
-                        setHistoryState(prevState => {
-                            let tempElements = [...prevState.present.svgElements, newElement];
-                            if (spaceShape === 'line') {
-                                const newFill = findAndCreateFill(dimensions, newElement, tempElements, currentFillColor);
-                                if (newFill) { tempElements.push(newFill); }
-                            }
-                            return {
-                                past: [...prevState.past, prevState.present],
-                                present: { ...prevState.present, svgElements: tempElements },
-                                future: []
-                            };
-                        });
-                        setStartPoint(null);
-                    }
-                    return; // 描画を処理し、終了
-                }
-
-                if (drawingMode === 'text') {
-                    if (clickedElement && clickedElement.type === 'text') {
-                        setSelectedElementId(clickedElement.id); // 既存のテキストを選択
-                    } else {
-                        const newElement = {
-                            id: `text-${Date.now()}`, type: 'text',
-                            x: (clickPos.x / dimensions.width) * 100, y: (clickPos.y / dimensions.height) * 100,
-                            text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign,
-                        };
-                        setHistoryState(prevState => {
-                            const updatedElements = [...prevState.present.svgElements, newElement];
-                            return {
-                                past: [...prevState.past, prevState.present],
-                                present: { ...prevState.present, svgElements: updatedElements },
-                                future: []
-                            };
-                        });
-                        setSelectedElementId(newElement.id);
-                    }
-                    return; // テキストを処理し、終了
-                }
-
-                if (drawingMode === 'compass') {
-                    let currentClickPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                    if (doorWindowPlacementStep === 0) {
-                        setStartPoint(currentClickPoint);
-                        setDoorWindowPlacementStep(1);
-                    } else if (doorWindowPlacementStep === 1) {
-                        const dx = clickPos.x - startPoint.x;
-                        const dy = clickPos.y - startPoint.y;
-                        let rotation = Math.atan2(dy, dx) * 180 / Math.PI;
-
-                        const newElement = {
-                            id: `compass-${Date.now()}`, type: 'compass',
-                            x: (startPoint.x / dimensions.width) * 100, y: (startPoint.y / dimensions.height) * 100,
-                            size: 50, color: strokeColor, rotation: rotation, templateId: compassTemplateId
-                        };
-                        setHistoryState(prevState => {
-                            const updatedElements = [...prevState.present.svgElements, newElement];
-                            return {
-                                past: [...prevState.past, prevState.present],
-                                present: { ...prevState.present, svgElements: updatedElements },
-                                future: []
-                            };
-                        });
-                        setSelectedElementId(newElement.id);
-                        setStartPoint(null);
-                        setDoorWindowPlacementStep(0);
-                    }
-                    return; // 方位記号を処理し、終了
-                }
-
-                if (drawingMode === 'fixture') {
-                    const selectedTemplate = FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || FIXTURE_TEMPLATES[fixtureCategory][0];
-                    const newElement = {
-                        id: `fixture-${Date.now()}`, type: 'fixture',
-                        x: (clickPos.x / dimensions.width) * 100, y: (clickPos.y / dimensions.height) * 100,
-                        templateId: fixtureTemplateId,
-                        size: selectedTemplate.defaultSize,
-                        fill: selectedTemplate.defaultFill,
-                        stroke: selectedTemplate.defaultStroke,
-                        strokeWidth: selectedTemplate.defaultStrokeWidth,
-                    };
-                    setHistoryState(prevState => {
-                        const updatedElements = [...prevState.present.svgElements, newElement];
-                        return {
-                            past: [...prevState.past, prevState.present],
-                            present: { ...prevState.present, svgElements: updatedElements },
+                    if (dragInfo.current && JSON.stringify(historyOnActionStart.current.svgElements) !== JSON.stringify(svgElements)) {
+                        setHistoryState(prev => ({
+                            ...prev,
+                            past: [...prev.past, historyOnActionStart.current],
                             future: []
-                        };
-                    });
-                    setSelectedElementId(newElement.id);
-                    return; // 設備を処理し、終了
-                }
-
-                if (drawingMode === 'door' || drawingMode === 'window') {
-                    let closestWallSegment = null;
-                    let minDistance = Infinity;
-                    let wallEl = null;
-
-                    for (const el of svgElements) {
-                        // 空間要素のみを壁として考慮
-                        if (el.type === 'space' && (el.shape === 'line' || el.shape === 'rect')) {
-                            let segmentsToConsider = [];
-                            if (el.shape === 'line') {
-                                // 線要素の座標が有効であることを確認
-                                if (typeof el.x1 !== 'number' || typeof el.y1 !== 'number' || typeof el.x2 !== 'number' || typeof el.y2 !== 'number' ||
-                                    isNaN(el.x1) || isNaN(el.y1) || isNaN(el.x2) || isNaN(el.y2)) { // NaNチェックも追加
-                                    console.warn("Skipping malformed line element:", el);
-                                    continue; // この要素をスキップ
-                                }
-                                segmentsToConsider.push({
-                                    p1: { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height },
-                                    p2: { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height },
-                                    strokeWidth: el.strokeWidth
-                                });
-                            } else if (el.shape === 'rect') {
-                                segmentsToConsider = getRectangleSegments(el, dimensions).map(seg => ({
-                                    ...seg,
-                                    strokeWidth: el.strokeWidth
-                                }));
-                                // getRectangleSegments からのセグメントの点も有効であることを確認
-                                segmentsToConsider = segmentsToConsider.filter(seg =>
-                                    seg.p1 && typeof seg.p1.x === 'number' && !isNaN(seg.p1.x) &&
-                                    seg.p1 && typeof seg.p1.y === 'number' && !isNaN(seg.p1.y) &&
-                                    seg.p2 && typeof seg.p2.x === 'number' && !isNaN(seg.p2.x) &&
-                                    seg.p2 && typeof seg.p2.y === 'number' && !isNaN(seg.p2.y)
-                                );
-                                if (segmentsToConsider.length === 0 && (el.x !== 0 || el.y !== 0 || el.width !== 0 || el.height !== 0)) {
-                                    console.warn("Skipping malformed rectangle element due to invalid segment generation:", el);
-                                    continue; // 有効なセグメントが生成されなかった場合、スキップ
-                                }
-                            }
-
-                            for (const segment of segmentsToConsider) {
-                                // segment.p1, segment.p2 が有効な点であることを再度確認
-                                if (!segment.p1 || !segment.p2 || typeof segment.p1.x !== 'number' || typeof segment.p1.y !== 'number' || typeof segment.p2.x !== 'number' || typeof segment.p2.y !== 'number' ||
-                                    isNaN(segment.p1.x) || isNaN(segment.p1.y) || isNaN(segment.p2.x) || isNaN(segment.p2.y)) { // NaNチェックも追加
-                                    console.warn("Skipping malformed segment in closestWallSegment search:", segment);
-                                    continue;
-                                }
-                                const dist = distToSegment(clickPos, segment.p1, segment.p2);
-                                if (dist < SNAP_THRESHOLD / zoom && dist < minDistance) {
-                                    minDistance = dist;
-                                    closestWallSegment = { p1: segment.p1, p2: segment.p2, strokeWidth: segment.strokeWidth }; // 線幅も取得
-                                    wallEl = el; // 元の要素への参照を保持
-                                }
-                            }
-                        }
-                    }
-
-                    if (!closestWallSegment) {
-                        // 壁が見つからない場合、リセットして何もしない
-                        setStartPoint(null);
-                        setWallLineForDoorWindow(null);
-                        setDoorWindowPlacementStep(0);
-                        setTempDoorWindowProps(null);
-                        return;
-                    }
-
-                    // クリック位置を最も近い壁セグメントに投影する
-                    let snappedClickPos = projectPointOnLine(clickPos, closestWallSegment.p1, closestWallSegment.p2);
-                    if (isGridVisible) {
-                        snappedClickPos = getGridSnappedPoint(snappedClickPos);
-                    }
-
-                    if (doorWindowPlacementStep === 0) {
-                        // ステップ1: 1回目のクリック (開始点)
-                        setStartPoint(snappedClickPos);
-                        setWallLineForDoorWindow({
-                            id: wallEl.id, // 元の壁要素IDを格納
-                            x1: closestWallSegment.p1.x, y1: closestWallSegment.p1.y,
-                            x2: closestWallSegment.p2.x, y2: closestWallSegment.p2.y,
-                            strokeWidth: closestWallSegment.strokeWidth // 壁の線幅を格納
-                        });
-                        setDoorWindowPlacementStep(1);
-                    } else if (doorWindowPlacementStep === 1) {
-                        // ステップ2: 2回目のクリック (終了点/長さ)
-                        let isSameWall = false;
-                        if (wallLineForDoorWindow && wallEl.id === wallLineForDoorWindow.id) {
-                            isSameWall = true;
-                        }
-
-                        if (isSameWall) {
-                            const p1_wall_orig = { x: wallLineForDoorWindow.x1, y: wallLineForDoorWindow.y1 };
-                            const p2_wall_orig = { x: wallLineForDoorWindow.x2, y: wallLineForDoorWindow.y2 };
-
-                            const lineVector = { x: p2_wall_orig.x - p1_wall_orig.x, y: p2_wall_orig.y - p1_wall_orig.y };
-                            const lengthSq = lineVector.x * lineVector.x + lineVector.y * lineVector.y;
-
-                            let finalP1, finalP2;
-                            if (lengthSq > 0) {
-                                const t1 = ((startPoint.x - p1_wall_orig.x) * lineVector.x + (startPoint.y - p1_wall_orig.y) * lineVector.y) / lengthSq;
-                                const t2 = ((snappedClickPos.x - p1_wall_orig.x) * lineVector.x + (snappedClickPos.y - p1_wall_orig.y) * lineVector.y) / lengthSq;
-                                if (t1 < t2) {
-                                    finalP1 = startPoint;
-                                    finalP2 = snappedClickPos;
-                                } else {
-                                    finalP1 = snappedClickPos;
-                                    finalP2 = startPoint;
-                                }
-                            } else { // 退化した線（一点）
-                                finalP1 = startPoint;
-                                finalP2 = snappedClickPos;
-                            }
-
-                            // ドア/窓の長さを計算
-                            const doorWindowLength = Math.sqrt(Math.pow(finalP2.x - finalP1.x, 2) + Math.pow(finalP2.y - finalP1.y, 2));
-                            // ドア/窓の基準角度を計算 (壁の角度)
-                            const baseAngle = Math.atan2(finalP2.y - finalP1.y, finalP2.x - finalP1.x) * 180 / Math.PI;
-
-                            // 次のステップのために一時的なプロパティを格納
-                            setTempDoorWindowProps({
-                                x1: (finalP1.x / dimensions.width) * 100, y1: (finalP1.y / dimensions.height) * 100,
-                                x2: (finalP2.x / dimensions.width) * 100, y2: (finalP2.y / dimensions.height) * 100,
-                                color: strokeColor, strokeWidth: strokeWidth,
-                                templateId: drawingMode === 'door' ? doorTemplateId : windowTemplateId,
-                                swingDirection: 'clockwise', // デフォルト
-                                isInner: true, // デフォルト
-                                rotation: 0, // 初期回転を0に設定
-                                center: { x: (finalP1.x + finalP2.x) / 2, y: (finalP1.y + finalP2.y) / 2 }, // 回転計算のために中心を格納
-                                baseAngle: baseAngle, // 壁の角度を格納
-                                length: doorWindowLength, // ドア/窓の長さを格納
-                                wallThickness: wallLineForDoorWindow.strokeWidth || DEFAULT_STROKE_WIDTH // 壁の線幅を格納
-                            });
-                            setStartPoint(finalP1); // 回転計算のために開始点を保持
-                            setWallLineForDoorWindow({ ...wallLineForDoorWindow, x1: finalP1.x, y1: finalP1.y, x2: finalP2.x, y2: finalP2.y }); // 実際のセグメントで壁線を更新
-                            setDoorWindowPlacementStep(2); // 回転・開閉方向ステップへ移動
-                        } else {
-                            // 別の壁をクリックした場合、リセット
-                            setStartPoint(null);
-                            setWallLineForDoorWindow(null);
-                            setDoorWindowPlacementStep(0);
-                            setTempDoorWindowProps(null);
-                        }
-                    } else if (doorWindowPlacementStep === 2) {
-                        // ステップ3: 回転と開閉方向の選択
-                        if (!tempDoorWindowProps) { // tempDoorWindowPropsがnullの場合のガード
-                            setStartPoint(null);
-                            setWallLineForDoorWindow(null);
-                            setDoorWindowPlacementStep(0);
-                            setTempDoorWindowProps(null);
-                            return;
-                        }
-
-                        const p1 = { x: tempDoorWindowProps.x1 / 100 * dimensions.width, y: tempDoorWindowProps.y1 / 100 * dimensions.height };
-                        const p2 = { x: tempDoorWindowProps.x2 / 100 * dimensions.width, y: tempDoorWindowProps.y2 / 100 * dimensions.height };
-
-                        // マウス位置から回転を決定
-                        const dx_rot = clickPos.x - tempDoorWindowProps.center.x;
-                        const dy_rot = clickPos.y - tempDoorWindowProps.center.y;
-                        let mouseAngle = Math.atan2(dy_rot, dx_rot) * 180 / Math.PI;
-                        const finalRotation = Math.round(mouseAngle / 90) * 90; // 90度スナップ
-
-                        // 回転後の線分を計算して開閉方向を決定
-                        const rotatedP1 = {
-                            x: (p1.x - tempDoorWindowProps.center.x) * Math.cos(finalRotation * Math.PI / 180) - (p1.y - tempDoorWindowProps.center.y) * Math.sin(finalRotation * Math.PI / 180) + tempDoorWindowProps.center.x,
-                            y: (p1.x - tempDoorWindowProps.center.x) * Math.sin(finalRotation * Math.PI / 180) + (p1.y - tempDoorWindowProps.center.y) * Math.cos(finalRotation * Math.PI / 180) + tempDoorWindowProps.center.y
-                        };
-                        const rotatedP2 = {
-                            x: (p2.x - tempDoorWindowProps.center.x) * Math.cos(finalRotation * Math.PI / 180) - (p2.y - tempDoorWindowProps.center.y) * Math.sin(finalRotation * Math.PI / 180) + tempDoorWindowProps.center.x,
-                            y: (p2.x - tempDoorWindowProps.center.x) * Math.sin(finalRotation * Math.PI / 180) + (p2.y - tempDoorWindowProps.center.y) * Math.cos(finalRotation * Math.PI / 180) + tempDoorWindowProps.center.y
-                        };
-
-                        const vecLineRotated = { x: rotatedP2.x - rotatedP1.x, y: rotatedP2.y - rotatedP1.y };
-                        const vecClickRotated = { x: clickPos.x - rotatedP1.x, y: clickPos.y - rotatedP1.y };
-                        const crossProductRotated = vecLineRotated.x * vecClickRotated.y - vecLineRotated.y * vecClickRotated.x;
-                        const swingDirection = crossProductRotated > 0 ? 'clockwise' : 'counter-clockwise';
-
-                        const wallNormalRotated = { x: -(rotatedP2.y - rotatedP1.y), y: (rotatedP2.x - rotatedP1.x) };
-                        const dotWithNormalRotated = wallNormalRotated.x * (clickPos.x - rotatedP1.x) + wallNormalRotated.y * (clickPos.y - rotatedP1.y);
-                        const isInner = dotWithNormalRotated < 0;
-
-                        const newElement = {
-                            id: `${drawingMode}-${Date.now()}`, type: drawingMode,
-                            ...tempDoorWindowProps, // tempDoorWindowPropsからプロパティを使用
-                            swingDirection: swingDirection,
-                            isInner: isInner,
-                            rotation: finalRotation, // 最終回転を設定
-                            x: ((p1.x + p2.x) / 2 / dimensions.width) * 100, // D&Dのために中心を更新
-                            y: ((p1.y + p2.y) / 2 / dimensions.height) * 100, // D&Dのために中心を更新
-                            // x1, y1, x2, y2 は既にtempDoorWindowPropsに含まれているので、ここでは更新しない
-                            // length, wallThickness も同様にtempDoorWindowPropsに含まれている
-                        };
-                        setHistoryState(prevState => {
-                            const updatedElements = [...prevState.present.svgElements, newElement];
-                            return {
-                                past: [...prevState.past, prevState.present],
-                                present: { ...prevState.present, svgElements: updatedElements },
-                                future: []
-                            };
-                        });
-                        setSelectedElementId(newElement.id);
-                        setStartPoint(null);
-                        setWallLineForDoorWindow(null);
-                        setDoorWindowPlacementStep(0);
-                        setTempDoorWindowProps(null);
-                    }
-                    return; // ドア/窓を処理し、終了
-                }
-
-                // --- 描画モードがアクティブでない場合、既存の要素またはOCRブロックの選択を処理する ---
-                if (clickedElement) {
-                    setSelectedElementId(clickedElement.id);
-                } else {
-                    // SVG要素がクリックされなかった場合、OCRブロックを選択しようとする
-                    const clickedBlock = currentOcrData?.Blocks.find(block => {
-                        const geo = block.Geometry.BoundingBox;
-                        const rectX = geo.Left * dimensions.width, rectY = geo.Top * dimensions.height;
-                        const rectWidth = geo.Width * dimensions.width, rectHeight = geo.Height * dimensions.height;
-                        return clickPos.x >= rectX && clickPos.x <= rectX + rectWidth && clickPos.y >= rectY && clickPos.y <= rectY + rectHeight;
-                    });
-                    if (clickedBlock) {
-                        setSelectedBlockId(clickedBlock.id);
+                        }));
                     }
                 }
-            };
+
+                const wasClick = mouseDownInfo.current && (Math.sqrt((e.clientX - mouseDownInfo.current.x)**2 + (e.clientY - mouseDownInfo.current.y)**2) < 5);
+
+                if (wasClick && !wasDragging) {
+                    handleCanvasClick(e);
+                }
+                
+                setIsDragging(false);
+                dragInfo.current = null;
+                historyOnActionStart.current = null;
+                mouseDownInfo.current = null;
+            }, [isDragging, svgElements, handleCanvasClick]);
 
             // 現在選択されているSVG要素を削除する
             const deleteSelectedElement = useCallback(() => {
                 if (!selectedElementId) return;
                 setHistoryState(prevState => {
                     const newSvgElements = prevState.present.svgElements.filter(el => el.id !== selectedElementId);
-                    // 削除された要素が空間線の場合、関連する塗りつぶしも削除する。
-                    // これは単純なヒューリスティックであり、より堅牢なソリューションではすべての塗りつぶしを再評価する必要があるかもしれない。
                     const finalSvgElements = newSvgElements.filter(el => !(el.type === 'fill' && selectedElement && el.spaceType === selectedElement.spaceType));
                     return {
                         past: [...prevState.past, prevState.present],
@@ -1314,7 +950,7 @@
                 setHistoryState(prevState => {
                     const past = [...prevState.past];
                     const newPresent = past.pop();
-                    if (!newPresent) return prevState; // 元に戻すものがない
+                    if (!newPresent) return prevState;
                     return {
                         past: past,
                         present: newPresent,
@@ -1328,7 +964,7 @@
                 setHistoryState(prevState => {
                     const future = [...prevState.future];
                     const newPresent = future.shift();
-                    if (!newPresent) return prevState; // やり直すものがない
+                    if (!newPresent) return prevState;
                     return {
                         past: [...prevState.past, prevState.present],
                         present: newPresent,
@@ -1337,7 +973,7 @@
                 });
             }, []);
 
-            // 選択された要素を90度回転させる（ドア、窓、方位記号用）
+            // 選択された要素を90度回転させる
             const rotateSelectedElement90Degrees = useCallback(() => {
                 if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window' || selectedElement.type === 'compass')) {
                     const newRotation = ((selectedElement.rotation || 0) + 90) % 360;
@@ -1345,7 +981,7 @@
                 }
             }, [selectedElement, handleSelectedElementUpdate]);
 
-            // 選択されたドア/窓の開閉方向（内側/外側）を切り替える
+            // 選択されたドア/窓の開閉方向を切り替える
             const toggleSelectedElementSwingDirection = useCallback(() => {
                 if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window')) {
                     const newIsInner = !selectedElement.isInner;
@@ -1353,10 +989,7 @@
                     setHistoryState(prevState => {
                         const updatedElements = prevState.present.svgElements.map(el => {
                             if (el.id === selectedElementId) {
-                                return {
-                                    ...el,
-                                    isInner: newIsInner,
-                                };
+                                return { ...el, isInner: newIsInner };
                             }
                             return el;
                         });
@@ -1369,7 +1002,7 @@
                 }
             }, [selectedElement, selectedElementId]);
 
-            // 現在の描画を画像として保存する（PNG/PDF）
+            // 現在の描画を画像として保存する
             const handleSaveImage = (format) => {
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = dimensions.width;
@@ -1379,7 +1012,6 @@
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-                // SVGを文字列にシリアル化し、キャンバスに描画する
                 const svgString = new XMLSerializer().serializeToString(svgRef.current);
                 const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
                 const url = URL.createObjectURL(svgBlob);
@@ -1387,24 +1019,20 @@
 
                 svgImage.onload = () => {
                     ctx.drawImage(svgImage, 0, 0);
-                    URL.revokeObjectURL(url); // Blob URLをクリーンアップ
+                    URL.revokeObjectURL(url);
 
                     const link = document.createElement('a');
                     const today = new Date();
                     const yyyy = today.getFullYear();
                     const mm = String(today.getMonth() + 1).padStart(2, '0');
                     const dd = String(today.getDate()).padStart(2, '0');
-                    const filename = `floorplan_${yyyy}${mm}${dd}.${format}`; // よりわかりやすいファイル名
+                    const filename = `floorplan_${yyyy}${mm}${dd}.${format}`;
 
                     link.download = filename;
                     if (format === 'png') {
                         link.href = exportCanvas.toDataURL('image/png');
                         link.click();
                     } else if (format === 'pdf') {
-                        // PDFの基本的なアラート。完全なPDF生成は複雑。
-                        // 実際のアプリではjsPDFなどのPDFライブラリを統合する。
-                        // alert("PDF保存機能は現在開発中です。PNGで保存します。"); // alert() は使用しない
-                        // 代わりにコンソールログやカスタムメッセージ表示
                         console.warn("PDF保存機能は現在開発中です。PNGで保存します。");
                         link.href = exportCanvas.toDataURL('image/png');
                         link.click();
@@ -1414,12 +1042,22 @@
             };
 
             // --- useEffectフック ---
-            // HTMLキャンバスにOCRデータを描画するためのエフェクト
+            
+            useEffect(() => {
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+
+                return () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                };
+            }, [handleMouseMove, handleMouseUp]);
+
             useEffect(() => {
                 const canvas = canvasRef.current;
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // 前の描画をクリア
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 if (currentOcrData?.Blocks) {
                     currentOcrData.Blocks.forEach(block => {
@@ -1430,13 +1068,12 @@
 
                         ctx.fillStyle = isSelected ? "blue" : "red";
                         ctx.font = "16px Arial";
-                        ctx.fillText(block.Text, rectX, rectY - 5); // 境界ボックスの上にテキスト
+                        ctx.fillText(block.Text, rectX, rectY - 5);
                         ctx.strokeStyle = isSelected ? "rgba(0, 0, 255, 0.9)" : "rgba(255, 0, 0, 0.7)";
                         ctx.lineWidth = isSelected ? 3 : 2;
-                        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight); // 境界ボックスを描画
+                        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
                     });
                 }
-                // アクティブな場合、端点スナップインジケーターを描画
                 if (endpointSnap && !isGridVisible) {
                     ctx.beginPath();
                     ctx.arc(endpointSnap.x, endpointSnap.y, SNAP_THRESHOLD / zoom, 0, 2 * Math.PI);
@@ -1445,16 +1082,13 @@
                 }
             }, [currentOcrData, selectedBlockId, dimensions, endpointSnap, zoom, isGridVisible]);
 
-            // ロード時またはサイドバーの切り替え時にスクロール可能なエディタ領域を中央に配置するエフェクト
             useEffect(() => {
                 if (editorAreaRef.current) {
                     const area = editorAreaRef.current;
-                    // レイアウトが安定するまでタイムアウトを使用
                     const timer = setTimeout(() => {
                         area.scrollTop = (area.scrollHeight - area.clientHeight) / 2;
                         const scrollLeftCenter = (area.scrollWidth - area.clientWidth) / 2;
-                        const sidebarWidth = 320; // サイドバーの幅
-                        // サイドバーが開いている場合、スクロールを調整
+                        const sidebarWidth = 320;
                         const newScrollLeft = isSidebarOpen ? scrollLeftCenter - (sidebarWidth / 2) : scrollLeftCenter;
                         area.scrollLeft = newScrollLeft;
                     }, 0);
@@ -1462,23 +1096,17 @@
                 }
             }, [imageUrl, isSidebarOpen]);
 
-            // 空間タイプが変更されたときに塗りつぶし色を更新するエフェクト
             useEffect(() => {
                 setFillColor(DEFAULT_FILL_COLORS[spaceType] || '#ffffff');
             }, [spaceType]);
 
-            // キーボードショートカット（元に戻す、やり直す、削除、Esc）のエフェクト
             useEffect(() => {
                 const handleKeyDown = (e) => {
                     if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
                     else if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
                     else if (e.key === 'Delete' && selectedElementId) { e.preventDefault(); deleteSelectedElement(); }
                     else if (e.key === 'Escape') {
-                        // すべての描画/配置状態と選択をリセット
                         setStartPoint(null);
-                        setWallLineForDoorWindow(null);
-                        setDoorWindowPlacementStep(0);
-                        setTempDoorWindowProps(null);
                         setSelectedElementId(null);
                         setSelectedBlockId(null);
                     }
@@ -1487,54 +1115,48 @@
                 return () => window.removeEventListener('keydown', handleKeyDown);
             }, [handleUndo, handleRedo, deleteSelectedElement, selectedElementId]);
 
-            // Ctrl + マウスホイールによるズーム機能のエフェクト
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
                 if (!editorArea) return;
                 const handleWheel = (e) => {
                     if (e.ctrlKey) {
-                        e.preventDefault(); // ページズームを防ぐ
-                        const delta = e.deltaY > 0 ? -0.1 : 0.1; // 下にスクロールでズームアウト、上にスクロールでズームイン
-                        setZoom(prevZoom => Math.max(0.2, Math.min(3, prevZoom + delta))); // ズームを0.2から3の間にクランプ
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                        setZoom(prevZoom => Math.max(0.2, Math.min(3, prevZoom + delta)));
                     }
                 };
                 editorArea.addEventListener('wheel', handleWheel, { passive: false });
                 return () => editorArea.removeEventListener('wheel', handleWheel);
             }, []);
 
-            // 描画モードまたは形状が変更されたときに描画状態をリセットするエフェクト
             useEffect(() => {
                 setStartPoint(null);
-                setWallLineForDoorWindow(null);
-                setDoorWindowPlacementStep(0);
-                setTempDoorWindowProps(null);
                 setSelectedElementId(null);
                 setSelectedBlockId(null);
             }, [drawingMode, spaceEditMode, spaceShape]);
 
-            // 現在のインタラクション状態に基づいて適切なカーソルクラスを決定する
+            useEffect(() => {
+                if (!isDisplaySettingsOpen) return;
+                function handleClickOutside(event) {
+                    if (isSidebarOpen && displaySettingsRef.current && !displaySettingsRef.current.contains(event.target)) {
+                        setDisplaySettingsOpen(false);
+                    }
+                }
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => {
+                    document.removeEventListener("mousedown", handleClickOutside);
+                };
+            }, [isDisplaySettingsOpen, isSidebarOpen]);
+
             const getCursorClass = () => {
                 if (isDragging) return 'cursor-grabbing';
-                if ((drawingMode === 'space' && spaceEditMode === 'create' && !startPoint) ||
-                    drawingMode === 'text' ||
-                    (drawingMode === 'compass' && doorWindowPlacementStep === 0) ||
-                    (drawingMode === 'fixture' && doorWindowPlacementStep === 0) ||
-                    (drawingMode === 'door' && doorWindowPlacementStep === 0) ||
-                    (drawingMode === 'window' && doorWindowPlacementStep === 0)) {
-                    return 'cursor-crosshair';
-                }
-                if (drawingMode === 'space' && spaceEditMode === 'edit') return 'cursor-pointer'; // 線/長方形の選択用
-                if ((drawingMode === 'compass' && doorWindowPlacementStep > 0) ||
-                    (drawingMode === 'door' && doorWindowPlacementStep > 0) ||
-                    (drawingMode === 'window' && doorWindowPlacementStep > 0)) {
-                    return 'cursor-crosshair'; // 方位記号/ドア/窓の2回目/3回目のクリック用
-                }
+                if (drawingMode !== 'select' && spaceEditMode !== 'edit') return 'cursor-crosshair';
                 return 'cursor-default';
             };
 
             // --- レンダリング ---
             return (
-                <div className="flex flex-col h-screen" onMouseUp={handleMouseUp}>
+                <div className="flex flex-col h-screen">
                     {/* ヘッダーセクション */}
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                         <span className="text-xl font-bold text-gray-800 ml-4">間取り図エディタ</span>
@@ -1553,41 +1175,39 @@
 
                     {/* メインコンテンツエリア（エディタ＋サイドバー） */}
                     <div className="flex-1 relative overflow-hidden">
-                        {/* エディタキャンバスエリア */}
-                        <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200" onMouseMove={handleMouseMove}>
+                        <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
                                 <div className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
                                     {imageUrl && <img ref={imageRef} src={imageUrl} alt="間取り図" className="editor-image" style={{ opacity: imageOpacity, transform: `translate(-50%, -50%) scale(${imageScale})` }} crossOrigin="anonymous"/>}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
-                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: drawingOpacity }} onMouseDown={handleMouseDown} onClick={handleSvgClick}>
-                                        {/* すべてのSVG要素をレンダリング */}
+                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: drawingOpacity }} onMouseDown={handleMouseDown}>
+                                        {/* ★★★【変更箇所】すべてのSVG要素のD&Dを有効化 ★★★ */}
                                         {svgElements.map(el => {
                                             const isSelected = el.id === selectedElementId;
                                             const stroke = isSelected ? SELECTED_ELEMENT_COLOR : (el.color || DEFAULT_STROKE_COLOR);
                                             const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
+                                            
+                                            const pointerEvents = (drawingMode !== 'space' && el.type === 'space') ? 'none' : 'all';
 
                                             if (el.shape === 'rect' && el.type === 'space') {
-                                                return <rect key={el.id} data-id={el.id} x={`${el.x}%`} y={`${el.y}%`} width={`${el.width}%`} height={`${el.height}%`} fill={el.fill} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} />;
+                                                return <rect key={el.id} data-id={el.id} x={`${el.x}%`} y={`${el.y}%`} width={`${el.width}%`} height={`${el.height}%`} fill={el.fill} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents }} />;
                                             }
                                             if (el.shape === 'line' && el.type === 'space') {
                                                 const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
                                                 const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
                                                 if (el.lineStyle === 'wavy') {
-                                                    return <path key={el.id} data-id={el.id} d={generateWavyPathD(p1, p2)} stroke={stroke} strokeWidth={strokeW} fill="none" />;
+                                                    return <path key={el.id} data-id={el.id} d={generateWavyPathD(p1, p2)} stroke={stroke} strokeWidth={strokeW} fill="none" style={{ pointerEvents }} />;
                                                 }
-                                                return <line key={el.id} data-id={el.id} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} strokeLinecap="square" />;
+                                                return <line key={el.id} data-id={el.id} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} strokeLinecap="square" style={{ pointerEvents }} />;
                                             }
-                                            if (el.type === 'fill') { // 塗りつぶし要素をレンダリング
+                                            if (el.type === 'fill') {
                                                 return <polygon key={el.id} data-id={el.id} points={el.points} fill={el.fill} stroke="none" style={{pointerEvents: 'none'}} />;
                                             }
                                             if (el.type === 'text') {
                                                 let textAnchor = 'start';
-                                                if (el.textAlign === 'center') {
-                                                    textAnchor = 'middle';
-                                                } else if (el.textAlign === 'right') {
-                                                    textAnchor = 'end';
-                                                }
+                                                if (el.textAlign === 'center') textAnchor = 'middle';
+                                                else if (el.textAlign === 'right') textAnchor = 'end';
                                                 return (
                                                     <text key={el.id} data-id={el.id} x={`${el.x}%`} y={`${el.y}%`} fill={el.color} fontSize={el.fontSize} fontFamily={el.fontFamily} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}} textAnchor={textAnchor}>
                                                         {el.text.split('\n').map((line, i) => (
@@ -1600,192 +1220,70 @@
                                                 const cx = el.x / 100 * dimensions.width;
                                                 const cy = el.y / 100 * dimensions.height;
                                                 const template = COMPASS_TEMPLATES.find(t => t.id === el.templateId) || COMPASS_TEMPLATES[0];
-                                                const scaleFactor = el.size / 50; // ベースが50x50領域と仮定
-
                                                 return (
                                                     <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}}>
-                                                        <g transform={`scale(${scaleFactor})`}>
-                                                            {template.src ? (
-                                                                // srcプロパティがある場合：<image>タグで外部SVGファイルを表示
-                                                                <image 
-                                                                    href={template.src} 
-                                                                    x="-25" // 50x50領域の中心に配置するためのオフセット
-                                                                    y="-25" // 50x50領域の中心に配置するためのオフセット
-                                                                    width="50" 
-                                                                    height="50" 
-                                                                />
-                                                            ) : (
-                                                                // pathプロパティがある場合：従来通り<path>で描画
-                                                                <>
-                                                                    <path d={template.path} fill={el.color} stroke={el.color} strokeWidth="1" />
-                                                                    {template.textLabel && <text x="0" y="-15" textAnchor="middle" alignmentBaseline="baseline" fontSize="12" fill={el.color}>{template.textLabel}</text>}
-                                                                </>
-                                                            )}
-                                                        </g>
+                                                        <image href={template.src} x={-el.size / 2} y={-el.size / 2} width={el.size} height={el.size} preserveAspectRatio="xMidYMid meet" />
+                                                        {isSelected && <rect x={-el.size/2 - 2} y={-el.size/2 - 2} width={el.size + 4} height={el.size + 4} fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2" />}
                                                     </g>
                                                 );
                                             }
-                                            if (el.type === 'fixture') { // 設備要素をレンダリング
+                                            if (el.type === 'fixture') {
                                                 const cx = el.x / 100 * dimensions.width;
                                                 const cy = el.y / 100 * dimensions.height;
-                                                // templateIdに基づいて設備の正しいカテゴリを見つける
                                                 const templateCategory = FIXTURE_TEMPLATES[Object.keys(FIXTURE_TEMPLATES).find(cat => FIXTURE_TEMPLATES[cat].some(t => t.id === el.templateId))] || FIXTURE_TEMPLATES.kitchen;
                                                 const template = templateCategory.find(t => t.id === el.templateId) || FIXTURE_TEMPLATES.kitchen[0];
-                                                const scaleFactor = el.size / template.defaultSize; // テンプレートのデフォルトサイズに基づいてスケーリング
+                                                const scaleFactor = el.size / template.defaultSize;
                                                 return (
                                                     <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) scale(${scaleFactor})`} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}}>
                                                         <path d={template.path} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
                                                     </g>
                                                 );
                                             }
-                                            if (el.type === 'door') { // ドア要素をレンダリング
+                                            if (el.type === 'door' || el.type === 'window') {
                                                 const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
-                                                const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
-                                                const doorTemplate = DOOR_TEMPLATES.find(t => t.id === el.templateId) || DOOR_TEMPLATES[0];
-                                                const doorLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
-                                                // ドアの描画は、その要素のx1,y1を原点とし、回転はそこからの相対角度で計算されるべき
-                                                // baseAngleは壁の角度、el.rotationはユーザーが追加で回転させた角度
-                                                const totalRotation = el.baseAngle + (el.rotation || 0);
-
-                                                return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${p1.x}, ${p1.y}) rotate(${totalRotation})`} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}}>
-                                                        {/* doorTemplate.path は (0,0) を基準に描画されることを想定 */}
-                                                        <path d={doorTemplate.path(doorLength, el.swingDirection, el.isInner, el.wallThickness)} fill="none" stroke={stroke} strokeWidth={strokeW} strokeLinecap="square" />
-                                                    </g>
-                                                );
-                                            }
-                                            if (el.type === 'window') { // 窓要素をレンダリング
-                                                const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
-                                                const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
-                                                const windowTemplate = WINDOW_TEMPLATES.find(t => t.id === el.templateId) || WINDOW_TEMPLATES[0];
-                                                const windowLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
-                                                // 窓の描画は、その要素のx1,y1を原点とし、回転はそこからの相対角度で計算されるべき
-                                                // baseAngleは壁の角度、el.rotationはユーザーが追加で回転させた角度
+                                                const template = el.type === 'door' ? (DOOR_TEMPLATES.find(t => t.id === el.templateId) || DOOR_TEMPLATES[0]) : (WINDOW_TEMPLATES.find(t => t.id === el.templateId) || WINDOW_TEMPLATES[0]);
                                                 const totalRotation = el.baseAngle + (el.rotation || 0);
                                                 return (
                                                     <g key={el.id} data-id={el.id} transform={`translate(${p1.x}, ${p1.y}) rotate(${totalRotation})`} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}}>
-                                                        {/* windowTemplate.path は (0,0) を基準に描画されることを想定 */}
-                                                        <path d={windowTemplate.path(windowLength, el.swingDirection, el.isInner, el.wallThickness)} fill="none" stroke={stroke} strokeWidth={strokeW} strokeLinecap="square" />
+                                                        <path d={template.path(el.length, el.swingDirection, el.isInner, el.wallThickness)} fill="none" stroke={stroke} strokeWidth={strokeW} strokeLinecap="square" />
                                                     </g>
                                                 );
                                             }
                                             return null;
                                         })}
-                                        {/* 一時的な描画プレビュー */}
-                                        {startPoint && spaceShape === 'line' && drawingMode === 'space' && (
-                                            <line x1={startPoint.x} y1={startPoint.y} x2={mousePos.x} y2={mousePos.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />
-                                        )}
-                                        {startPoint && spaceShape === 'rect' && drawingMode === 'space' && (
-                                            <rect x={Math.min(startPoint.x, mousePos.x)} y={Math.min(startPoint.y, mousePos.y)} width={Math.abs(startPoint.x - mousePos.x)} height={Math.abs(startPoint.y - mousePos.y)} fill="transparent" stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />
-                                        )}
-                                        {startPoint && drawingMode === 'compass' && doorWindowPlacementStep === 1 && (
-                                            (() => {
-                                                const template = COMPASS_TEMPLATES.find(t => t.id === compassTemplateId) || COMPASS_TEMPLATES[0];
-                                                return (
-                                                    <g transform={`translate(${startPoint.x}, ${startPoint.y}) rotate(${Math.atan2(mousePos.y - startPoint.y, mousePos.x - startPoint.x) * 180 / Math.PI})`}>
-                                                        {/* 一時的な方位記号プレビュー - プレビュー用に固定サイズ */}
-                                                        <g transform={`scale(${50 / 50})`}> {/* プレビューのスケールは常に50pxに基づいて1 */}
-                                                            
-                                                            {/* 👇 ここからが修正箇所 👇 */}
-
-                                                            {template.src ? (
-                                                                // srcプロパティがある場合：<image>タグで外部SVGファイルを表示
-                                                                <image 
-                                                                    href={template.src} 
-                                                                    x="-25" // 50x50領域の中心に配置するためのオフセット
-                                                                    y="-25"
-                                                                    width="50" 
-                                                                    height="50" 
-                                                                />
-                                                            ) : (
-                                                                // pathプロパティがある場合：従来通り<path>で描画
-                                                                <>
-                                                                    <path d={template.path} fill={strokeColor} stroke={strokeColor} strokeWidth="1" />
-                                                                    {template.textLabel && <text x="0" y="-15" textAnchor="middle" alignmentBaseline="baseline" fontSize="12" fill={strokeColor}>{template.textLabel}</text>}
-                                                                </>
-                                                            )}
-                                                            
-                                                            {/* 👆 ここまでが修正箇所 👆 */}
-
-                                                        </g>
-                                                    </g>
-                                                );
-                                            })()
-                                        )}
-                                        {/* ドア/窓の配置プレビュー */}
-                                        {tempDoorWindowProps && (drawingMode === 'door' || drawingMode === 'window') && doorWindowPlacementStep >= 1 && (
-                                            (() => {
-                                                const p1 = { x: tempDoorWindowProps.x1 / 100 * dimensions.width, y: tempDoorWindowProps.y1 / 100 * dimensions.height };
-                                                const p2 = { x: tempDoorWindowProps.x2 / 100 * dimensions.width, y: tempDoorWindowProps.y2 / 100 * dimensions.height };
-                                                let doorWindowLength = tempDoorWindowProps.length;
-                                                let baseAngle = tempDoorWindowProps.baseAngle;
-                                                const wallThickness = tempDoorWindowProps.wallThickness;
-
-                                                const template = drawingMode === 'door'
-                                                    ? (DOOR_TEMPLATES.find(t => t.id === tempDoorWindowProps.templateId) || DOOR_TEMPLATES[0])
-                                                    : (WINDOW_TEMPLATES.find(t => t.id === tempDoorWindowProps.templateId) || WINDOW_TEMPLATES[0]);
-
-                                                let currentRotation = tempDoorWindowProps.rotation || 0;
-                                                let currentSwingDirection = tempDoorWindowProps.swingDirection;
-                                                let currentIsInner = tempDoorWindowProps.isInner;
-
-                                                if (doorWindowPlacementStep === 1) {
-                                                    // ステップ2のプレビュー: 長さ選択
-                                                    // マウス位置からドア/窓の長さを再計算
-                                                    const p2_raw = mousePos;
-                                                    const wallEl = wallLineForDoorWindow;
-                                                    const p1_wall = { x: wallEl.x1, y: wallEl.y1 };
-                                                    const p2_wall = { x: wallEl.x2, y: wallEl.y2 };
-                                                    let p2_snapped = projectPointOnLine(p2_raw, p1_wall, p2_wall);
+                                        {startPoint && (
+                                            <>
+                                                {drawingMode === 'space' && spaceShape === 'rect' && (() => {
+                                                    const previewEndPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                    return <rect x={Math.min(startPoint.x, previewEndPoint.x)} y={Math.min(startPoint.y, previewEndPoint.y)} width={Math.abs(startPoint.x - previewEndPoint.x)} height={Math.abs(startPoint.y - previewEndPoint.y)} fill="transparent" stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} />;
+                                                })()}
+                                                {drawingMode === 'space' && spaceShape === 'line' && (() => {
+                                                    let previewEndPoint = mousePos;
                                                     if (isGridVisible) {
-                                                        p2_snapped = getGridSnappedPoint(p2_snapped);
+                                                        previewEndPoint = getGridSnappedPoint(mousePos);
+                                                    } else {
+                                                        previewEndPoint = endpointSnap || getAngleSnappedPoint(startPoint, mousePos);
                                                     }
-                                                    doorWindowLength = Math.sqrt(Math.pow(p2_snapped.x - p1.x, 2) + Math.pow(p2_snapped.y - p1.y, 2));
-                                                    baseAngle = Math.atan2(p2_snapped.y - p1.y, p2_snapped.x - p1.x) * 180 / Math.PI;
-
+                                                    return <line x1={startPoint.x} y1={startPoint.y} x2={previewEndPoint.x} y2={previewEndPoint.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} style={{ pointerEvents: 'none' }} />;
+                                                })()}
+                                                {drawingMode === 'compass' && (() => {
+                                                    const template = COMPASS_TEMPLATES.find(t => t.id === compassTemplateId) || COMPASS_TEMPLATES[0];
+                                                    const dx = mousePos.x - startPoint.x;
+                                                    const dy = mousePos.y - startPoint.y;
+                                                    const distance = Math.sqrt(dx*dx + dy*dy);
+                                                    const size = Math.min(300, Math.max(20, distance));
+                                                    const rotation = Math.atan2(dy, dx) * 180 / Math.PI;
                                                     return (
-                                                        <g transform={`translate(${p1.x}, ${p1.y}) rotate(${baseAngle})`}>
-                                                            <path d={template.path(doorWindowLength, currentSwingDirection, currentIsInner, wallThickness)} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="square" />
+                                                        <g transform={`translate(${startPoint.x}, ${startPoint.y}) rotate(${rotation})`} style={{ pointerEvents: 'none' }}>
+                                                            <image href={template.src} x={-size / 2} y={-size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" opacity="0.7"/>
                                                         </g>
                                                     );
-                                                } else if (doorWindowPlacementStep === 2) {
-                                                    // ステップ3のプレビュー: 回転と開閉方向
-                                                    const dx = mousePos.x - tempDoorWindowProps.center.x;
-                                                    const dy = mousePos.y - tempDoorWindowProps.center.y;
-                                                    let mouseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                                                    currentRotation = Math.round(mouseAngle / 90) * 90;
-
-                                                    // 回転後の線分を計算して開閉方向を決定するための仮の線分
-                                                    const tempP1_rotated = {
-                                                        x: (p1.x - tempDoorWindowProps.center.x) * Math.cos(currentRotation * Math.PI / 180) - (p1.y - tempDoorWindowProps.center.y) * Math.sin(currentRotation * Math.PI / 180) + tempDoorWindowProps.center.x,
-                                                        y: (p1.x - tempDoorWindowProps.center.x) * Math.sin(currentRotation * Math.PI / 180) + (p1.y - tempDoorWindowProps.center.y) * Math.cos(currentRotation * Math.PI / 180) + tempDoorWindowProps.center.y
-                                                    };
-                                                    const tempP2_rotated = {
-                                                        x: (p2.x - tempDoorWindowProps.center.x) * Math.cos(currentRotation * Math.PI / 180) - (p2.y - tempDoorWindowProps.center.y) * Math.sin(currentRotation * Math.PI / 180) + tempDoorWindowProps.center.x,
-                                                        y: (p2.x - tempDoorWindowProps.center.x) * Math.sin(currentRotation * Math.PI / 180) + (p2.y - tempDoorWindowProps.center.y) * Math.cos(currentRotation * Math.PI / 180) + tempDoorWindowProps.center.y
-                                                    };
-
-                                                    const vecLineRotated_preview = { x: tempP2_rotated.x - tempP1_rotated.x, y: tempP2_rotated.y - tempP1_rotated.y };
-                                                    const vecMouseRotated_preview = { x: mousePos.x - tempP1_rotated.x, y: mousePos.y - tempP1_rotated.y };
-                                                    const crossProductRotated_preview = vecLineRotated_preview.x * vecMouseRotated_preview.y - vecLineRotated_preview.y * vecMouseRotated_preview.x;
-                                                    currentSwingDirection = crossProductRotated_preview > 0 ? 'clockwise' : 'counter-clockwise';
-
-                                                    const wallNormalRotated_preview = { x: -(vecLineRotated_preview.y), y: (vecLineRotated_preview.x) };
-                                                    const dotWithNormalRotated_preview = wallNormalRotated_preview.x * (mousePos.x - tempP1_rotated.x) + wallNormalRotated_preview.y * (mousePos.y - tempP1_rotated.y);
-                                                    currentIsInner = dotWithNormalRotated_preview < 0;
-
-                                                    return (
-                                                        <g transform={`translate(${p1.x}, ${p1.y}) rotate(${baseAngle + currentRotation})`}>
-                                                            <path d={template.path(doorWindowLength, currentSwingDirection, currentIsInner, wallThickness)} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="square" />
-                                                        </g>
-                                                    );
-                                                }
-                                                return null;
-                                            })()
-                                        )}
-                                        {/* ドア/窓配置時の開始点の視覚的インジケーター */}
-                                        {startPoint && (drawingMode === 'door' || drawingMode === 'window') && doorWindowPlacementStep >= 1 && (
-                                            <circle cx={startPoint.x} cy={startPoint.y} r={SNAP_THRESHOLD / zoom / 2} fill="rgba(255, 0, 0, 0.5)" />
+                                                })()}
+                                                {(drawingMode === 'door' || drawingMode === 'window') && (() => {
+                                                    const previewEndPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                    return <line x1={startPoint.x} y1={startPoint.y} x2={previewEndPoint.x} y2={previewEndPoint.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} />;
+                                                })()}
+                                            </>
                                         )}
                                     </svg>
                                 </div>
@@ -1799,8 +1297,8 @@
 
                         {/* サイドバーコンテンツ */}
                         <aside className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
-                            {/* 表示設定セクション */}
-                            <div>
+                            {/* ...サイドバーの中身は変更なし... */}
+                            <div ref={displaySettingsRef}>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDisplaySettingsOpen(!isDisplaySettingsOpen)}>
                                     <span>表示設定</span>
                                     <span className="text-gray-400">{isDisplaySettingsOpen ? '▼' : '▶'}</span>
@@ -1838,7 +1336,6 @@
                                 )}
                             </div>
                             <hr/>
-                            {/* 描画ツールセクション */}
                             <div>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDrawingToolsOpen(!isDrawingToolsOpen)}>
                                     <span>図形描画</span>
@@ -1849,7 +1346,6 @@
                                         <div className="grid grid-cols-3 gap-2">
                                             {['space', 'door', 'window', 'fixture', 'compass', 'text'].map(mode => {
                                                 const names = {'space':'空間','door':'ドア','window':'窓','fixture':'設備','compass':'方角','text':'文字'};
-                                                // すべてのモードが有効
                                                 const isDisabled = false;
                                                 return <button key={mode} onClick={() => setDrawingMode(mode)} disabled={isDisabled} className={`px-2 py-2 rounded text-sm ${drawingMode === mode ? 'bg-indigo-600 text-white' : 'bg-gray-200'} ${isDisabled ? 'text-gray-400 cursor-not-allowed' : ''}`}>{names[mode]}</button>
                                             })}
@@ -1992,39 +1488,34 @@
                                         )}
                                         {drawingMode === 'compass' && (
                                             <div className="mt-4 space-y-4">
-                                                <p className="text-sm text-gray-600">キャンバスをクリックして方角を配置し、再度クリックして回転を確定します。</p>
+                                                <p className="text-sm text-gray-600">キャンバス上をクリックして始点を決め、もう一度クリックして終点を決めます。</p>
                                                 {selectedElement && selectedElement.type === 'compass' ? (
                                                     <div>
                                                         <h3 className="text-md font-semibold mb-2">選択中の方角を編集</h3>
                                                         <CompassTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} />
+                                                        
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700">サイズ: {selectedElement.size}px</label>
-                                                            <input type="range" min="20" max="300" step="5" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                            <label className="block text-sm font-medium text-gray-700 mt-2">サイズ</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="20" max="300" step="1" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value) || 20)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
                                                         </div>
+
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700">回転: {Math.round(selectedElement.rotation || 0)}°</label>
-                                                            <input type="range" min="-180" max="180" step="1" value={selectedElement.rotation || 0} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                            <label className="block text-sm font-medium text-gray-700 mt-2">回転</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="-180" max="180" step="1" value={selectedElement.rotation || 0} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={Math.round(selectedElement.rotation || 0)} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value) || 0)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">色</label>
-                                                            <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                        </div>
+                                                        
                                                         <div className="mt-6">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この方角を削除 (Delete)</button>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        <CompassTemplateSelector selectedTemplateId={compassTemplateId} onChange={setCompassTemplateId} />
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">デフォルトサイズ: 50px</label>
-                                                            <input type="range" min="20" max="300" step="5" value={50} disabled className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">デフォルト色</label>
-                                                            <input type="color" value={strokeColor} disabled className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                        </div>
-                                                    </>
+                                                    <CompassTemplateSelector selectedTemplateId={compassTemplateId} onChange={setCompassTemplateId} />
                                                 )}
                                             </div>
                                         )}
@@ -2100,7 +1591,7 @@
                                         )}
                                         {drawingMode === 'door' && (
                                             <div className="mt-4 space-y-4">
-                                                <p className="text-sm text-gray-600">壁線上の2点をクリックしてドアの長さを決め、マウスを動かして回転方向（90度ごと）を決め、クリックしたら開閉方向（正転/反転）を決めます。</p>
+                                                <p className="text-sm text-gray-600">キャンバス上を2回クリックしてドアを配置します。</p>
                                                 {selectedElement && selectedElement.type === 'door' ? (
                                                     <div>
                                                         <h3 className="text-md font-semibold mb-2">選択中のドアを編集</h3>
@@ -2124,25 +1615,13 @@
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        <DoorTemplateSelector selectedTemplateId={doorTemplateId} onChange={setDoorTemplateId} />
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">デフォルト線の太さ: {DEFAULT_STROKE_WIDTH}px</label>
-                                                            <input type="range" min="1" max="10" step="1" value={DEFAULT_STROKE_WIDTH} disabled className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div>
-                                                                <label className="block text-sm font-medium text-gray-700">デフォルト線の色</label>
-                                                                <input type="color" value={DEFAULT_STROKE_COLOR} disabled className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                            </div>
-                                                        </div>
-                                                    </>
+                                                    <DoorTemplateSelector selectedTemplateId={doorTemplateId} onChange={setDoorTemplateId} />
                                                 )}
                                             </div>
                                         )}
                                         {drawingMode === 'window' && (
                                             <div className="mt-4 space-y-4">
-                                                <p className="text-sm text-gray-600">壁線上の2点をクリックして窓の長さを決め、マウスを動かして回転方向（90度ごと）を決め、クリックしたら開閉方向（正転/反転）を決めます。</p>
+                                                <p className="text-sm text-gray-600">キャンバス上を2回クリックして窓を配置します。</p>
                                                 {selectedElement && selectedElement.type === 'window' ? (
                                                     <div>
                                                         <h3 className="text-md font-semibold mb-2">選択中の窓を編集</h3>
@@ -2166,19 +1645,7 @@
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        <WindowTemplateSelector selectedTemplateId={windowTemplateId} onChange={setWindowTemplateId} />
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">デフォルト線の太さ: {DEFAULT_STROKE_WIDTH}px</label>
-                                                            <input type="range" min="1" max="10" step="1" value={DEFAULT_STROKE_WIDTH} disabled className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div>
-                                                                <label className="block text-sm font-medium text-gray-700">デフォルト線の色</label>
-                                                                <input type="color" value={DEFAULT_STROKE_COLOR} disabled className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                            </div>
-                                                        </div>
-                                                    </>
+                                                    <WindowTemplateSelector selectedTemplateId={windowTemplateId} onChange={setWindowTemplateId} />
                                                 )}
                                             </div>
                                         )}
@@ -2191,7 +1658,6 @@
             );
         }
 
-        // メインのEditorコンポーネントを'root' divにレンダリング
         ReactDOM.render(<Editor />, document.getElementById('root'));
     </script>
 </body>
