@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>間取り図エディタ</title>
+    <title>Auto間取り図</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
@@ -76,6 +76,15 @@
             box-shadow: 0 0 0 1px #6366F1;
             outline: none;
         }
+        .transparent-bg {
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -93,8 +102,10 @@
                 { "id": "block-4", "type": "収納", "Text": "WIC", "Geometry": { "BoundingBox": { "Width": 0.08, "Height": 0.04, "Left": 0.15, "Top": 0.4 }}}
             ]
         };
-        const ROOM_TYPES = ["LDK", "洋室", "和室", "浴室", "トイレ", "洗面所", "収納", "玄関", "その他"];
-        const SPACE_TYPES = ["LDK", "DK", "K", "居室", "和室", "収納", "洗面所", "浴室", "トイレ", "玄関", "バルコニー", "柱", "その他"];
+        const SPACE_TYPES = {
+            main: ["LDK", "DK", "K", "居室", "和室", "収納", "洗面所", "浴室", "トイレ", "廊下", "玄関", "バルコニー"],
+            sub: ["柱", "吹抜", "グルニエ", "折上天井", "床下収納", "カウンター", "棚", "下足入", "冷蔵庫", "洗濯機", "PS", "MB"]
+        };
         const FONT_FAMILIES = [
             { id: 'sans-serif', name: 'ゴシック体' },
             { id: 'serif', name: '明朝体' },
@@ -107,6 +118,7 @@
         const SELECTED_ELEMENT_COLOR = '#3b82f6';
         const DEFAULT_STROKE_COLOR = '#000000';
         const DEFAULT_STROKE_WIDTH = 3;
+        const DEFAULT_STAIR_WIDTH = 50;
 
         const LINE_STYLES = [
             { id: 'solid', name: '実線', dashArray: 'none' },
@@ -115,6 +127,18 @@
             { id: 'chain', name: '一点鎖線', dashArray: '10, 4, 2, 4' },
             { id: 'double-chain', name: '二点鎖線', dashArray: '10, 4, 2, 4, 2, 4' },
             { id: 'wavy', name: '波線', dashArray: null }
+        ];
+        
+        const BACKGROUND_PATTERNS = [
+            { id: 'none', name: 'なし' },
+            { id: 'vertical-lines', name: '縦線' },
+            { id: 'horizontal-lines', name: '横線' },
+            { id: 'grid-small', name: '格子小' },
+            { id: 'grid-large', name: '格子大' },
+            { id: 'dotted-x', name: '点線バツ印' },
+            { id: 'solid-x', name: '実線バツ印' },
+            { id: 'dotted-triangle', name: '点線三角' },
+            { id: 'solid-triangle', name: '実線三角' }
         ];
 
         const DEFAULT_FILL_COLORS = {
@@ -125,10 +149,37 @@
             "洗面所": "#dbeafe",
             "浴室": "#dbeafe",
             "トイレ": "#dbeafe",
+            "廊下": "rgb(245, 229, 212)",
             "玄関": "#dedede",
             "バルコニー": "#f5f5f5",
             "柱": "#000000",
+            "吹抜": "none",
+            "グルニエ": "none",
+            "折上天井": "none",
+            "床下収納": "none",
+            "カウンター": "#CD924C",
+            "棚": "#CD924C",
+            "下足入": "#CD924C",
+            "冷蔵庫": "none",
+            "洗濯機": "none",
+            "PS": "#ffffff",
+            "MB": "#ffffff",
             "その他": "#fafafa"
+        };
+        
+        const SUB_TYPE_PROPERTIES = {
+            "吹抜": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "グルニエ": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "折上天井": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "冷蔵庫": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "洗濯機": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "床下収納": { lineStyle: 'dotted', strokeWidth: DEFAULT_STROKE_WIDTH, fill: 'none' },
+            "カウンター": { lineStyle: 'solid', strokeWidth: 1, fill: '#CD924C' },
+            "棚": { lineStyle: 'solid', strokeWidth: 1, fill: '#CD924C' },
+            "下足入": { lineStyle: 'solid', strokeWidth: 1, fill: '#CD924C' },
+            "PS": { lineStyle: 'solid', strokeWidth: DEFAULT_STROKE_WIDTH, fill: '#ffffff' },
+            "MB": { lineStyle: 'solid', strokeWidth: DEFAULT_STROKE_WIDTH, fill: '#ffffff' },
+            "柱": { lineStyle: 'solid', strokeWidth: DEFAULT_STROKE_WIDTH, fill: '#000000' }
         };
 
         const COMPASS_TEMPLATES = [
@@ -180,7 +231,6 @@
             ],
             other: [
                 { id: 'desk', name: 'デスク', path: 'M-20,-10 H20 V10 H-20 Z M-15,0 H15', defaultSize: 45, defaultFill: '#c0a080', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'stairs', name: '階段', path: 'M-20,-20 H20 V20 H-20 Z M-20,-10 H20 M-20,0 H20 M-20,10 H20', defaultSize: 50, defaultFill: 'none', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'fireplace', name: '暖炉', path: 'M-15,-10 H15 V10 H-15 Z M-10,-10 L-10,0 L10,0 L10,-10', defaultSize: 30, defaultFill: '#a0a0a0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'piano', name: 'ピアノ', path: 'M-25,-10 H25 V10 H-25 Z M-20,-10 V0 M-15,-10 V0 M-10,-10 V0 M-5,-10 V0 M0,-10 V0 M5,-10 V0 M10,-10 V0 M15,-10 V0 M20,-10 V0', defaultSize: 50, defaultFill: '#303030', defaultStroke: '#000000', defaultStrokeWidth: 1 }
             ]
@@ -317,6 +367,7 @@
 
         const getPolygonCentroid = (pts) => {
             let first = pts[0], last = pts[pts.length - 1];
+            if (!first) return { x: 0, y: 0 };
             if (first.x !== last.x || first.y !== last.y) pts.push(first);
             let twicearea = 0, x = 0, y = 0, nPts = pts.length, p1, p2, f;
             for (let i = 0, j = nPts - 1; i < nPts; j = i++) {
@@ -327,16 +378,24 @@
                 y += (p1.y + p2.y) * f;
             }
             f = twicearea * 3;
+            if (pts.length > 0 && pts[pts.length - 1] === first) pts.pop();
             if (Math.abs(f) < 1e-6) { // Avoid division by zero for degenerate polygons
-                return pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+                 return pts.reduce((acc, p) => ({ x: acc.x + p.x / pts.length, y: acc.y + p.y / pts.length }), { x: 0, y: 0 });
             }
             return { x: x / f, y: y / f };
         };
 
         const createSpaceLabel = (spaceType, centroid, dimensions) => {
+            if (["柱", "その他"].includes(spaceType)) {
+                return null;
+            }
+            
             const text = ["LDK", "DK", "K", "居室", "和室"].includes(spaceType)
                 ? `${spaceType}\n◯.◯帖`
                 : spaceType;
+
+            const smallFontTypes = ["バルコニー", "トイレ", "浴室", "洗面所", "玄関", "収納", "廊下", ...SPACE_TYPES.sub];
+            const fontSize = smallFontTypes.includes(spaceType) ? 10 : 16;
 
             return {
                 id: `text-${Date.now()}`,
@@ -345,7 +404,7 @@
                 y: (centroid.y / dimensions.height) * 100,
                 text: text,
                 color: '#000000',
-                fontSize: 16,
+                fontSize: fontSize,
                 fontFamily: 'sans-serif',
                 textAlign: 'center',
             };
@@ -370,6 +429,75 @@
                 </div>
             </div>
         );
+        
+        const SpaceTypeSelector = ({ selectedType, onChange, spaceTypeTab, setSpaceTypeTab }) => (
+            <div>
+                <label className="block text-sm font-medium text-gray-700">空間タイプ</label>
+                <div className="flex bg-gray-200 rounded-lg p-1 mt-2">
+                    <button onClick={() => setSpaceTypeTab('main')} className={`w-full py-1 rounded-md text-sm ${spaceTypeTab === 'main' ? 'bg-white shadow' : ''}`}>メイン</button>
+                    <button onClick={() => setSpaceTypeTab('sub')} className={`w-full py-1 rounded-md text-sm ${spaceTypeTab === 'sub' ? 'bg-white shadow' : ''}`}>サブ</button>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                    {SPACE_TYPES[spaceTypeTab].map(type => {
+                        const isSelected = selectedType === type;
+                        const isPillar = type === '柱';
+                        const isTransparent = DEFAULT_FILL_COLORS[type] === 'none';
+                        const style = {
+                            backgroundColor: isTransparent ? 'transparent' : DEFAULT_FILL_COLORS[type],
+                            color: isPillar ? 'white' : 'black',
+                            border: `1px solid ${isTransparent || DEFAULT_FILL_COLORS[type] === '#ffffff' ? '#ccc' : 'transparent'}`
+                        };
+                        return (
+                            <button
+                                key={type}
+                                onClick={() => onChange(type)}
+                                style={style}
+                                className={`p-1 rounded-md text-xs text-center transition-all ${isSelected ? 'ring-2 ring-offset-1 ring-indigo-500' : ''} ${isTransparent ? 'transparent-bg' : ''}`}
+                            >
+                                {type}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+
+        const BackgroundSelector = ({ selected, onChange }) => {
+            const getPreview = (patternId) => {
+                const baseRect = <rect width="40" height="20" fill="#f0f0f0" />;
+                switch(patternId) {
+                    case 'none': return baseRect;
+                    case 'vertical-lines': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M10 0 V20 M20 0 V20 M30 0 V20" stroke="#cccccc" strokeWidth="1" /></>;
+                    case 'horizontal-lines': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M0 5 H40 M0 10 H40 M0 15 H40" stroke="#cccccc" strokeWidth="1" /></>;
+                    case 'grid-small': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M10 0 V20 M20 0 V20 M30 0 V20 M0 10 H40" stroke="#cccccc" strokeWidth="1" /></>;
+                    case 'grid-large': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M20 0 V20" stroke="#000000" strokeWidth="1" /></>;
+                    case 'solid-x': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M0 0 L40 20 M0 20 L40 0" stroke="#000000" strokeWidth="1" /></>;
+                    case 'dotted-x': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M0 0 L40 20 M0 20 L40 0" stroke="#000000" strokeWidth="1" strokeDasharray="2 2" /></>;
+                    case 'solid-triangle': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M0 0 L40 10 L0 20 Z" stroke="#000000" strokeWidth="1" fill="none" /></>;
+                    case 'dotted-triangle': return <><rect width="40" height="20" fill="#f0f0f0" /><path d="M0 0 L40 10 L0 20 Z" stroke="#000000" strokeWidth="1" fill="none" strokeDasharray="2 2" /></>;
+                    default: return baseRect;
+                }
+            };
+            return (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">背景</label>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                        {BACKGROUND_PATTERNS.map(pattern => (
+                            <button
+                                key={pattern.id}
+                                onClick={() => onChange(pattern.id)}
+                                className={`p-2 rounded-md border-2 text-xs ${selected === pattern.id ? 'border-indigo-500 bg-indigo-50' : 'bg-white border-gray-200'} hover:bg-gray-50 flex flex-col items-center justify-center`}
+                            >
+                                <svg width="40" height="20" className="border border-gray-300 mb-1">
+                                    {getPreview(pattern.id)}
+                                </svg>
+                                {pattern.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
 
         const CompassTemplateSelector = ({ selectedTemplateId, onChange }) => (
             <div>
@@ -460,38 +588,43 @@
             });
             const { ocrData: currentOcrData, svgElements } = historyState.present;
 
-            const [selectedBlockId, setSelectedBlockId] = useState(null);
+            const [editorMode, setEditorMode] = useState('continuous-create'); // 'continuous-create', 'create', 'edit'
             const [drawingMode, setDrawingMode] = useState('space');
-            const [spaceEditMode, setSpaceEditMode] = useState('create');
             const [spaceShape, setSpaceShape] = useState('rect');
-            const [selectedElementId, setSelectedElementId] = useState(null);
+            const [selectedGroupId, setSelectedGroupId] = useState(null);
+            const [selectedEdge, setSelectedEdge] = useState(null); // { groupId, edgeIndex }
             const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
             const [drawingStartPoint, setDrawingStartPoint] = useState(null);
             const [linePoints, setLinePoints] = useState([]);
             const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-            const [snapValue, setSnapValue] = useState(10);
-            const [endpointSnap, setEndpointSnap] = useState(null);
             const [imageOpacity, setImageOpacity] = useState(0.5);
             const [drawingOpacity, setDrawingOpacity] = useState(0.4);
             const [zoom, setZoom] = useState(0.8);
             const [imageScale, setImageScale] = useState(1);
-            const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
             const [strokeColor, setStrokeColor] = useState(DEFAULT_STROKE_COLOR);
+            const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
             const [spaceType, setSpaceType] = useState('LDK');
             const [fillColor, setFillColor] = useState(DEFAULT_FILL_COLORS[spaceType]);
             const [lineStyle, setLineStyle] = useState('solid');
+            const [backgroundPattern, setBackgroundPattern] = useState('none');
             const [isGridVisible, setGridVisible] = useState(true);
-            const [gridSize, setGridSize] = useState(10);
+            const [gridSize, setGridSize] = useState(5);
             const [fontSize, setFontSize] = useState(16);
             const [fontFamily, setFontFamily] = useState('sans-serif');
-            const [textAlign, setTextAlign] = useState('center'); // ★★★ デフォルトを中央揃えに変更 ★★★
+            const [textAlign, setTextAlign] = useState('center');
             const [compassTemplateId, setCompassTemplateId] = useState(COMPASS_TEMPLATES[0].id);
             const [fixtureCategory, setFixtureCategory] = useState('kitchen');
             const [fixtureTemplateId, setFixtureTemplateId] = useState(FIXTURE_TEMPLATES.kitchen[0].id);
             const [doorTemplateId, setDoorTemplateId] = useState(DOOR_TEMPLATES[0].id);
             const [windowTemplateId, setWindowTemplateId] = useState(WINDOW_TEMPLATES[0].id);
+            const [stairWidth, setStairWidth] = useState(DEFAULT_STAIR_WIDTH);
+            const [stairDirection, setStairDirection] = useState('up');
+            const [spaceTypeTab, setSpaceTypeTab] = useState('main');
+            const [lastFillColor, setLastFillColor] = useState('#ffffff');
+            const [editLastFillColor, setEditLastFillColor] = useState('#ffffff');
             
             const [isDragging, setIsDragging] = useState(false);
+            const [resizingHandleInfo, setResizingHandleInfo] = useState(null); // { groupId, handleIndex, isEdge? }
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -503,15 +636,38 @@
             const historyOnActionStart = useRef(null);
             const mouseDownInfo = useRef(null);
 
-            const selectedElement = selectedElementId ? svgElements.find(el => el.id === selectedElementId) : null;
+            const selectedElement = svgElements.find(el => el.id === selectedGroupId || el.groupId === selectedGroupId);
 
             const handleSelectedElementUpdate = useCallback((key, value) => {
                 setHistoryState(prevState => {
                     const updatedSvgElements = prevState.present.svgElements.map(el => {
-                        if (el.id === selectedElementId) {
+                        if (el.id === selectedGroupId || el.groupId === selectedGroupId) {
+                            return { ...el, [key]: value };
+                        }
+                        return el;
+                    });
+                    return {
+                        past: [...prevState.past, prevState.present],
+                        present: { ...prevState.present, svgElements: updatedSvgElements },
+                        future: []
+                    };
+                });
+            }, [selectedGroupId]);
+
+            const handleSelectedGroupUpdate = useCallback((key, value) => {
+                setHistoryState(prevState => {
+                    const updatedSvgElements = prevState.present.svgElements.map(el => {
+                        if (el.groupId === selectedGroupId) {
                             const newEl = { ...el, [key]: value };
                             if (key === 'spaceType') {
-                                newEl.fill = DEFAULT_FILL_COLORS[value] || '#ffffff';
+                                if (el.shape === 'polygon') {
+                                    newEl.fill = DEFAULT_FILL_COLORS[value] || '#ffffff';
+                                }
+                                if (el.type === 'text') {
+                                    newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(value)
+                                        ? `${value}\n◯.◯帖`
+                                        : value;
+                                }
                             }
                             return newEl;
                         }
@@ -523,7 +679,7 @@
                         future: []
                     };
                 });
-            }, [selectedElementId]);
+            }, [selectedGroupId]);
 
             const handleFileChange = async (event) => {
                 const file = event.target.files[0];
@@ -543,9 +699,8 @@
             };
 
             const getCanvasCoords = useCallback((event) => {
-                const editorArea = editorAreaRef.current;
                 const svg = svgRef.current;
-                if (!editorArea || !svg) return { x: 0, y: 0 };
+                if (!svg) return { x: 0, y: 0 };
                 const svgRect = svg.getBoundingClientRect();
                 const x = (event.clientX - svgRect.left) / zoom;
                 const y = (event.clientY - svgRect.top) / zoom;
@@ -559,101 +714,162 @@
                 };
             }, [gridSize]);
 
-            const getAngleSnappedPoint = useCallback((start, current) => {
-                const dx = current.x - start.x;
-                const dy = current.y - start.y;
-                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                const snappedAngle = Math.round(angle / snapValue) * snapValue;
-                const length = Math.sqrt(dx * dx + dy * dy);
-                const newDx = length * Math.cos(snappedAngle * Math.PI / 180);
-                const newDy = length * Math.sin(snappedAngle * Math.PI / 180);
-                return { x: start.x + newDx, y: start.y + newDy };
-            }, [snapValue]);
+            const finishDrawing = useCallback(() => {
+                if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length > 2) {
+                    createPolygonSpace(linePoints);
+                } else if (drawingMode === 'stairs' && linePoints.length > 1) {
+                    createStairs(linePoints);
+                }
+                setLinePoints([]);
+            }, [linePoints, drawingMode, spaceShape, createPolygonSpace, createStairs]);
+
 
             const handleCanvasClick = useCallback((e) => {
                 const clickPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
-                const isSpaceCreateMode = drawingMode === 'space' && spaceEditMode === 'create';
-                const isSpaceEditMode = drawingMode === 'space' && spaceEditMode === 'edit';
 
-                if (isSpaceCreateMode && spaceShape === 'line') {
-                    const snappedClickPos = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                    if (linePoints.length > 1) {
-                        const firstPoint = linePoints[0];
-                        const dist = Math.sqrt((snappedClickPos.x - firstPoint.x)**2 + (snappedClickPos.y - firstPoint.y)**2);
-                        if (dist < SNAP_THRESHOLD / zoom) {
-                            const newElements = [];
-                            for (let i = 0; i < linePoints.length; i++) {
-                                const p1 = linePoints[i];
-                                const p2 = linePoints[(i + 1) % linePoints.length];
-                                newElements.push({ id: `space-line-${Date.now()}-${i}`, type: 'space', shape: 'line', spaceType: spaceType, x1: (p1.x / dimensions.width) * 100, y1: (p1.y / dimensions.height) * 100, x2: (p2.x / dimensions.width) * 100, y2: (p2.y / dimensions.height) * 100, strokeWidth: strokeWidth, color: strokeColor, lineStyle: lineStyle });
+                if (editorMode === 'create' || editorMode === 'continuous-create') {
+                    if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
+                        const snappedClickPos = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        if (linePoints.length > 0) {
+                            const firstPoint = linePoints[0];
+                            const dist = Math.sqrt((snappedClickPos.x - firstPoint.x)**2 + (snappedClickPos.y - firstPoint.y)**2);
+                            if (dist < SNAP_THRESHOLD / zoom) {
+                                finishDrawing();
+                                return;
                             }
-                            const polygonPoints = linePoints.map(p => `${p.x},${p.y}`).join(' ');
-                            const fillElement = { id: `space-fill-${Date.now()}`, type: 'space', shape: 'polygon', spaceType: spaceType, points: polygonPoints, fill: fillColor };
-                            newElements.push(fillElement);
-                            const centroid = getPolygonCentroid(linePoints);
-                            const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
-                            newElements.push(labelElement);
-                            setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
-                            setLinePoints([]);
-                            return;
                         }
+                        setLinePoints(prev => [...prev, snappedClickPos]);
+                        return;
                     }
-                    setLinePoints(prev => [...prev, snappedClickPos]);
-                    return;
+                    if (drawingStartPoint) {
+                        let finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        if (drawingMode === 'space' && spaceShape === 'rect') {
+                            const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
+                            const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
+                            const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
+                            const y2 = Math.max(drawingStartPoint.y, finalEndPoint.y);
+                            const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
+                            createPolygonSpace(rectPoints);
+                        } else {
+                            createItem(drawingStartPoint, finalEndPoint);
+                        }
+                        setDrawingStartPoint(null);
+                        return;
+                    }
+                    if (drawingMode === 'text' || drawingMode === 'fixture') {
+                        createItem(isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                    } else if (!((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs')) {
+                        setDrawingStartPoint(isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                    }
+                } else { // edit mode
+                    setSelectedGroupId(targetElement ? (targetElement.groupId || targetElement.id) : null);
+                    setSelectedEdge(null);
+                }
+            }, [svgElements, editorMode, drawingMode, spaceShape, drawingStartPoint, linePoints, isGridVisible, getGridSnappedPoint, dimensions, strokeColor, fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType, fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom, backgroundPattern, finishDrawing]);
+
+            const createPolygonSpace = useCallback((points) => {
+                const groupId = `space-group-${Date.now()}`;
+                const polygonPointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
+                
+                const specialProps = SUB_TYPE_PROPERTIES[spaceType];
+                
+                let finalBackgroundPattern = backgroundPattern;
+                if (spaceType === '玄関') finalBackgroundPattern = 'grid-small';
+                if (spaceType === '和室') finalBackgroundPattern = 'grid-large';
+                if (['吹抜', 'グルニエ', '折上天井', '床下収納', '冷蔵庫', '洗濯機'].includes(spaceType)) {
+                    finalBackgroundPattern = 'dotted-x';
+                }
+
+                const spaceElement = {
+                    id: `space-polygon-${Date.now()}`, type: 'space', shape: 'polygon', spaceType: spaceType, groupId,
+                    points: polygonPointsStr, 
+                    fill: specialProps?.fill !== undefined ? specialProps.fill : fillColor,
+                    color: strokeColor,
+                    strokeWidth: specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : DEFAULT_STROKE_WIDTH,
+                    lineStyle: specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle,
+                    backgroundPattern: finalBackgroundPattern,
+                };
+                
+                const centroid = getPolygonCentroid([...points]);
+                const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
+                if (labelElement) {
+                    labelElement.groupId = groupId;
                 }
                 
-                if (drawingStartPoint) {
-                    const newElements = [];
-                    let finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                    if (drawingMode === 'space' && spaceShape === 'rect') {
-                        const rectElement = { id: `space-rect-${Date.now()}`, type: 'space', shape: 'rect', spaceType: spaceType, x: (Math.min(drawingStartPoint.x, finalEndPoint.x) / dimensions.width) * 100, y: (Math.min(drawingStartPoint.y, finalEndPoint.y) / dimensions.height) * 100, width: (Math.abs(drawingStartPoint.x - finalEndPoint.x) / dimensions.width) * 100, height: (Math.abs(drawingStartPoint.y - finalEndPoint.y) / dimensions.height) * 100, fill: fillColor, color: strokeColor, strokeWidth: strokeWidth, lineStyle: 'solid' };
-                        newElements.push(rectElement);
-                        const centroid = { x: Math.min(drawingStartPoint.x, finalEndPoint.x) + Math.abs(drawingStartPoint.x - finalEndPoint.x) / 2, y: Math.min(drawingStartPoint.y, finalEndPoint.y) + Math.abs(drawingStartPoint.y - finalEndPoint.y) / 2 };
-                        newElements.push(createSpaceLabel(spaceType, centroid, dimensions));
-                    } else if (drawingMode === 'compass') {
-                        finalEndPoint = clickPos;
-                        const dx = finalEndPoint.x - drawingStartPoint.x;
-                        const dy = finalEndPoint.y - drawingStartPoint.y;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-                        const size = Math.min(300, Math.max(20, distance));
-                        const rotation = Math.atan2(dy, dx) * 180 / Math.PI;
-                        newElements.push({ id: `compass-${Date.now()}`, type: 'compass', x: (drawingStartPoint.x / dimensions.width) * 100, y: (drawingStartPoint.y / dimensions.height) * 100, size: size, rotation: rotation, templateId: compassTemplateId });
-                    } else if (drawingMode === 'door' || drawingMode === 'window') {
-                        const dx = finalEndPoint.x - drawingStartPoint.x;
-                        const dy = finalEndPoint.y - drawingStartPoint.y;
-                        const length = Math.sqrt(dx*dx + dy*dy);
-                        const baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                        newElements.push({ id: `${drawingMode}-${Date.now()}`, type: drawingMode, templateId: drawingMode === 'door' ? doorTemplateId : windowTemplateId, x1: (drawingStartPoint.x / dimensions.width) * 100, y1: (drawingStartPoint.y / dimensions.height) * 100, x2: (finalEndPoint.x / dimensions.width) * 100, y2: (finalEndPoint.y / dimensions.height) * 100, length: length, baseAngle: baseAngle, rotation: 0, isInner: true, swingDirection: 'clockwise', wallThickness: 10, color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH });
-                    }
-                    if (newElements.length > 0) {
-                        setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
-                        setSelectedElementId(newElements[0].id);
-                    }
-                    setDrawingStartPoint(null);
-                    return;
+                const newElements = [spaceElement];
+                if(labelElement) newElements.push(labelElement);
+                
+                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
+                if (editorMode === 'create') {
+                    setEditorMode('edit');
+                }
+                setSelectedGroupId(spaceElement.groupId);
+            }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, dimensions, editorMode]);
+
+            const createStairs = useCallback((points) => {
+                const newElement = {
+                    id: `stairs-${Date.now()}`,
+                    type: 'stairs',
+                    points: points.map(p => `${p.x},${p.y}`).join(' '),
+                    width: stairWidth,
+                    direction: stairDirection,
+                    color: strokeColor,
+                    strokeWidth: DEFAULT_STROKE_WIDTH,
+                };
+                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, newElement] }, future: [] }));
+                if (editorMode === 'create') {
+                    setEditorMode('edit');
+                }
+                setSelectedGroupId(newElement.id);
+            }, [stairWidth, stairDirection, strokeColor, editorMode]);
+
+            const createItem = (start, end) => {
+                const newElements = [];
+                let newElementId = null;
+                let newElementGroupId = null;
+
+                if (drawingMode === 'wall') {
+                    const newElement = { id: `wall-${Date.now()}`, type: 'wall', x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: strokeColor, strokeWidth: strokeWidth, lineStyle: lineStyle };
+                    newElements.push(newElement);
+                    newElementId = newElement.id;
+                } else if (drawingMode === 'compass') {
+                    const dx = end.x - start.x;
+                    const dy = end.y - start.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const size = Math.min(300, Math.max(20, distance));
+                    const rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const newElement = { id: `compass-${Date.now()}`, type: 'compass', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, size: size, rotation: rotation, templateId: compassTemplateId };
+                    newElements.push(newElement);
+                    newElementId = newElement.id;
+                } else if (drawingMode === 'door' || drawingMode === 'window') {
+                    const dx = end.x - start.x;
+                    const dy = end.y - start.y;
+                    const length = Math.sqrt(dx*dx + dy*dy);
+                    const baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const newElement = { id: `${drawingMode}-${Date.now()}`, type: drawingMode, templateId: drawingMode === 'door' ? doorTemplateId : windowTemplateId, x1: (start.x / dimensions.width) * 100, y1: (start.y / dimensions.height) * 100, x2: (end.x / dimensions.width) * 100, y2: (end.y / dimensions.height) * 100, length: length, baseAngle: baseAngle, rotation: 0, isInner: true, swingDirection: 'clockwise', wallThickness: 10, color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH };
+                    newElements.push(newElement);
+                    newElementId = newElement.id;
+                } else if (drawingMode === 'text') {
+                    const newElement = { id: `text-${Date.now()}`, type: 'text', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign };
+                    newElements.push(newElement);
+                    newElementId = newElement.id;
+                } else if (drawingMode === 'fixture') {
+                    const template = FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {};
+                    const newElement = { id: `fixture-${Date.now()}`, type: 'fixture', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, templateId: fixtureTemplateId, size: template.defaultSize, fill: template.defaultFill, stroke: template.defaultStroke, strokeWidth: template.defaultStrokeWidth };
+                    newElements.push(newElement);
+                    newElementId = newElement.id;
                 }
 
-                if (targetElement && !isSpaceCreateMode) {
-                    setSelectedElementId(targetId);
-                    return;
-                }
-
-                if (!isSpaceEditMode) {
-                    const snappedStartPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                    if (drawingMode === 'text' || drawingMode === 'fixture') {
-                        const newElement = drawingMode === 'text' ? { id: `text-${Date.now()}`, type: 'text', x: (snappedStartPoint.x / dimensions.width) * 100, y: (snappedStartPoint.y / dimensions.height) * 100, text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign } : { id: `fixture-${Date.now()}`, type: 'fixture', x: (snappedStartPoint.x / dimensions.width) * 100, y: (snappedStartPoint.y / dimensions.height) * 100, templateId: fixtureTemplateId, size: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultSize, fill: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultFill, stroke: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultStroke, strokeWidth: (FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {}).defaultStrokeWidth, };
-                        setHistoryState(prevState => ({ past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: [...prevState.present.svgElements, newElement] }, future: [] }));
-                        setSelectedElementId(newElement.id);
-                    } else if (! (drawingMode === 'space' && spaceShape === 'line')) {
-                        setDrawingStartPoint(snappedStartPoint);
-                        setSelectedElementId(null);
+                if (newElements.length > 0) {
+                    setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
+                     if (editorMode === 'create') {
+                        setEditorMode('edit');
                     }
-                } else {
-                    setSelectedElementId(null);
+                    setSelectedGroupId(newElementGroupId || newElementId);
                 }
-            }, [getCanvasCoords, svgElements, drawingMode, spaceShape, drawingStartPoint, linePoints, isGridVisible, getGridSnappedPoint, dimensions, strokeColor, fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType, fillColor, strokeWidth, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom, spaceEditMode]);
+            };
 
             const handleMouseDown = useCallback((e) => {
                 setDisplaySettingsOpen(false);
@@ -662,64 +878,155 @@
                 const startPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
-                const isSpaceCreateMode = drawingMode === 'space' && spaceEditMode === 'create';
+                
+                if (editorMode === 'edit') {
+                    const handleIndex = e.target.dataset.handleIndex;
+                    if (handleIndex !== undefined && selectedGroupId) {
+                        setResizingHandleInfo({
+                            groupId: selectedGroupId,
+                            handleIndex: parseInt(handleIndex, 10),
+                            isEdge: e.target.dataset.isEdge === 'true'
+                        });
+                        historyOnActionStart.current = historyState.present;
+                        return;
+                    }
 
-                if (targetElement && !isSpaceCreateMode) {
-                    setIsDragging(true);
-                    setSelectedElementId(targetId);
-                    historyOnActionStart.current = historyState.present;
-                    dragInfo.current = { startMouseX: startPos.x, startMouseY: startPos.y, element: targetElement, initialX: targetElement.x !== undefined ? targetElement.x / 100 * dimensions.width : null, initialY: targetElement.y !== undefined ? targetElement.y / 100 * dimensions.height : null, initialX1: targetElement.x1 !== undefined ? targetElement.x1 / 100 * dimensions.width : null, initialY1: targetElement.y1 !== undefined ? targetElement.y1 / 100 * dimensions.height : null, initialX2: targetElement.x2 !== undefined ? targetElement.x2 / 100 * dimensions.width : null, initialY2: targetElement.y2 !== undefined ? targetElement.y2 / 100 * dimensions.height : null, };
-                } else {
-                    setSelectedElementId(null);
-                    if (!(isSpaceCreateMode && spaceShape === 'line')) {
+                    if (targetElement) {
+                        setIsDragging(true);
+                        setSelectedGroupId(targetElement.groupId || targetElement.id);
+                        setSelectedEdge(null);
+                        historyOnActionStart.current = historyState.present;
+                        dragInfo.current = { startMouseX: startPos.x, startMouseY: startPos.y };
+                    } else {
+                        setSelectedGroupId(null);
+                        setSelectedEdge(null);
+                    }
+                } else { // create mode
+                    if (!((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs')) {
                         setLinePoints([]);
                     }
                 }
-            }, [getCanvasCoords, svgElements, historyState.present, dimensions, drawingMode, spaceEditMode, spaceShape]);
+            }, [getCanvasCoords, svgElements, historyState.present, dimensions, editorMode, drawingMode, spaceShape, selectedGroupId]);
+            
+            const updatePolygonPoints = (elements, groupId, pointIndex, newPoint, isEdge) => {
+                const polygonElement = elements.find(el => el.groupId === groupId && el.shape === 'polygon');
+                if (!polygonElement) return elements;
+
+                let points = polygonElement.points.split(' ').map(p => {
+                    const [x, y] = p.split(',').map(parseFloat);
+                    return { x, y };
+                });
+
+                if (isEdge) {
+                    const p1 = points[pointIndex];
+                    const p2 = points[(pointIndex + 1) % points.length];
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const edgeVec = { x: dx, y: dy };
+                    const normalVec = { x: -dy, y: dy === 0 ? 1 : dx }; // Simplified normal
+                    const len = Math.sqrt(normalVec.x**2 + normalVec.y**2);
+                    if (len > 0) {
+                        normalVec.x /= len;
+                        normalVec.y /= len;
+                    }
+                    
+                    const midPoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                    const mouseVec = { x: newPoint.x - midPoint.x, y: newPoint.y - midPoint.y };
+                    const dotProduct = mouseVec.x * normalVec.x + mouseVec.y * normalVec.y;
+                    
+                    const moveVec = { x: dotProduct * normalVec.x, y: dotProduct * normalVec.y };
+
+                    points[pointIndex] = { x: p1.x + moveVec.x, y: p1.y + moveVec.y };
+                    points[(pointIndex + 1) % points.length] = { x: p2.x + moveVec.x, y: p2.y + moveVec.y };
+
+                } else {
+                    points[pointIndex] = newPoint;
+                }
+                
+                const newPolygonPointsString = points.map(p => `${p.x},${p.y}`).join(' ');
+                
+                const newCentroid = getPolygonCentroid([...points]);
+
+                const label = elements.find(el => el.groupId === groupId && el.type === 'text');
+                
+                return elements.map(el => {
+                    if (el.groupId !== groupId) return el;
+                    if (el.shape === 'polygon') {
+                        return { ...el, points: newPolygonPointsString };
+                    }
+                    if (label && el.id === label.id) {
+                         return { ...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
+                    }
+                    return el;
+                });
+            };
 
             const handleMouseMove = useCallback((e) => {
                 const currentPos = getCanvasCoords(e);
                 setMousePos(currentPos);
+                
+                if (resizingHandleInfo) {
+                    const { groupId, handleIndex, isEdge } = resizingHandleInfo;
+                    const snappedPos = isGridVisible ? getGridSnappedPoint(currentPos) : currentPos;
+                    const newElements = updatePolygonPoints(historyOnActionStart.current.svgElements, groupId, handleIndex, snappedPos, isEdge);
+                    setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
+                    return;
+                }
 
                 if (isDragging && dragInfo.current) {
                     const dx = currentPos.x - dragInfo.current.startMouseX;
                     const dy = currentPos.y - dragInfo.current.startMouseY;
+                    let finalDx = dx;
+                    let finalDy = dy;
+                    
+                    if (isGridVisible) {
+                        const refElement = historyOnActionStart.current.svgElements.find(el => el.id === selectedGroupId || el.groupId === selectedGroupId);
+                        if (refElement) {
+                            let originalRefX, originalRefY;
+                            if (refElement.x !== undefined) {
+                                originalRefX = refElement.x / 100 * dimensions.width;
+                                originalRefY = refElement.y / 100 * dimensions.height;
+                            } else if (refElement.points) {
+                                const points = refElement.points.split(' ').map(p => p.split(',').map(parseFloat));
+                                originalRefX = points[0][0];
+                                originalRefY = points[0][1];
+                            } else if (refElement.x1 !== undefined) {
+                                originalRefX = refElement.x1;
+                                originalRefY = refElement.y1;
+                            }
+
+                            if (originalRefX !== undefined) {
+                                const newRefPoint = { x: originalRefX + dx, y: originalRefY + dy };
+                                const snappedRefPoint = getGridSnappedPoint(newRefPoint);
+                                finalDx = snappedRefPoint.x - originalRefX;
+                                finalDy = snappedRefPoint.y - originalRefY;
+                            }
+                        }
+                    }
 
                     const newElements = historyOnActionStart.current.svgElements.map(el => {
-                        if (el.id === selectedElementId) {
+                        if (el.groupId === selectedGroupId || el.id === selectedGroupId) {
                             const newEl = { ...el };
-                            if (el.type === 'space' && el.shape === 'rect' || ['fixture', 'text', 'compass'].includes(el.type)) {
-                                let newPixelX = dragInfo.current.initialX + dx;
-                                let newPixelY = dragInfo.current.initialY + dy;
-                                if (isGridVisible) {
-                                    const snapped = getGridSnappedPoint({ x: newPixelX, y: newPixelY });
-                                    newPixelX = snapped.x;
-                                    newPixelY = snapped.y;
-                                }
+                            const originalEl = historyOnActionStart.current.svgElements.find(e => e.id === el.id);
+                            if (!originalEl) return el;
+
+                            if (originalEl.x !== undefined) {
+                                const newPixelX = (originalEl.x / 100 * dimensions.width) + finalDx;
+                                const newPixelY = (originalEl.y / 100 * dimensions.height) + finalDy;
                                 newEl.x = (newPixelX / dimensions.width) * 100;
                                 newEl.y = (newPixelY / dimensions.height) * 100;
-                            } else if (el.type === 'space' && el.shape === 'line' || ['door', 'window'].includes(el.type)) {
-                                let newX1 = dragInfo.current.initialX1 + dx;
-                                let newY1 = dragInfo.current.initialY1 + dy;
-                                let newX2 = dragInfo.current.initialX2 + dx;
-                                let newY2 = dragInfo.current.initialY2 + dy;
-                                if (isGridVisible) {
-                                    const snapped1 = getGridSnappedPoint({ x: newX1, y: newY1 });
-                                    const snapped2 = getGridSnappedPoint({ x: newX2, y: newY2 });
-                                    newX1 = snapped1.x; newY1 = snapped1.y;
-                                    newX2 = snapped2.x; newY2 = snapped2.y;
-                                }
-                                newEl.x1 = (newX1 / dimensions.width) * 100;
-                                newEl.y1 = (newY1 / dimensions.height) * 100;
-                                newEl.x2 = (newX2 / dimensions.width) * 100;
-                                newEl.y2 = (newY2 / dimensions.height) * 100;
-                                
-                                if (el.type === 'door' || el.type === 'window') {
-                                    const newDx = newX2 - newX1;
-                                    const newDy = newY2 - newY1;
-                                    newEl.length = Math.sqrt(newDx * newDx + newDy * newDy);
-                                    newEl.baseAngle = Math.atan2(newDy, newDx) * 180 / Math.PI;
-                                }
+                            } else if (originalEl.points) {
+                                const originalPoints = originalEl.points.split(' ').map(p_str => {
+                                    const [x, y] = p_str.split(',').map(parseFloat);
+                                    return {x, y};
+                                });
+                                const newPoints = originalPoints.map(p => ({ x: p.x + finalDx, y: p.y + finalDy }));
+                                newEl.points = newPoints.map(p => `${p.x},${p.y}`).join(' ');
+                            } else if (originalEl.x1 !== undefined) {
+                                newEl.x1 = originalEl.x1 + finalDx;
+                                newEl.y1 = originalEl.y1 + finalDy;
+                                newEl.x2 = originalEl.x2 + finalDx;
+                                newEl.y2 = originalEl.y2 + finalDy;
                             }
                             return newEl;
                         }
@@ -728,46 +1035,35 @@
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                 }
                 
-                if (!isDragging && !isGridVisible) {
-                    let snappedToEndpoint = null;
-                    const pointsToCheck = [...svgElements.filter(el => el.type === 'space' && el.shape === 'line').flatMap(el => [{x: el.x1, y: el.y1}, {x: el.x2, y: el.y2}]), ...linePoints].map(p => ({x: p.x / 100 * dimensions.width, y: p.y / 100 * dimensions.height}));
-                    for (const p of pointsToCheck) {
-                        const dist = Math.sqrt(Math.pow(currentPos.x - p.x, 2) + Math.pow(currentPos.y - p.y, 2));
-                        if (dist < SNAP_THRESHOLD / zoom) {
-                            snappedToEndpoint = p;
-                            break;
-                        }
-                    }
-                    setEndpointSnap(snappedToEndpoint);
-                }
-            }, [isDragging, getCanvasCoords, selectedElementId, isGridVisible, getGridSnappedPoint, dimensions, zoom, SNAP_THRESHOLD, svgElements, linePoints]);
+            }, [isDragging, resizingHandleInfo, getCanvasCoords, selectedGroupId, isGridVisible, getGridSnappedPoint, dimensions]);
 
             const handleMouseUp = useCallback((e) => {
                 const wasDragging = isDragging;
-                if (isDragging) {
-                    if (dragInfo.current && JSON.stringify(historyOnActionStart.current.svgElements) !== JSON.stringify(svgElements)) {
+                const wasResizing = !!resizingHandleInfo;
+                if (wasDragging || wasResizing) {
+                    if (historyOnActionStart.current && JSON.stringify(historyOnActionStart.current.svgElements) !== JSON.stringify(svgElements)) {
                         setHistoryState(prev => ({ ...prev, past: [...prev.past, historyOnActionStart.current], future: [] }));
                     }
                 }
                 const wasClick = mouseDownInfo.current && (Math.sqrt((e.clientX - mouseDownInfo.current.x)**2 + (e.clientY - mouseDownInfo.current.y)**2) < 5);
-                if (wasClick && !wasDragging) {
+                if (wasClick && !wasDragging && !wasResizing) {
                     handleCanvasClick(e);
                 }
                 setIsDragging(false);
+                setResizingHandleInfo(null);
                 dragInfo.current = null;
                 historyOnActionStart.current = null;
                 mouseDownInfo.current = null;
-            }, [isDragging, svgElements, handleCanvasClick]);
+            }, [isDragging, resizingHandleInfo, svgElements, handleCanvasClick]);
 
             const deleteSelectedElement = useCallback(() => {
-                if (!selectedElementId) return;
+                if (!selectedGroupId) return;
                 setHistoryState(prevState => {
-                    const newSvgElements = prevState.present.svgElements.filter(el => el.id !== selectedElementId);
-                    const finalSvgElements = newSvgElements.filter(el => !(el.type === 'fill' && selectedElement && el.spaceType === selectedElement.spaceType));
-                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: finalSvgElements }, future: [] };
+                    const newSvgElements = prevState.present.svgElements.filter(el => el.groupId !== selectedGroupId && el.id !== selectedGroupId);
+                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
                 });
-                setSelectedElementId(null);
-            }, [selectedElementId, selectedElement]);
+                setSelectedGroupId(null);
+            }, [selectedGroupId]);
 
             const handleUndo = useCallback(() => {
                 setHistoryState(prevState => {
@@ -790,57 +1086,96 @@
             const rotateSelectedElement90Degrees = useCallback(() => {
                 if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window' || selectedElement.type === 'compass')) {
                     const newRotation = ((selectedElement.rotation || 0) + 90) % 360;
-                    handleSelectedElementUpdate('rotation', newRotation);
+                    handleSelectedGroupUpdate('rotation', newRotation);
                 }
-            }, [selectedElement, handleSelectedElementUpdate]);
+            }, [selectedElement, handleSelectedGroupUpdate]);
 
             const toggleSelectedElementSwingDirection = useCallback(() => {
                 if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window')) {
                     const newIsInner = !selectedElement.isInner;
                     setHistoryState(prevState => {
                         const updatedElements = prevState.present.svgElements.map(el => {
-                            if (el.id === selectedElementId) { return { ...el, isInner: newIsInner }; }
+                            if (el.id === selectedGroupId) { return { ...el, isInner: newIsInner }; }
                             return el;
                         });
                         return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: updatedElements }, future: [] };
                     });
                 }
-            }, [selectedElement, selectedElementId]);
+            }, [selectedElement, selectedGroupId]);
 
-            const handleSaveImage = () => {
-                const storedId = selectedElementId;
-                setSelectedElementId(null);
+            const handleSaveImage = async () => {
+                const storedId = selectedGroupId;
+                setSelectedGroupId(null);
 
-                setTimeout(() => {
-                    const exportCanvas = document.createElement('canvas');
-                    exportCanvas.width = dimensions.width;
-                    exportCanvas.height = dimensions.height;
-                    const ctx = exportCanvas.getContext('2d');
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-                    
-                    const svgClone = svgRef.current.cloneNode(true);
-                    svgClone.style.opacity = 1;
-                    const svgString = new XMLSerializer().serializeToString(svgClone);
-                    const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
-                    const url = URL.createObjectURL(svgBlob);
-                    const svgImage = new Image();
+                await new Promise(resolve => setTimeout(resolve, 0));
 
-                    svgImage.onload = () => {
-                        ctx.drawImage(svgImage, 0, 0);
-                        URL.revokeObjectURL(url);
-                        const link = document.createElement('a');
-                        const today = new Date();
-                        const yyyy = today.getFullYear();
-                        const mm = String(today.getMonth() + 1).padStart(2, '0');
-                        const dd = String(today.getDate()).padStart(2, '0');
-                        link.download = `floorplan_${yyyy}${mm}${dd}.png`;
-                        link.href = exportCanvas.toDataURL('image/png');
-                        link.click();
-                        setSelectedElementId(storedId);
-                    };
-                    svgImage.src = url;
-                }, 0);
+                const svgNode = svgRef.current;
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = dimensions.width;
+                exportCanvas.height = dimensions.height;
+                const ctx = exportCanvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+                const svgClone = svgNode.cloneNode(true);
+                svgClone.style.opacity = 1;
+
+                const images = svgClone.querySelectorAll('image');
+                const promises = Array.from(images).map(imageNode => {
+                    const href = imageNode.getAttribute('href');
+                    const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                    return fetch(proxyUrl + encodeURIComponent(href))
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`Network response was not ok for ${href}`);
+                            }
+                            return response.blob();
+                        })
+                        .then(blob => new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                imageNode.setAttribute('href', reader.result);
+                                resolve();
+                            };
+                            reader.onerror = () => {
+                                reject(new Error('FileReader error'));
+                            };
+                            reader.readAsDataURL(blob);
+                        }))
+                        .catch(error => {
+                            console.error(`Failed to fetch and embed image from ${href}:`, error);
+                        });
+                });
+
+                try {
+                    await Promise.all(promises);
+                } catch (error) {
+                    console.error("PNG保存エラー: 画像の埋め込みに失敗しました。", error);
+                }
+
+                const svgString = new XMLSerializer().serializeToString(svgClone);
+                const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+                const img = new Image();
+
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    const link = document.createElement('a');
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    link.download = `floorplan_${yyyy}${mm}${dd}.png`;
+                    link.href = exportCanvas.toDataURL('image/png');
+                    link.click();
+                    setSelectedGroupId(storedId);
+                };
+                img.onerror = () => {
+                    console.error("Failed to load SVG blob into image for export.");
+                    setSelectedGroupId(storedId);
+                }
+                img.src = url;
             };
 
             useEffect(() => {
@@ -857,13 +1192,8 @@
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (endpointSnap && !isGridVisible) {
-                    ctx.beginPath();
-                    ctx.arc(endpointSnap.x, endpointSnap.y, SNAP_THRESHOLD / zoom, 0, 2 * Math.PI);
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-                    ctx.fill();
-                }
-            }, [endpointSnap, zoom, isGridVisible]);
+            }, [zoom, isGridVisible]);
+
 
             useEffect(() => {
                 if (editorAreaRef.current) {
@@ -885,19 +1215,25 @@
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
-                    else if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
-                    else if (e.key === 'Delete' && selectedElementId) { e.preventDefault(); deleteSelectedElement(); }
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
+                    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
+                    else if (e.key === 'Delete' || e.key === 'Backspace') { 
+                        if (selectedGroupId) {
+                             e.preventDefault(); 
+                             deleteSelectedElement();
+                        }
+                    }
                     else if (e.key === 'Escape') {
                         setDrawingStartPoint(null);
                         setLinePoints([]);
-                        setSelectedElementId(null);
-                        setSelectedBlockId(null);
+                        setSelectedGroupId(null);
+                        setResizingHandleInfo(null);
+                        setSelectedEdge(null);
                     }
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [handleUndo, handleRedo, deleteSelectedElement, selectedElementId]);
+            }, [handleUndo, handleRedo, deleteSelectedElement, selectedGroupId]);
 
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
@@ -916,9 +1252,11 @@
             useEffect(() => {
                 setDrawingStartPoint(null);
                 setLinePoints([]);
-                setSelectedElementId(null);
-                setSelectedBlockId(null);
-            }, [drawingMode, spaceEditMode, spaceShape]);
+                if (editorMode === 'edit') {
+                    setSelectedGroupId(null);
+                    setSelectedEdge(null);
+                }
+            }, [editorMode, drawingMode, spaceShape]);
 
             useEffect(() => {
                 if (!isDisplaySettingsOpen) return;
@@ -934,15 +1272,231 @@
             }, [isDisplaySettingsOpen, isSidebarOpen]);
 
             const getCursorClass = () => {
-                if (isDragging) return 'cursor-grabbing';
-                if (drawingMode !== 'select' && spaceEditMode !== 'edit') return 'cursor-crosshair';
+                if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
+                if (editorMode === 'create' || editorMode === 'continuous-create') return 'cursor-crosshair';
                 return 'cursor-default';
+            };
+            
+            const getVerticesAndEdges = (element, allElements) => {
+                if (!element) return { vertices: [], edges: [] };
+                const polygonEl = allElements.find(e => (e.groupId === element.groupId || e.id === element.id) && e.shape === 'polygon');
+                if (polygonEl) {
+                    const vertices = polygonEl.points.split(' ').map(p => {
+                        const [x, y] = p.split(',');
+                        return { x: parseFloat(x), y: parseFloat(y) };
+                    });
+                    const edges = vertices.map((v, i) => {
+                        const nextV = vertices[(i + 1) % vertices.length];
+                        return { x: (v.x + nextV.x) / 2, y: (v.y + nextV.y) / 2 };
+                    });
+                    return { vertices, edges };
+                }
+                if (element.type === 'wall') {
+                    const vertices = [{x: element.x1, y: element.y1}, {x: element.x2, y: element.y2}];
+                    return { vertices, edges: [] };
+                }
+                return { vertices: [], edges: [] };
+            }
+            
+            const getResizeCursor = (index, totalPoints) => {
+                if (totalPoints === 4) { // Assume rect-like polygon
+                    return ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'][index];
+                }
+                return 'move';
+            }
+            
+            const sortedElements = [...svgElements].sort((a, b) => {
+                const typeOrder = { 'space': 0, 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
+                const orderA = typeOrder[a.type] ?? 99;
+                const orderB = typeOrder[b.type] ?? 99;
+                return orderA - orderB;
+            });
+
+            // 背景パターンを描画するためのコンポーネント
+            const BackgroundRenderer = ({ element }) => {
+                if (!element.backgroundPattern || element.backgroundPattern === 'none') {
+                    return null;
+                }
+
+                const points = element.points.split(' ').map(p_str => {
+                    const [x, y] = p_str.split(',').map(parseFloat);
+                    return { x, y };
+                });
+
+                if (points.length < 3) return null;
+
+                const clipPathId = `clip-${element.id}`;
+
+                const xs = points.map(p => p.x);
+                const ys = points.map(p => p.y);
+                const bbox = {
+                    minX: Math.min(...xs),
+                    minY: Math.min(...ys),
+                    maxX: Math.max(...xs),
+                    maxY: Math.max(...ys),
+                };
+                bbox.width = bbox.maxX - bbox.minX;
+                bbox.height = bbox.maxY - bbox.minY;
+
+                const renderPattern = () => {
+                    const pattern = element.backgroundPattern;
+                    const paths = [];
+                    const strokeColor = '#cccccc';
+                    const strokeWidth = 1;
+
+                    switch (pattern) {
+                        case 'vertical-lines': {
+                            const step = 10;
+                            for (let x = bbox.minX - (bbox.minX % step) + step; x < bbox.maxX; x += step) {
+                                paths.push(<line key={`v-${x}`} x1={x} y1={bbox.minY} x2={x} y2={bbox.maxY} stroke={strokeColor} strokeWidth={strokeWidth} />);
+                            }
+                            return paths;
+                        }
+                        case 'horizontal-lines': {
+                            const step = 10;
+                            for (let y = bbox.minY - (bbox.minY % step) + step; y < bbox.maxY; y += step) {
+                                paths.push(<line key={`h-${y}`} x1={bbox.minX} y1={y} x2={bbox.maxX} y2={y} stroke={strokeColor} strokeWidth={strokeWidth} />);
+                            }
+                            return paths;
+                        }
+                        case 'grid-small': {
+                            const step = 10;
+                            for (let x = bbox.minX - (bbox.minX % step) + step; x < bbox.maxX; x += step) {
+                                paths.push(<line key={`v-${x}`} x1={x} y1={bbox.minY} x2={x} y2={bbox.maxY} stroke={strokeColor} strokeWidth={strokeWidth} />);
+                            }
+                            for (let y = bbox.minY - (bbox.minY % step) + step; y < bbox.maxY; y += step) {
+                                paths.push(<line key={`h-${y}`} x1={bbox.minX} y1={y} x2={bbox.maxX} y2={y} stroke={strokeColor} strokeWidth={strokeWidth} />);
+                            }
+                            return paths;
+                        }
+                        case 'grid-large': {
+                            const step = 30;
+                            for (let x = bbox.minX - (bbox.minX % step) + step; x < bbox.maxX; x += step) {
+                                paths.push(<line key={`v-${x}`} x1={x} y1={bbox.minY} x2={x} y2={bbox.maxY} stroke={'#000000'} strokeWidth={strokeWidth} />);
+                            }
+                            for (let y = bbox.minY - (bbox.minY % step) + step; y < bbox.maxY; y += step) {
+                                paths.push(<line key={`h-${y}`} x1={bbox.minX} y1={y} x2={bbox.maxX} y2={y} stroke={'#000000'} strokeWidth={strokeWidth} />);
+                            }
+                            return paths;
+                        }
+                        case 'solid-x':
+                        case 'dotted-x': {
+                            const dashArray = pattern === 'dotted-x' ? '2 2' : 'none';
+                            paths.push(<line key="x1" x1={bbox.minX} y1={bbox.minY} x2={bbox.maxX} y2={bbox.maxY} stroke={'#000000'} strokeWidth={strokeWidth} strokeDasharray={dashArray} />);
+                            paths.push(<line key="x2" x1={bbox.minX} y1={bbox.maxY} x2={bbox.maxX} y2={bbox.minY} stroke={'#000000'} strokeWidth={strokeWidth} strokeDasharray={dashArray} />);
+                            return paths;
+                        }
+                        case 'solid-triangle':
+                        case 'dotted-triangle': {
+                            const leftPoints = points.filter(p => p.x === bbox.minX).sort((a,b) => a.y - b.y);
+                            const rightPoints = points.filter(p => p.x === bbox.maxX).sort((a,b) => a.y - b.y);
+
+                            if (leftPoints.length >= 2 && rightPoints.length >= 1) {
+                                const p1 = leftPoints[0];
+                                const p2 = leftPoints[leftPoints.length - 1];
+                                const pm = { x: bbox.maxX, y: (bbox.maxY + bbox.minY) / 2 };
+                                const dashArray = pattern === 'dotted-triangle' ? '2 2' : 'none';
+                                paths.push(<path key="tri" d={`M${p1.x},${p1.y} L${p2.x},${p2.y} L${pm.x},${pm.y} Z`} fill="none" stroke={'#000000'} strokeWidth={strokeWidth} strokeDasharray={dashArray} />);
+                            }
+                            return paths;
+                        }
+                        default:
+                            return null;
+                    }
+                };
+
+                return (
+                    <g style={{pointerEvents: 'none'}}>
+                        <defs>
+                            <clipPath id={clipPathId}>
+                                <polygon points={element.points} />
+                            </clipPath>
+                        </defs>
+                        <g clipPath={`url(#${clipPathId})`}>
+                            {renderPattern()}
+                        </g>
+                    </g>
+                );
+            };
+
+            const StairsRenderer = ({ element }) => {
+                const { points: pointsStr, width, direction, color, strokeWidth } = element;
+                const points = pointsStr.split(' ').map(p => {
+                    const [x, y] = p.split(',').map(parseFloat);
+                    return { x, y };
+                });
+
+                if (points.length < 2) return null;
+
+                const outlines = [[], []];
+                for (let i = 0; i < points.length; i++) {
+                    const p = points[i];
+                    let p_before = i > 0 ? points[i - 1] : null;
+                    let p_after = i < points.length - 1 ? points[i + 1] : null;
+
+                    let vec1 = p_before ? { x: p.x - p_before.x, y: p.y - p_before.y } : { x: p_after.x - p.x, y: p_after.y - p.y };
+                    let perp1 = { x: -vec1.y, y: vec1.x };
+                    let len1 = Math.sqrt(perp1.x ** 2 + perp1.y ** 2);
+                    if (len1 > 0) { perp1.x /= len1; perp1.y /= len1; }
+
+                    let p1_1 = { x: p.x + perp1.x * width / 2, y: p.y + perp1.y * width / 2 };
+                    let p1_2 = { x: p.x - perp1.x * width / 2, y: p.y - perp1.y * width / 2 };
+
+                    if (p_before && p_after) {
+                        outlines[0].push(p1_1);
+                        outlines[1].push(p1_2);
+                    } else {
+                        outlines[0].push(p1_1);
+                        outlines[1].push(p1_2);
+                    }
+                }
+
+                const steps = [];
+                const stepInterval = 15;
+                let totalLength = 0;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = points[i];
+                    const p2 = points[i+1];
+                    const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
+                    const segmentLen = Math.sqrt(segmentVec.x**2 + segmentVec.y**2);
+                    const segmentDir = { x: segmentVec.x / segmentLen, y: segmentVec.y / segmentLen };
+                    const perp = { x: -segmentDir.y, y: segmentDir.x };
+                    
+                    const startOffset = (stepInterval - (totalLength % stepInterval)) % stepInterval;
+
+                    for (let l = startOffset; l < segmentLen; l += stepInterval) {
+                        const stepCenter = { x: p1.x + segmentDir.x * l, y: p1.y + segmentDir.y * l };
+                        const s1 = { x: stepCenter.x + perp.x * width / 2, y: stepCenter.y + perp.y * width / 2 };
+                        const s2 = { x: stepCenter.x - perp.x * width / 2, y: stepCenter.y - perp.y * width / 2 };
+                        steps.push(<line key={`step-${i}-${l}`} x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={color} strokeWidth={1} />);
+                    }
+                    totalLength += segmentLen;
+                }
+
+                const lastPoint = points[points.length - 1];
+                const secondLastPoint = points[points.length - 2];
+                const arrowVec = { x: lastPoint.x - secondLastPoint.x, y: lastPoint.y - secondLastPoint.y };
+                const arrowLen = Math.sqrt(arrowVec.x**2 + arrowVec.y**2);
+                const arrowDir = { x: arrowVec.x / arrowLen, y: arrowVec.y / arrowLen };
+                const arrowText = direction.toUpperCase();
+
+                return (
+                    <g data-id={element.id} style={{ pointerEvents: 'all', cursor: 'grab' }}>
+                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} />
+                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} />
+                        {steps}
+                        <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} markerEnd="url(#arrowhead)" />
+                        <text x={lastPoint.x + arrowDir.x * 10} y={lastPoint.y + arrowDir.y * 10} fontSize="16" fill={color} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${Math.atan2(arrowDir.y, arrowDir.x) * 180 / Math.PI - 90} ${lastPoint.x} ${lastPoint.y})`}>
+                            {arrowText}
+                        </text>
+                    </g>
+                );
             };
 
             return (
                 <div className="flex flex-col h-screen">
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
-                        <span className="text-xl font-bold text-gray-800 ml-4">間取り図エディタ</span>
+                        <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
                         <div className="flex items-center space-x-4">
                             <button onClick={handleSaveImage} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">PNGで保存</button>
                             <button onClick={handleUndo} disabled={historyState.past.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">戻る</button>
@@ -962,26 +1516,32 @@
                                     {imageUrl && <img ref={imageRef} src={imageUrl} alt="間取り図" className="editor-image" style={{ opacity: 1 - imageOpacity, transform: `translate(-50%, -50%) scale(${imageScale})` }} crossOrigin="anonymous"/>}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
                                     <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown}>
-                                        {svgElements.map(el => {
-                                            const isSelected = el.id === selectedElementId;
+                                        <defs>
+                                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                                                <polygon points="0 0, 10 3.5, 0 7" />
+                                            </marker>
+                                        </defs>
+                                        {sortedElements.map(el => {
+                                            const isSelected = el.groupId ? el.groupId === selectedGroupId : el.id === selectedGroupId;
                                             const stroke = isSelected ? SELECTED_ELEMENT_COLOR : (el.color || DEFAULT_STROKE_COLOR);
                                             const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
-                                            const pointerEvents = (drawingMode === 'space' && spaceEditMode === 'create') ? 'none' : 'all';
-
-                                            if (el.shape === 'rect' && el.type === 'space') {
-                                                return <rect key={el.id} data-id={el.id} x={`${el.x}%`} y={`${el.y}%`} width={`${el.width}%`} height={`${el.height}%`} fill={el.fill} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents }} />;
-                                            }
-                                            if (el.shape === 'line' && el.type === 'space') {
-                                                const p1 = { x: el.x1 / 100 * dimensions.width, y: el.y1 / 100 * dimensions.height };
-                                                const p2 = { x: el.x2 / 100 * dimensions.width, y: el.y2 / 100 * dimensions.height };
-                                                if (el.lineStyle === 'wavy') {
-                                                    return <path key={el.id} data-id={el.id} d={generateWavyPathD(p1, p2)} stroke={stroke} strokeWidth={strokeW} fill="none" style={{ pointerEvents }} />;
-                                                }
-                                                return <line key={el.id} data-id={el.id} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} strokeLinecap="square" style={{ pointerEvents }} />;
-                                            }
+                                            
                                             if (el.shape === 'polygon' && el.type === 'space') {
-                                                return <polygon key={el.id} data-id={el.id} points={el.points} fill={el.fill} stroke="none" style={{pointerEvents: 'none'}} />;
+                                                const pointerEvents = (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all';
+                                                return (
+                                                    <g key={el.id} data-id={el.id}>
+                                                        <polygon points={el.points} fill={el.fill} stroke="none" shapeRendering="crispEdges" style={{ pointerEvents }} />
+                                                        <BackgroundRenderer element={el} />
+                                                        <polygon points={el.points} fill="none" stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents }} shapeRendering="crispEdges" />
+                                                    </g>
+                                                );
+                                            }
+                                            if (el.type === 'wall') {
+                                                return <line key={el.id} data-id={el.id} x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents: 'all' }} />
+                                            }
+                                            if (el.type === 'stairs') {
+                                                return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} />;
                                             }
                                             if (el.type === 'text') {
                                                 let textAnchor = 'start';
@@ -1024,18 +1584,73 @@
                                                 const totalRotation = el.baseAngle + (el.rotation || 0);
                                                 return (
                                                     <g key={el.id} data-id={el.id} transform={`translate(${p1.x}, ${p1.y}) rotate(${totalRotation})`} style={{cursor: isSelected && isDragging ? 'grabbing' : 'grab'}}>
-                                                        <path d={template.path(el.length, el.swingDirection, el.isInner, el.wallThickness)} fill="none" stroke={stroke} strokeWidth={strokeW} strokeLinecap="square" />
+                                                        <path d={template.path(el.length, el.swingDirection, el.isInner, el.wallThickness)} fill="none" stroke={stroke} strokeWidth={DEFAULT_STROKE_WIDTH} strokeLinecap="square" />
                                                     </g>
                                                 );
                                             }
                                             return null;
                                         })}
+                                        
+                                        {selectedElement && editorMode === 'edit' && (
+                                            <g>
+                                                {(() => {
+                                                    const { vertices, edges } = getVerticesAndEdges(selectedElement, svgElements);
+                                                    return (
+                                                        <>
+                                                            {vertices.map((vertex, index) => (
+                                                                <circle
+                                                                    key={`handle-vertex-${selectedElement.id}-${index}`}
+                                                                    data-id={selectedElement.id}
+                                                                    data-handle-index={index}
+                                                                    cx={vertex.x}
+                                                                    cy={vertex.y}
+                                                                    r={6 / zoom}
+                                                                    fill="black"
+                                                                    stroke="white"
+                                                                    strokeWidth={2 / zoom}
+                                                                    style={{ cursor: getResizeCursor(index, vertices.length) }}
+                                                                />
+                                                            ))}
+                                                             {selectedElement.type === 'space' && edges.map((edge, index) => (
+                                                                <rect
+                                                                    key={`handle-edge-${selectedElement.id}-${index}`}
+                                                                    data-id={selectedElement.id}
+                                                                    data-handle-index={index}
+                                                                    data-is-edge="true"
+                                                                    x={edge.x - 5/zoom}
+                                                                    y={edge.y - 5/zoom}
+                                                                    width={10/zoom}
+                                                                    height={10/zoom}
+                                                                    fill="white"
+                                                                    stroke="black"
+                                                                    strokeWidth={1 / zoom}
+                                                                    style={{ cursor: 'move' }}
+                                                                />
+                                                            ))}
+                                                        </>
+                                                    )
+                                                })()}
+                                            </g>
+                                        )}
+
                                         {/* Preview Rendering */}
-                                        {drawingStartPoint && (drawingMode !== 'space' || spaceShape !== 'line') && (() => {
+                                        {drawingStartPoint && !linePoints.length && (() => {
                                             let previewEndPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
-                                            if(drawingMode === 'compass') previewEndPoint = mousePos;
-                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect x={Math.min(drawingStartPoint.x, previewEndPoint.x)} y={Math.min(drawingStartPoint.y, previewEndPoint.y)} width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} fill="transparent" stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} />;
-                                            if(drawingMode === 'door' || drawingMode === 'window') return <line x1={drawingStartPoint.x} y1={drawingStartPoint.y} x2={previewEndPoint.x} y2={previewEndPoint.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} />;
+                                            if(drawingMode === 'compass') {
+                                                const template = COMPASS_TEMPLATES.find(t => t.id === compassTemplateId) || COMPASS_TEMPLATES[0];
+                                                const dx = mousePos.x - drawingStartPoint.x;
+                                                const dy = mousePos.y - drawingStartPoint.y;
+                                                const distance = Math.sqrt(dx*dx + dy*dy);
+                                                const size = Math.min(300, Math.max(20, distance));
+                                                const rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+                                                return (
+                                                    <g transform={`translate(${drawingStartPoint.x}, ${drawingStartPoint.y}) rotate(${rotation})`} style={{ pointerEvents: 'none' }}>
+                                                        <image href={template.src} x={-size / 2} y={-size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" opacity="0.7"/>
+                                                    </g>
+                                                );
+                                            }
+                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect x={Math.min(drawingStartPoint.x, previewEndPoint.x)} y={Math.min(drawingStartPoint.y, previewEndPoint.y)} width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} fill="transparent" stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} shapeRendering="crispEdges" />;
+                                            if(drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') return <line x1={drawingStartPoint.x} y1={drawingStartPoint.y} x2={previewEndPoint.x} y2={previewEndPoint.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} />;
                                             return null;
                                         })()}
                                         {linePoints.length > 0 && (
@@ -1043,9 +1658,9 @@
                                                 {linePoints.map((p, i) => {
                                                     if (i === 0) return null;
                                                     const p1 = linePoints[i-1];
-                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
+                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
                                                 })}
-                                                <line x1={linePoints[linePoints.length - 1].x} y1={linePoints[linePoints.length - 1].y} x2={mousePos.x} y2={mousePos.y} stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,5" />
+                                                <line x1={linePoints[linePoints.length - 1].x} y1={linePoints[linePoints.length - 1].y} x2={isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x} y2={isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y} stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
                                             </g>
                                         )}
                                     </svg>
@@ -1070,20 +1685,24 @@
                                                 下絵を選択<input type="file" onChange={handleFileChange} accept="image/*" className="hidden"/>
                                             </label>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">下絵のサイズ: {Math.round(imageScale * 100)}%</label>
-                                            <div className="flex items-center space-x-2 mt-1">
-                                                <input type="range" min="10" max="300" step="1" value={imageScale * 100} onChange={(e) => setImageScale(parseFloat(e.target.value) / 100)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                <input type="number" value={Math.round(imageScale * 100)} onChange={(e) => setImageScale(parseInt(e.target.value) / 100 || 0.1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">下絵の透明度: {Math.round(imageOpacity * 100)}%</label>
-                                             <div className="flex items-center space-x-2 mt-1">
-                                                <input type="range" min="0" max="1" step="0.05" value={imageOpacity} onChange={(e) => setImageOpacity(parseFloat(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                <input type="number" value={Math.round(imageOpacity * 100)} onChange={(e) => setImageOpacity(parseInt(e.target.value) / 100 || 0)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
-                                            </div>
-                                        </div>
+                                        {imageUrl && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">下絵のサイズ: {Math.round(imageScale * 100)}%</label>
+                                                    <div className="flex items-center space-x-2 mt-1">
+                                                        <input type="range" min="10" max="300" step="1" value={imageScale * 100} onChange={(e) => setImageScale(parseFloat(e.target.value) / 100)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                        <input type="number" value={Math.round(imageScale * 100)} onChange={(e) => setImageScale(parseInt(e.target.value) / 100 || 0.1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">下絵の透明度: {Math.round(imageOpacity * 100)}%</label>
+                                                     <div className="flex items-center space-x-2 mt-1">
+                                                        <input type="range" min="0" max="1" step="0.05" value={imageOpacity} onChange={(e) => setImageOpacity(parseFloat(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                        <input type="number" value={Math.round(imageOpacity * 100)} onChange={(e) => setImageOpacity(parseInt(e.target.value) / 100 || 0)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700">レイヤーの透明度: {Math.round(drawingOpacity * 100)}%</label>
                                             <div className="flex items-center space-x-2 mt-1">
@@ -1099,8 +1718,8 @@
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700">グリッドサイズ: {gridSize}px</label>
                                                 <div className="flex items-center space-x-2 mt-1">
-                                                    <input type="range" min="5" max="50" step="1" value={gridSize} onChange={(e) => setGridSize(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                    <input type="number" value={gridSize} onChange={(e) => setGridSize(parseInt(e.target.value) || 5)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                    <input type="range" min="1" max="30" step="1" value={gridSize} onChange={(e) => setGridSize(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                    <input type="number" value={gridSize} onChange={(e) => setGridSize(parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
                                                 </div>
                                             </div>
                                         )}
@@ -1115,98 +1734,179 @@
                                 </h2>
                                 {isDrawingToolsOpen && (
                                     <div className="mt-2">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {['space', 'door', 'window', 'fixture', 'compass', 'text'].map(mode => {
-                                                const names = {'space':'空間','door':'ドア','window':'窓','fixture':'設備','compass':'方角','text':'文字'};
-                                                return <button key={mode} onClick={() => setDrawingMode(mode)} className={`px-2 py-2 rounded text-sm ${drawingMode === mode ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>{names[mode]}</button>
-                                            })}
+                                        <div className="flex bg-gray-200 rounded-lg p-1 mb-4">
+                                            <button onClick={() => setEditorMode('continuous-create')} className={`w-full py-1 rounded-md text-sm ${editorMode === 'continuous-create' ? 'bg-white shadow' : ''}`}>連続作成</button>
+                                            <button onClick={() => setEditorMode('create')} className={`w-full py-1 rounded-md text-sm ${editorMode === 'create' ? 'bg-white shadow' : ''}`}>作成</button>
+                                            <button onClick={() => setEditorMode('edit')} className={`w-full py-1 rounded-md text-sm ${editorMode === 'edit' ? 'bg-white shadow' : ''}`}>編集</button>
                                         </div>
 
-                                        {drawingMode === 'space' && (
-                                            <div className="mt-4">
-                                                <div className="flex bg-gray-200 rounded-lg p-1">
-                                                    <button onClick={() => setSpaceEditMode('create')} className={`w-full py-1 rounded-md text-sm ${spaceEditMode === 'create' ? 'bg-white shadow' : ''}`}>作成</button>
-                                                    <button onClick={() => setSpaceEditMode('edit')} className={`w-full py-1 rounded-md text-sm ${spaceEditMode === 'edit' ? 'bg-white shadow' : ''}`}>編集</button>
+                                        {(editorMode === 'create' || editorMode === 'continuous-create') && (
+                                            <>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {['space', 'door', 'window', 'wall', 'fixture', 'stairs', 'compass', 'text'].map(mode => {
+                                                        const names = {'space':'空間', 'door':'ドア', 'window':'窓', 'wall':'壁', 'fixture':'設備', 'stairs':'階段', 'compass':'方角', 'text':'文字'};
+                                                        return <button key={mode} onClick={() => setDrawingMode(mode)} className={`px-2 py-2 rounded text-sm ${drawingMode === mode ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>{names[mode]}</button>
+                                                    })}
                                                 </div>
-                                                {spaceEditMode === 'create' && (
+                                                {drawingMode === 'space' && (
                                                     <div className="mt-4 space-y-4">
-                                                        <div>
-                                                            <label htmlFor="space-type-select" className="block text-sm font-medium text-gray-700">空間タイプ</label>
-                                                            <select id="space-type-select" value={spaceType} onChange={(e) => setSpaceType(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                                                {SPACE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-                                                            </select>
-                                                        </div>
                                                         <div className="flex bg-gray-200 rounded-lg p-1">
                                                             <button onClick={() => setSpaceShape('rect')} className={`w-full py-1 rounded-md text-sm ${spaceShape === 'rect' ? 'bg-white shadow' : ''}`}>四角形</button>
                                                             <button onClick={() => setSpaceShape('line')} className={`w-full py-1 rounded-md text-sm ${spaceShape === 'line' ? 'bg-white shadow' : ''}`}>線</button>
                                                         </div>
+                                                        <SpaceTypeSelector selectedType={spaceType} onChange={setSpaceType} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
                                                         <LineStyleSelector selectedStyle={lineStyle} onChange={setLineStyle} isRectShape={spaceShape === 'rect'}/>
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">線の太さ: {strokeWidth}px</label>
-                                                            <div className="flex items-center space-x-2 mt-1">
-                                                                <input type="range" min="1" max="20" step="1" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                                <input type="number" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
-                                                            </div>
-                                                        </div>
+                                                        <BackgroundSelector selected={backgroundPattern} onChange={setBackgroundPattern} />
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <div>
                                                                 <label htmlFor="stroke-color-picker" className="block text-sm font-medium text-gray-700">線の色</label>
                                                                 <input id="stroke-color-picker" type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
                                                             </div>
                                                             <div>
-                                                                <label htmlFor="fill-color-picker" className="block text-sm font-medium text-gray-700">塗りつぶしの色</label>
-                                                                <input type="color" value={fillColor} onChange={(e) => setFillColor(e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
+                                                                <div className="flex items-center justify-between">
+                                                                     <label htmlFor="fill-color-picker" className="block text-sm font-medium text-gray-700">枠内の色</label>
+                                                                     <div className="flex items-center">
+                                                                        <input id="transparent-toggle" type="checkbox" checked={fillColor === 'none'} onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setLastFillColor(fillColor);
+                                                                                setFillColor('none');
+                                                                            } else {
+                                                                                setFillColor(lastFillColor);
+                                                                            }
+                                                                        }} className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
+                                                                        <label htmlFor="transparent-toggle" className="ml-2 text-sm text-gray-700">透明</label>
+                                                                     </div>
+                                                                </div>
+                                                                <div className={`mt-1 h-10 w-full border border-gray-300 rounded-md ${fillColor === 'none' ? 'transparent-bg' : ''}`}>
+                                                                    <input type="color" value={fillColor === 'none' ? '#ffffff' : fillColor} onChange={(e) => setFillColor(e.target.value)} className={`h-full w-full ${fillColor === 'none' ? 'opacity-0' : ''}`} disabled={fillColor === 'none'}/>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 )}
-                                                {spaceEditMode === 'edit' && selectedElement && (selectedElement.type === 'space' || (selectedElement.type === 'text' && svgElements.some(s => s.type === 'space'))) && (
+                                                {drawingMode === 'wall' && (
                                                     <div className="mt-4 space-y-4">
-                                                        <p className="text-sm text-gray-600">編集したい空間を選択してください。</p>
-                                                        {selectedElement.type === 'space' &&
-                                                            <>
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700">空間タイプ</label>
-                                                                    <select value={selectedElement.spaceType} onChange={(e) => handleSelectedElementUpdate('spaceType', e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                                                        {SPACE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                                <LineStyleSelector selectedStyle={selectedElement.lineStyle || 'solid'} onChange={(newStyle) => handleSelectedElementUpdate('lineStyle', newStyle)} isRectShape={selectedElement.shape === 'rect'}/>
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700">線の太さ: {selectedElement.strokeWidth || DEFAULT_STROKE_WIDTH}px</label>
-                                                                    <div className="flex items-center space-x-2 mt-1">
-                                                                        <input type="range" min="1" max="20" step="1" value={selectedElement.strokeWidth || DEFAULT_STROKE_WIDTH} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                                        <input type="number" value={selectedElement.strokeWidth || DEFAULT_STROKE_WIDTH} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
-                                                                    </div>
-                                                                </div>
-                                                                <div className="grid grid-cols-2 gap-2">
-                                                                    <div>
-                                                                        <label className="block text-sm font-medium text-gray-700">線の色</label>
-                                                                        <input type="color" value={selectedElement.color || DEFAULT_STROKE_COLOR} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="block text-sm font-medium text-gray-700">塗りつぶしの色</label>
-                                                                        <input type="color" value={selectedElement.fill || '#ffffff'} onChange={(e) => handleSelectedElementUpdate('fill', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="mt-6">
-                                                                    <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この空間を削除 (Delete)</button>
-                                                                </div>
-                                                            </>
-                                                        }
+                                                        <LineStyleSelector selectedStyle={lineStyle} onChange={setLineStyle} />
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">線の太さ</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="1" max="20" step="1" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">線の色</label>
+                                                            <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
+                                                        </div>
                                                     </div>
                                                 )}
-                                            </div>
+                                                {drawingMode === 'stairs' && (
+                                                    <div className="mt-4 space-y-4">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">階段幅: {stairWidth}px</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="20" max="100" step="1" value={stairWidth} onChange={(e) => setStairWidth(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={stairWidth} onChange={(e) => setStairWidth(parseInt(e.target.value) || 20)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">方向</label>
+                                                            <div className="flex bg-gray-200 rounded-lg p-1 mt-1">
+                                                                <button onClick={() => setStairDirection('up')} className={`w-full py-1 rounded-md text-sm ${stairDirection === 'up' ? 'bg-white shadow' : ''}`}>UP</button>
+                                                                <button onClick={() => setStairDirection('down')} className={`w-full py-1 rounded-md text-sm ${stairDirection === 'down' ? 'bg-white shadow' : ''}`}>DN</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {drawingMode === 'door' && <div className="mt-4 space-y-4"><DoorTemplateSelector selectedTemplateId={doorTemplateId} onChange={setDoorTemplateId} /></div>}
+                                                {drawingMode === 'window' && <div className="mt-4 space-y-4"><WindowTemplateSelector selectedTemplateId={windowTemplateId} onChange={setWindowTemplateId} /></div>}
+                                                {drawingMode === 'fixture' && <div className="mt-4 space-y-4"><FixtureTemplateSelector selectedTemplateId={fixtureTemplateId} onChange={setFixtureTemplateId} category={fixtureCategory} /></div>}
+                                                {drawingMode === 'compass' && <div className="mt-4 space-y-4"><CompassTemplateSelector selectedTemplateId={compassTemplateId} onChange={setCompassTemplateId} /></div>}
+                                                {drawingMode === 'text' && <div className="mt-4 space-y-4"><p className="text-sm text-gray-600">キャンバスをクリックしてテキストを配置します。</p></div>}
+                                            </>
                                         )}
-                                        {/* Other drawing modes... */}
-                                        {['door', 'window', 'fixture', 'compass', 'text'].includes(drawingMode) && (
+                                        
+                                        {editorMode === 'edit' && (
                                             <div className="mt-4 space-y-4">
-                                                {/* The specific UI for each mode will be rendered here */}
-                                                {drawingMode === 'door' && ( <div className="mt-4 space-y-4"> <p className="text-sm text-gray-600">キャンバス上を2回クリックしてドアを配置します。</p> {selectedElement && selectedElement.type === 'door' ? ( <div> <h3 className="text-md font-semibold mb-2">選択中のドアを編集</h3> <DoorTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div> <label className="block text-sm font-medium text-gray-700">線の太さ: {selectedElement.strokeWidth}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="1" max="10" step="1" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div className="mt-2 flex space-x-2"> <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button> <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このドアを削除 (Delete)</button> </div> </div> ) : ( <DoorTemplateSelector selectedTemplateId={doorTemplateId} onChange={setDoorTemplateId} /> )} </div> )}
-                                                {drawingMode === 'window' && ( <div className="mt-4 space-y-4"> <p className="text-sm text-gray-600">キャンバス上を2回クリックして窓を配置します。</p> {selectedElement && selectedElement.type === 'window' ? ( <div> <h3 className="text-md font-semibold mb-2">選択中の窓を編集</h3> <WindowTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div> <label className="block text-sm font-medium text-gray-700">線の太さ: {selectedElement.strokeWidth}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="1" max="10" step="1" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div className="mt-2 flex space-x-2"> <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button> <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この窓を削除 (Delete)</button> </div> </div> ) : ( <WindowTemplateSelector selectedTemplateId={windowTemplateId} onChange={setWindowTemplateId} /> )} </div> )}
-                                                {drawingMode === 'fixture' && ( <div className="mt-4 space-y-4"> <p className="text-sm text-gray-600">キャンバスをクリックして設備を配置します。</p> {selectedElement && selectedElement.type === 'fixture' ? ( <div> <h3 className="text-md font-semibold mb-2">選択中の設備を編集</h3> <div> <label className="block text-sm font-medium text-gray-700">カテゴリ</label> <select value={fixtureCategory} onChange={(e) => setFixtureCategory(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {Object.keys(FIXTURE_TEMPLATES).map(cat => ( <option key={cat} value={cat}> {cat === 'kitchen' ? 'キッチン' : cat === 'bathroom' ? '浴室' : cat === 'bedroom' ? '寝室' : cat === 'livingDining' ? 'リビング・ダイニング' : 'その他'} </option> ))} </select> </div> <FixtureTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} category={fixtureCategory} /> <div> <label className="block text-sm font-medium text-gray-700">サイズ: {selectedElement.size}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="10" max="100" step="1" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value) || 10)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">塗りつぶしの色</label> <input type="color" value={selectedElement.fill} onChange={(e) => handleSelectedElementUpdate('fill', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.stroke} onChange={(e) => handleSelectedElementUpdate('stroke', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div> <label className="block text-sm font-medium text-gray-700">線の太さ: {selectedElement.strokeWidth}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="1" max="10" step="1" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この設備を削除 (Delete)</button> </div> </div> ) : ( <> <div> <label className="block text-sm font-medium text-gray-700">カテゴリ</label> <select value={fixtureCategory} onChange={(e) => setFixtureCategory(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {Object.keys(FIXTURE_TEMPLATES).map(cat => ( <option key={cat} value={cat}> {cat === 'kitchen' ? 'キッチン' : cat === 'bathroom' ? '浴室' : cat === 'bedroom' ? '寝室' : cat === 'livingDining' ? 'リビング・ダイニング' : 'その他'} </option> ))} </select> </div> <FixtureTemplateSelector selectedTemplateId={fixtureTemplateId} onChange={setFixtureTemplateId} category={fixtureCategory} /> </> )} </div> )}
-                                                {drawingMode === 'compass' && ( <div className="mt-4 space-y-4"> <p className="text-sm text-gray-600">キャンバス上をクリックして始点を決め、もう一度クリックして終点を決めます。</p> {selectedElement && selectedElement.type === 'compass' ? ( <div> <h3 className="text-md font-semibold mb-2">選択中の方角を編集</h3> <CompassTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div> <label className="block text-sm font-medium text-gray-700 mt-2">サイズ</label> <div className="flex items-center space-x-2 mt-1"> <input type="range" min="20" max="300" step="1" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value) || 20)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /> </div> </div> <div> <label className="block text-sm font-medium text-gray-700 mt-2">回転</label> <div className="flex items-center space-x-2 mt-1"> <input type="range" min="-180" max="180" step="1" value={selectedElement.rotation || 0} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={Math.round(selectedElement.rotation || 0)} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value) || 0)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /> </div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この方角を削除 (Delete)</button> </div> </div> ) : ( <CompassTemplateSelector selectedTemplateId={compassTemplateId} onChange={setCompassTemplateId} /> )} </div> )}
-                                                {drawingMode === 'text' && ( <div className="mt-4 space-y-4"> <p className="text-sm text-gray-600">キャンバスをクリックしてテキストを配置します。</p> { selectedElement && selectedElement.type === 'text' ? ( <div> <h3 className="text-md font-semibold mb-2">選択中のテキストを編集</h3> <div> <label className="block text-sm font-medium text-gray-700">テキスト</label> <textarea value={selectedElement.text} onChange={(e) => handleSelectedElementUpdate('text', e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" rows="3"></textarea> </div> <div> <label className="block text-sm font-medium text-gray-700">フォント</label> <select value={selectedElement.fontFamily} onChange={(e) => handleSelectedElementUpdate('fontFamily', e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {FONT_FAMILIES.map(font => <option key={font.id} value={font.id}>{font.name}</option>)} </select> </div> <div> <label className="block text-sm font-medium text-gray-700">フォントサイズ: {selectedElement.fontSize}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="8" max="72" step="1" value={selectedElement.fontSize} onChange={(e) => handleSelectedElementUpdate('fontSize', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.fontSize} onChange={(e) => handleSelectedElementUpdate('fontSize', parseInt(e.target.value) || 8)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">文字色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div> <label className="block text-sm font-medium text-gray-700">配置</label> <div className="flex bg-gray-200 rounded-lg p-1"> <button onClick={() => handleSelectedElementUpdate('textAlign', 'left')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'left' ? 'bg-white shadow' : ''}`}>左揃え</button> <button onClick={() => handleSelectedElementUpdate('textAlign', 'center')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'center' ? 'bg-white shadow' : ''}`}>中央揃え</button> <button onClick={() => handleSelectedElementUpdate('textAlign', 'right')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'right' ? 'bg-white shadow' : ''}`}>右揃え</button> </div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このテキストを削除 (Delete)</button> </div> </div> ) : ( <> <div> <label htmlFor="font-family-select" className="block text-sm font-medium text-gray-700">フォント</label> <select id="font-family-select" value={fontFamily} onChange={(e) => setFontFamily(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {FONT_FAMILIES.map(font => <option key={font.id} value={font.id}>{font.name}</option>)} </select> </div> <div> <label htmlFor="font-size-slider" className="block text-sm font-medium text-gray-700">フォントサイズ: {fontSize}px</label> <div className="flex items-center space-x-2 mt-1"><input id="font-size-slider" type="range" min="8" max="72" step="1" value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value) || 8)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label htmlFor="text-color-picker" className="block text-sm font-medium text-gray-700">文字色</label> <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div> <label className="block text-sm font-medium text-gray-700">配置</label> <div className="flex bg-gray-200 rounded-lg p-1"> <button onClick={() => setTextAlign('left')} className={`w-full py-1 rounded-md text-sm ${textAlign === 'left' ? 'bg-white shadow' : ''}`}>左揃え</button> <button onClick={() => setTextAlign('center')} className={`w-full py-1 rounded-md text-sm ${textAlign === 'center' ? 'bg-white shadow' : ''}`}>中央揃え</button> <button onClick={() => setTextAlign('right')} className={`w-full py-1 rounded-md text-sm ${textAlign === 'right' ? 'bg-white shadow' : ''}`}>右揃え</button> </div> </div> </> )} </div> )}
+                                                {!selectedElement && <p className="text-sm text-gray-600">編集したいアイテムをクリックしてください。</p>}
+                                                {selectedElement?.type === 'space' && (
+                                                    <>
+                                                        <SpaceTypeSelector selectedType={selectedElement.spaceType} onChange={(newType) => handleSelectedGroupUpdate('spaceType', newType)} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
+                                                        <LineStyleSelector selectedStyle={selectedElement.lineStyle || 'solid'} onChange={(newStyle) => handleSelectedGroupUpdate('lineStyle', newStyle)} isRectShape={true}/>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">線の太さ</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="1" max="20" step="1" value={selectedElement.strokeWidth || DEFAULT_STROKE_WIDTH} onChange={(e) => handleSelectedGroupUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={selectedElement.strokeWidth || DEFAULT_STROKE_WIDTH} onChange={(e) => handleSelectedGroupUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div><label className="block text-sm font-medium text-gray-700">線の色</label><input type="color" value={selectedElement.color || DEFAULT_STROKE_COLOR} onChange={(e) => handleSelectedGroupUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/></div>
+                                                            <div>
+                                                                <div className="flex items-center justify-between">
+                                                                     <label className="block text-sm font-medium text-gray-700">枠内の色</label>
+                                                                     <div className="flex items-center">
+                                                                        <input type="checkbox" checked={selectedElement.fill === 'none'} onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setEditLastFillColor(selectedElement.fill);
+                                                                                handleSelectedGroupUpdate('fill', 'none');
+                                                                            } else {
+                                                                                handleSelectedGroupUpdate('fill', editLastFillColor);
+                                                                            }
+                                                                        }} className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
+                                                                        <label className="ml-2 text-sm text-gray-700">透明</label>
+                                                                     </div>
+                                                                </div>
+                                                                <div className={`mt-1 h-10 w-full border border-gray-300 rounded-md ${selectedElement.fill === 'none' ? 'transparent-bg' : ''}`}>
+                                                                    <input type="color" value={selectedElement.fill === 'none' ? '#ffffff' : selectedElement.fill} onChange={(e) => handleSelectedGroupUpdate('fill', e.target.value)} className={`h-full w-full ${selectedElement.fill === 'none' ? 'opacity-0' : ''}`} disabled={selectedElement.fill === 'none'}/>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <BackgroundSelector selected={selectedElement.backgroundPattern || 'none'} onChange={(pattern) => handleSelectedGroupUpdate('backgroundPattern', pattern)} />
+                                                        <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この空間を削除</button></div>
+                                                    </>
+                                                )}
+                                                {selectedElement?.type === 'wall' && (
+                                                    <>
+                                                        <LineStyleSelector selectedStyle={selectedElement.lineStyle} onChange={(v) => handleSelectedElementUpdate('lineStyle', v)} />
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">線の太さ</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="1" max="20" step="1" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">線の色</label>
+                                                            <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
+                                                        </div>
+                                                        <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この壁を削除</button></div>
+                                                    </>
+                                                )}
+                                                {selectedElement?.type === 'stairs' && (
+                                                    <>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">階段幅: {selectedElement.width}px</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input type="range" min="20" max="100" step="1" value={selectedElement.width} onChange={(e) => handleSelectedElementUpdate('width', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+                                                                <input type="number" value={selectedElement.width} onChange={(e) => handleSelectedElementUpdate('width', parseInt(e.target.value) || 20)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">方向</label>
+                                                            <div className="flex bg-gray-200 rounded-lg p-1 mt-1">
+                                                                <button onClick={() => handleSelectedElementUpdate('direction', 'up')} className={`w-full py-1 rounded-md text-sm ${selectedElement.direction === 'up' ? 'bg-white shadow' : ''}`}>UP</button>
+                                                                <button onClick={() => handleSelectedElementUpdate('direction', 'down')} className={`w-full py-1 rounded-md text-sm ${selectedElement.direction === 'down' ? 'bg-white shadow' : ''}`}>DN</button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この階段を削除</button></div>
+                                                    </>
+                                                )}
+                                                {selectedElement?.type === 'door' && ( <div> <h3 className="text-md font-semibold mb-2">選択中のドアを編集</h3> <DoorTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div className="mt-2 flex space-x-2"> <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button> <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このドアを削除</button> </div> </div> )}
+                                                {selectedElement?.type === 'window' && ( <div> <h3 className="text-md font-semibold mb-2">選択中の窓を編集</h3> <WindowTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div className="mt-2 flex space-x-2"> <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button> <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この窓を削除</button> </div> </div> )}
+                                                {selectedElement?.type === 'fixture' && ( <div> <h3 className="text-md font-semibold mb-2">選択中の設備を編集</h3> <div> <label className="block text-sm font-medium text-gray-700">カテゴリ</label> <select value={fixtureCategory} onChange={(e) => setFixtureCategory(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {Object.keys(FIXTURE_TEMPLATES).map(cat => ( <option key={cat} value={cat}> {cat === 'kitchen' ? 'キッチン' : cat === 'bathroom' ? '浴室' : cat === 'bedroom' ? '寝室' : cat === 'livingDining' ? 'リビング・ダイニング' : 'その他'} </option> ))} </select> </div> <FixtureTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} category={fixtureCategory} /> <div> <label className="block text-sm font-medium text-gray-700">サイズ: {selectedElement.size}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="10" max="100" step="1" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value) || 10)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">塗りつぶしの色</label> <input type="color" value={selectedElement.fill} onChange={(e) => handleSelectedElementUpdate('fill', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> <div> <label className="block text-sm font-medium text-gray-700">線の色</label> <input type="color" value={selectedElement.stroke} onChange={(e) => handleSelectedElementUpdate('stroke', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この設備を削除</button> </div> </div> )}
+                                                {selectedElement?.type === 'compass' && ( <div> <h3 className="text-md font-semibold mb-2">選択中の方角を編集</h3> <CompassTemplateSelector selectedTemplateId={selectedElement.templateId} onChange={(newTemplateId) => handleSelectedElementUpdate('templateId', newTemplateId)} /> <div> <label className="block text-sm font-medium text-gray-700 mt-2">サイズ</label> <div className="flex items-center space-x-2 mt-1"> <input type="range" min="20" max="300" step="1" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.size} onChange={(e) => handleSelectedElementUpdate('size', parseInt(e.target.value) || 20)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /> </div> </div> <div> <label className="block text-sm font-medium text-gray-700 mt-2">回転</label> <div className="flex items-center space-x-2 mt-1"> <input type="range" min="-180" max="180" step="1" value={selectedElement.rotation || 0} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={Math.round(selectedElement.rotation || 0)} onChange={(e) => handleSelectedElementUpdate('rotation', parseInt(e.target.value) || 0)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /> </div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この方角を削除</button> </div> </div> )}
+                                                {selectedElement?.type === 'text' && ( <div> <h3 className="text-md font-semibold mb-2">選択中のテキストを編集</h3> <div> <label className="block text-sm font-medium text-gray-700">テキスト</label> <textarea value={selectedElement.text} onChange={(e) => handleSelectedElementUpdate('text', e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" rows="3"></textarea> </div> <div> <label className="block text-sm font-medium text-gray-700">フォント</label> <select value={selectedElement.fontFamily} onChange={(e) => handleSelectedElementUpdate('fontFamily', e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {FONT_FAMILIES.map(font => <option key={font.id} value={font.id}>{font.name}</option>)} </select> </div> <div> <label className="block text-sm font-medium text-gray-700">フォントサイズ: {selectedElement.fontSize}px</label> <div className="flex items-center space-x-2 mt-1"><input type="range" min="8" max="72" step="1" value={selectedElement.fontSize} onChange={(e) => handleSelectedElementUpdate('fontSize', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/> <input type="number" value={selectedElement.fontSize} onChange={(e) => handleSelectedElementUpdate('fontSize', parseInt(e.target.value) || 8)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" /></div> </div> <div className="grid grid-cols-2 gap-2"> <div> <label className="block text-sm font-medium text-gray-700">文字色</label> <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate('color', e.target.value)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/> </div> </div> <div> <label className="block text-sm font-medium text-gray-700">配置</label> <div className="flex bg-gray-200 rounded-lg p-1"> <button onClick={() => handleSelectedElementUpdate('textAlign', 'left')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'left' ? 'bg-white shadow' : ''}`}>左揃え</button> <button onClick={() => handleSelectedElementUpdate('textAlign', 'center')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'center' ? 'bg-white shadow' : ''}`}>中央揃え</button> <button onClick={() => handleSelectedElementUpdate('textAlign', 'right')} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'right' ? 'bg-white shadow' : ''}`}>右揃え</button> </div> </div> <div className="mt-6"> <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このテキストを削除</button> </div> </div> )}
                                             </div>
                                         )}
                                     </div>
