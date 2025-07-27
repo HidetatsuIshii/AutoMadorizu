@@ -13,6 +13,27 @@
             font-family: 'Noto Sans JP', sans-serif;
             overflow: hidden;
         }
+        .accordion-content {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.7s ease-out, opacity 0.3s ease-in-out, margin-top 0.3s ease-out;
+            margin-top: 0 !important; /* 閉じている時はmarginをなくす */
+        }
+        .accordion-content-open {
+            max-height: 1500px; /* 内容が十分収まる高さを指定 */
+            opacity: 1;
+            margin-top: 1rem !important; /* 開いている時はmarginを適用(mt-4相当) */
+        }
+        .arrow-icon {
+            transition: transform 0.3s ease-in-out;
+        }
+        .arrow-icon-open {
+            transform: rotate(0deg);
+        }
+        .arrow-icon-closed {
+            transform: rotate(-90deg);
+        }
         .editor-area {
             position: relative;
             width: 100%;
@@ -39,7 +60,6 @@
             transform-origin: center center;
             max-width: 100%;
             max-height: 100%;
-            pointer-events: none;
         }
         .editor-canvas, .editor-svg {
             position: absolute;
@@ -123,6 +143,7 @@
         const DEFAULT_STROKE_COLOR = '#000000';
         const DEFAULT_STROKE_WIDTH = 5;
         const DEFAULT_STAIR_WIDTH = 50;
+        const BASE_FIXTURE_DEFAULT_SIZE = 50; // 設備の基準サイズ
 
         const LINE_STYLES = [
             { id: 'solid', name: '実線', dashArray: 'none' },
@@ -209,21 +230,41 @@
                 { id: 'dishwasher', name: '食洗機', path: 'M-15,-10 H15 V10 H-15 Z M-10,0 V10 M0,0 V10 M10,0 V10', defaultSize: 30, defaultFill: '#e0f0f0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'pantry', name: '食器棚', path: 'M-15,-20 H15 V20 H-15 Z M0,-20 V20 M-10,-10 H10 M-10,0 H10 M-10,10 H10', defaultSize: 45, defaultFill: '#deb887', defaultStroke: '#000000', defaultStrokeWidth: 1 }
             ],
-            bathroom: [
-                { id: 'bathtub', name: '浴槽', path: 'M-20,-10 H20 V10 H-20 Z M-15,-5 H15 V5 H-15 Z', defaultSize: 40, defaultFill: '#e0f0ff', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'washbasin', name: '洗面台', path: 'M-10,-10 H10 V10 H-10 Z M-5,0 A5,5 0 1,0 5,0', defaultSize: 30, defaultFill: '#ffffff', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'washing-machine', name: '洗濯機', path: 'M-15,-15 H15 V15 H-15 Z M0,-15 V15 M-10,-5 H10', defaultSize: 35, defaultFill: '#f0f0f0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'shower', name: 'シャワー', path: 'M-15,-15 H15 V15 H-15 Z M-10,-10 L10,10 M-10,10 L10,-10', defaultSize: 30, defaultFill: 'none', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'bidet', name: 'ビデ', path: 'M-10,-10 H10 V10 H-10 Z M-10,-5 A5,5 0 0,1 -5,-10 H5 A5,5 0 0,1 10,-5', defaultSize: 25, defaultFill: '#ffffff', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'towel-rack', name: 'タオル掛け', path: 'M-15,-5 H15 M-10,5 H10', defaultSize: 25, defaultFill: 'none', defaultStroke: '#000000', defaultStrokeWidth: 1 }
+            washroom: [
+                { id: 'washroom01-from-svg', name: '洗面01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen01.svg', defaultSize: 60, aspectRatio: 139 / 84, },
+                { id: 'washroom02-from-svg', name: '洗面02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen02.svg', defaultSize: 60, aspectRatio: 126 / 85, },
+                { id: 'washroom03-from-svg', name: '洗面03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen03.svg', defaultSize: 60, aspectRatio: 122 / 62, },
+                { id: 'washroom04-from-svg', name: '洗面04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen04.svg', defaultSize: 60, aspectRatio: 121 / 102, },
+                { id: 'washroom05-from-svg', name: '洗面05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen05.svg', defaultSize: 60, aspectRatio: 115 / 52, },
+                { id: 'washroom06-from-svg', name: '洗面06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen06.svg', defaultSize: 60, aspectRatio: 121 / 96, }
+            
             ],
-            bedroom: [
-                { id: 'bed-single', name: 'シングルベッド', path: 'M-20,-15 H20 V15 H-20 Z M-15,-15 H15 V-5 H-15 Z', defaultSize: 50, defaultFill: '#a0c0e0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'bed-double', name: 'ダブルベッド', path: 'M-30,-20 H30 V20 H-30 Z M-25,-20 H25 V-5 H-25 Z', defaultSize: 60, defaultFill: '#a0c0e0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'closet', name: 'クローゼット', path: 'M-15,-20 H15 V20 H-15 Z M0,-20 V20', defaultSize: 40, defaultFill: '#f5deb3', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'dresser', name: 'ドレッサー', path: 'M-20,-10 H20 V10 H-20 Z M-15,0 H15', defaultSize: 40, defaultFill: '#c0a080', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'nightstand', name: 'ナイトスタンド', path: 'M-10,-10 H10 V10 H-10 Z', defaultSize: 20, defaultFill: '#d0b090', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'wardrobe', name: 'ワードローブ', path: 'M-20,-25 H20 V25 H-20 Z M-15,-25 V25 M15,-25 V25', defaultSize: 50, defaultFill: '#deb887', defaultStroke: '#000000', defaultStrokeWidth: 1 }
+            bathroom: [
+                { id: 'bathtub01-from-svg', name: 'お風呂01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo01.svg', defaultSize: 30, aspectRatio: 173 / 107, },
+                { id: 'bathtub02-from-svg', name: 'お風呂02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo02.svg', defaultSize: 30, aspectRatio: 173 / 97, },
+                { id: 'bathtub03-from-svg', name: 'お風呂03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo03.svg', defaultSize: 30, aspectRatio: 202 / 108, },
+                { id: 'bathtub04-from-svg', name: 'お風呂04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo04.svg', defaultSize: 30, aspectRatio: 194 / 96, },
+                { id: 'bathtub05-from-svg', name: 'お風呂05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo05.svg', defaultSize: 30, aspectRatio: 195 / 106, },
+                { id: 'bathtub06-from-svg', name: 'お風呂06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo06.svg', defaultSize: 30, aspectRatio: 189 / 97, },
+                { id: 'bathtub07-from-svg', name: 'お風呂07', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo07.svg', defaultSize: 30, aspectRatio: 185 / 95, },
+                { id: 'bathtub08-from-svg', name: 'お風呂08', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo08.svg', defaultSize: 30, aspectRatio: 183 / 107, },
+                { id: 'bathtub09-from-svg', name: 'お風呂09', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo09.svg', defaultSize: 80, aspectRatio: 78 / 62, },
+                { id: 'bathtub10-from-svg', name: 'お風呂10', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/furo10.svg', defaultSize: 80, aspectRatio: 91 / 57, }
+            ],
+            toilet: [
+                { id: 'toilet01-from-svg', name: 'トイレ01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet01.svg', defaultSize: 100, aspectRatio: 76 / 140, },
+                { id: 'toilet02-from-svg', name: 'トイレ02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet02.svg', defaultSize: 80, aspectRatio: 87 / 122, },
+                { id: 'toilet03-from-svg', name: 'トイレ03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet03.svg', defaultSize: 80, aspectRatio: 82 / 121, },
+                { id: 'toilet04-from-svg', name: 'トイレ04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet04.svg', defaultSize: 100, aspectRatio: 78 / 136, },
+                { id: 'toilet05-from-svg', name: 'トイレ05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet05.svg', defaultSize: 100, aspectRatio: 74 / 121, },
+                { id: 'toilet06-from-svg', name: 'トイレ06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet06.svg', defaultSize: 100, aspectRatio: 76 / 121, },
+                { id: 'toilet07-from-svg', name: 'トイレ07', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet07.svg', defaultSize: 100, aspectRatio: 75 / 131, },
+                { id: 'toilet08-from-svg', name: 'トイレ08', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet08.svg', defaultSize: 100, aspectRatio: 66 / 116, },
+                { id: 'toilet09-from-svg', name: 'トイレ09', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet09.svg', defaultSize: 100, aspectRatio: 80 / 122, },
+                { id: 'toilet10-from-svg', name: 'トイレ10', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet10.svg', defaultSize: 70, aspectRatio: 126 / 61, },
+                { id: 'toilet11-from-svg', name: 'トイレ11', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet11.svg', defaultSize: 100, aspectRatio: 69 / 75, },
+                { id: 'toilet12-from-svg', name: 'トイレ12', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/toilet12.svg', defaultSize: 200, aspectRatio: 41 / 36, }
+            
             ],
             livingDining: [
                 { id: 'dining-table-round', name: '円形テーブル', path: 'M0,0 A15,15 0 1,0 0,0.001 Z', defaultSize: 40, defaultFill: '#d0b090', defaultStroke: '#000000', defaultStrokeWidth: 1 },
@@ -233,12 +274,30 @@
                 { id: 'tv-stand', name: 'テレビ台', path: 'M-20,-5 H20 V5 H-20 Z', defaultSize: 40, defaultFill: '#c0a080', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'bookshelf', name: '本棚', path: 'M-15,-20 H15 V20 H-15 Z M-10,-15 H10 M-10,0 H10 M-10,15 H10', defaultSize: 45, defaultFill: '#d0b090', defaultStroke: '#000000', defaultStrokeWidth: 1 }
             ],
+            bedroom: [
+                { id: 'bed-single', name: 'シングルベッド', path: 'M-20,-15 H20 V15 H-20 Z M-15,-15 H15 V-5 H-15 Z', defaultSize: 50, defaultFill: '#a0c0e0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
+                { id: 'bed-double', name: 'ダブルベッド', path: 'M-30,-20 H30 V20 H-30 Z M-25,-20 H25 V-5 H-25 Z', defaultSize: 60, defaultFill: '#a0c0e0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
+                { id: 'closet', name: 'クローゼット', path: 'M-15,-20 H15 V20 H-15 Z M0,-20 V20', defaultSize: 40, defaultFill: '#f5deb3', defaultStroke: '#000000', defaultStrokeWidth: 1 },
+                { id: 'dresser', name: 'ドレッサー', path: 'M-20,-10 H20 V10 H-20 Z M-15,0 H15', defaultSize: 40, defaultFill: '#c0a080', defaultStroke: '#000000', defaultStrokeWidth: 1 },
+                { id: 'nightstand', name: 'ナイトスタンド', path: 'M-10,-10 H10 V10 H-10 Z', defaultSize: 20, defaultFill: '#d0b090', defaultStroke: '#000000', defaultStrokeWidth: 1 },
+                { id: 'wardrobe', name: 'ワードローブ', path: 'M-20,-25 H20 V25 H-20 Z M-15,-25 V25 M15,-25 V25', defaultSize: 50, defaultFill: '#deb887', defaultStroke: '#000000', defaultStrokeWidth: 1 }
+            ],
             other: [
                 { id: 'desk', name: 'デスク', path: 'M-20,-10 H20 V10 H-20 Z M-15,0 H15', defaultSize: 45, defaultFill: '#c0a080', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'fireplace', name: '暖炉', path: 'M-15,-10 H15 V10 H-15 Z M-10,-10 L-10,0 L10,0 L10,-10', defaultSize: 30, defaultFill: '#a0a0a0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
                 { id: 'piano', name: 'ピアノ', path: 'M-25,-10 H25 V10 H-25 Z M-20,-10 V0 M-15,-10 V0 M-10,-10 V0 M-5,-10 V0 M0,-10 V0 M5,-10 V0 M10,-10 V0 M15,-10 V0 M20,-10 V0', defaultSize: 50, defaultFill: '#303030', defaultStroke: '#000000', defaultStrokeWidth: 1 }
             ]
         };
+
+        const FIXTURE_CATEGORIES = [
+            { key: 'kitchen', name: 'キッチン' },
+            { key: 'washroom', name: '洗面' },
+            { key: 'bathroom', name: '浴室' },
+            { key: 'toilet', name: 'トイレ' },
+            { key: 'living', name: 'リビング' },
+            { key: 'bedroom', name: '寝室' },
+            { key: 'other', name: 'その他' }
+        ];
 
         const WINDOW_TEMPLATES = [
             // 1. シンプル1
@@ -1140,7 +1199,11 @@
                         {templates.map(template => (
                             <button key={template.id} onClick={() => onChange(template.id)} className={`p-1 rounded-md border-2 ${selectedTemplateId === template.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'} hover:bg-gray-100 flex items-center justify-center`}>
                                 <svg width="40" height="40" viewBox="-30 -30 60 60" className="flex-shrink-0">
-                                    <path d={template.path} fill={template.defaultFill} stroke={template.defaultStroke} strokeWidth={template.defaultStrokeWidth} />
+                                    {template.path ? (
+                                        <path d={template.path} fill={template.defaultFill} stroke={template.defaultStroke} strokeWidth={template.defaultStrokeWidth} />
+                                    ) : (
+                                        <image href={template.src} width="60" height="60" x="-30" y="-30" />
+                                    )}
                                 </svg>
                             </button>
                         ))}
@@ -1231,12 +1294,14 @@
             const [backgroundPattern, setBackgroundPattern] = useState('none');
             const [isGridVisible, setGridVisible] = useState(true);
             const [gridSize, setGridSize] = useState(5);
-            const [fontSize, setFontSize] = useState(16);
+            const [fontSize, setFontSize] = useState(12);
             const [fontFamily, setFontFamily] = useState('sans-serif');
             const [textAlign, setTextAlign] = useState('center');
             const [compassTemplateId, setCompassTemplateId] = useState(COMPASS_TEMPLATES[0].id);
             const [fixtureCategory, setFixtureCategory] = useState('kitchen');
             const [fixtureTemplateId, setFixtureTemplateId] = useState(FIXTURE_TEMPLATES.kitchen[0].id);
+            const [fixtureSize, setFixtureSize] = useState(50); // 作成する設備のデフォルトサイズ
+            const [fixtureRotation, setFixtureRotation] = useState(0); // 作成する設備のデフォルト回転角度
             const [doorTemplateId, setDoorTemplateId] = useState(DOOR_TEMPLATES[0].id);
             const [windowTemplateId, setWindowTemplateId] = useState(WINDOW_TEMPLATES[0].id);
             const [stairWidth, setStairWidth] = useState(DEFAULT_STAIR_WIDTH);
@@ -1253,12 +1318,15 @@
             const activeSnapWallRef = useRef(null);
             const [wallObjectThickness, setWallObjectThickness] = useState(5);
             const [pendingWindow, setPendingWindow] = useState(null);
-            
+            const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
+            const sidebarRef = useRef(null);
+            const imageDragInfo = useRef(null);
             const canvasRef = useRef(null);
             const editorAreaRef = useRef(null);
+            const editorContainerRef = useRef(null);
             const svgRef = useRef(null);
             const displaySettingsRef = useRef(null);
             const dragInfo = useRef(null);
@@ -1349,13 +1417,35 @@
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        setImageUrl(e.target.result);
-                        const newOcrData = DUMMY_OCR_DATA;
-                        setHistoryState(prevState => ({
-                            past: [...prevState.past, prevState.present],
-                            present: { ocrData: newOcrData, svgElements: prevState.present.svgElements },
-                            future: []
-                        }));
+                        const imageUrl = e.target.result;
+                        // 画像オブジェクトを作成してサイズを取得
+                        const img = new Image();
+                        img.onload = () => {
+                            // 画像とキャンバスのサイズを取得
+                            const imageWidth = img.naturalWidth;
+                            const imageHeight = img.naturalHeight;
+                            const canvasWidth = dimensions.width;
+                            const canvasHeight = dimensions.height;
+
+                            // キャンバスにフィットするようスケールを計算
+                            const scaleX = canvasWidth / imageWidth;
+                            const scaleY = canvasHeight / imageHeight;
+                            const fitScale = Math.min(scaleX, scaleY);
+                            setImagePosition({ x: 0, y: 0 }); // 位置をリセット
+
+                            // 画像URLと計算したスケールをstateにセット
+                            setImageUrl(imageUrl);
+                            setImageScale(fitScale);
+
+                            // OCRデータのセット（既存の処理）
+                            const newOcrData = DUMMY_OCR_DATA;
+                            setHistoryState(prevState => ({
+                                past: [...prevState.past, prevState.present],
+                                present: { ocrData: newOcrData, svgElements: prevState.present.svgElements },
+                                future: []
+                            }));
+                        };
+                        img.src = imageUrl;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1557,7 +1647,6 @@
                 const centroid = getPolygonCentroid([...points]);
                 const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
                 if (labelElement) {
-                    labelElement.groupId = groupId;
                     newElements.push(labelElement);
                 }
                 
@@ -1565,7 +1654,9 @@
                 if (editorMode === 'create') {
                     setEditorMode('edit');
                 }
-                setSelectedId(groupId);
+                if (editorMode !== 'continuous-create') {
+                    setSelectedId(groupId);
+                }
             }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, dimensions, editorMode, strokeWidth]);
 
             const createStairs = useCallback((points) => {
@@ -1608,7 +1699,7 @@
                             y: ((startPoint.y + textOffsetY) / dimensions.height) * 100,
                             text: textContent,
                             color: strokeColor,
-                            fontSize: 16,
+                            fontSize: 12,
                             fontFamily: 'sans-serif',
                             textAlign: 'center',
                             rotation: arrowAngle + 90
@@ -1630,9 +1721,9 @@
                 if (editorMode === 'create') {
                     setEditorMode('edit');
                 }
-
-                // ▼▼▼ ここの変数名を修正しました ▼▼▼
-                 setSelectedId(newStairElement.id);
+                if (editorMode !== 'continuous-create') {
+                    setSelectedId(newStairElement.id);
+                }
             }, [stairWidth, stairDirection, strokeColor, editorMode, dimensions]);
 
             const createItem = (start, end, options = {}) => {
@@ -1689,7 +1780,25 @@
                     newElementId = newElement.id;
                 } else if (drawingMode === 'fixture') {
                     const template = FIXTURE_TEMPLATES[fixtureCategory].find(t => t.id === fixtureTemplateId) || {};
-                    const newElement = { id: `fixture-${Date.now()}`, type: 'fixture', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, templateId: fixtureTemplateId, size: template.defaultSize, fill: template.defaultFill, stroke: template.defaultStroke, strokeWidth: template.defaultStrokeWidth };
+                    const baseSize = BASE_FIXTURE_DEFAULT_SIZE;
+                    const templateDefaultSize = template.defaultSize || baseSize; // defaultSizeが未定義なら基準サイズを使う
+                    // UIスライダーの値とdefaultSizeから、実際の描画サイズを計算
+                    const actualWidth = fixtureSize * (baseSize / templateDefaultSize);
+                    const aspectRatio = template.aspectRatio || 1;
+                    const actualHeight = actualWidth / aspectRatio;
+                    const newElement = {
+                        id: `fixture-${Date.now()}`,
+                        type: 'fixture',
+                        x: (start.x / dimensions.width) * 100,
+                        y: (start.y / dimensions.height) * 100,
+                        templateId: fixtureTemplateId,
+                        width: actualWidth,
+                        height: actualHeight,
+                        rotation: fixtureRotation,
+                        fill: template.defaultFill,
+                        stroke: template.defaultStroke,
+                        strokeWidth: template.defaultStrokeWidth
+                    };
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 }
@@ -1699,17 +1808,29 @@
                      if (editorMode === 'create') {
                         setEditorMode('edit');
                     }
-                    setSelectedId(newElementId);
+                    if (editorMode !== 'continuous-create') {
+                        setSelectedId(newElementId);
+                    }
                 }
             };
 
             const handleMouseDown = useCallback((e) => {
-                setDisplaySettingsOpen(false);
                 e.stopPropagation();
-                
-                const startCanvasX = getCanvasCoords(e).x; // マウスダウン時のキャンバスX座標
-                const startCanvasY = getCanvasCoords(e).y; // マウスダウン時のキャンバスY座標
-                mouseDownInfo.current = { x: e.clientX, y: e.clientY }; // クライアント座標も保存
+
+                if (isDisplaySettingsOpen) {
+                    // 表示設定が開いている時は、下絵のドラッグ操作を開始する
+                    imageDragInfo.current = {
+                        startMouseX: e.clientX,
+                        startMouseY: e.clientY,
+                        initialImageX: imagePosition.x,
+                        initialImageY: imagePosition.y
+                    };
+                    return; // 図形描画処理は行わずに終了
+                }
+
+                const startCanvasX = getCanvasCoords(e).x;
+                const startCanvasY = getCanvasCoords(e).y;
+                mouseDownInfo.current = { x: e.clientX, y: e.clientY };
 
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
@@ -1722,17 +1843,15 @@
                         historyOnActionStart.current = historyState.present;
                         return;
                     }
-                    
+
                     dragTarget.current = targetElement;
                     if (targetElement) {
-                        // ドラッグ開始時の要素の現在のピクセル座標上の中心点を取得
                         const initialElementCenter = getCenterPointForElement(targetElement, dimensions);
-
                         dragInfo.current = {
-                            startMouseX: startCanvasX, // ドラッグ開始時のマウスのCanvas座標 (ピクセル)
+                            startMouseX: startCanvasX,
                             startMouseY: startCanvasY,
-                            initialElementCenterX: initialElementCenter.x, // ドラッグ開始時の要素の中心X座標 (ピクセル)
-                            initialElementCenterY: initialElementCenter.y, // ドラッグ開始時の要素の中心Y座標 (ピクセル)
+                            initialElementCenterX: initialElementCenter.x,
+                            initialElementCenterY: initialElementCenter.y,
                         };
                         historyOnActionStart.current = historyState.present;
                     } else {
@@ -1743,12 +1862,23 @@
                         setLinePoints([]);
                     }
                 }
-            }, [getCanvasCoords, svgElements, editorMode, selectedId, historyState.present, drawingMode, spaceShape, dimensions]);
+            }, [isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, selectedId, historyState.present, drawingMode, spaceShape, dimensions]);
 
             const handleMouseMove = useCallback((e) => {
                 const currentMousePos = getCanvasCoords(e);
                 const { x: currentCanvasX, y: currentCanvasY } = currentMousePos;
                 setMousePos(currentMousePos);
+
+                if (imageDragInfo.current) {
+                    const dx = e.clientX - imageDragInfo.current.startMouseX;
+                    const dy = e.clientY - imageDragInfo.current.startMouseY;
+                    // マウスの移動量に応じて画像の位置を更新 (ズーム率を考慮)
+                    setImagePosition({
+                        x: imageDragInfo.current.initialImageX + (dx / zoom),
+                        y: imageDragInfo.current.initialImageY + (dy / zoom)
+                    });
+                    return; // 他のMouseMove処理は行わない
+                }
 
                 // 壁へのスナップ処理
                 const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door') && isSnapToWall;
@@ -1822,7 +1952,49 @@
                     const elementIndex = newElements.findIndex(el => el.id === id);
                     if (elementIndex === -1) return;
 
-                    if (type === 'wall' || type === 'door' || type === 'window') { // ▼▼▼【修正】条件を統合 ▼▼▼
+                    if (type === 'fixtureCorner' || type === 'fixtureEdge') {
+                        const originalElement = { ...newElements[elementIndex] };
+                        const cx = originalElement.x / 100 * dimensions.width;
+                        const cy = originalElement.y / 100 * dimensions.height;
+                        const rad = (originalElement.rotation || 0) * Math.PI / 180;
+                        
+                        const mouseDx = snappedPos.x - cx;
+                        const mouseDy = snappedPos.y - cy;
+                        
+                        const unrotatedMouseX = mouseDx * Math.cos(-rad) - mouseDy * Math.sin(-rad);
+                        const unrotatedMouseY = mouseDx * Math.sin(-rad) + mouseDy * Math.cos(-rad);
+
+                        let newWidth = originalElement.width;
+                        let newHeight = originalElement.height;
+
+                        if (type === 'fixtureCorner') { // 四隅のポッチ（アスペクト比を維持してリサイズ）
+                            const originalAspectRatio = originalElement.width / originalElement.height;
+                            const newHalfWidth = Math.abs(unrotatedMouseX);
+                            const newHalfHeight = Math.abs(unrotatedMouseY);
+
+                            if (newHalfWidth / originalAspectRatio > newHalfHeight) {
+                                newWidth = newHalfWidth * 2;
+                                newHeight = newWidth / originalAspectRatio;
+                            } else {
+                                newHeight = newHalfHeight * 2;
+                                newWidth = newHeight * originalAspectRatio;
+                            }
+                        } else if (type === 'fixtureEdge') { // 各辺のひし形（幅・高さのみリサイズ）
+                            switch (handleIndex) {
+                                case 0: // 上
+                                case 2: // 下
+                                    newHeight = Math.abs(unrotatedMouseY) * 2;
+                                    break;
+                                case 1: // 右
+                                case 3: // 左
+                                    newWidth = Math.abs(unrotatedMouseX) * 2;
+                                    break;
+                            }
+                        }
+                        
+                        newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
+
+                    } else if (type === 'wall' || type === 'door' || type === 'window') { // ▼▼▼【修正】条件を統合 ▼▼▼
                         const newElement = { ...newElements[elementIndex] };
 
                         if (handleIndex === 0) { // 始点を更新
@@ -1986,17 +2158,21 @@
             }, [
                 getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart, 
                 drawingMode, spaceShape, linePoints, zoom, isSnappingToStart, 
-                isSnapToWall, svgElements, drawingStartPoint, snappedWallInfo, activeSnapWallRef, mouseDownInfo, selectedId, editorMode
+                isSnapToWall, svgElements, drawingStartPoint, snappedWallInfo, activeSnapWallRef, mouseDownInfo, selectedId, editorMode, imagePosition
             ]);
 
             const handleMouseUp = useCallback((e) => {
-                // [修正点1] マウスダウンがSVGキャンバス内で開始されなかった場合、イベントを無視する。
-                // これにより、サイドバーのボタンクリックが描画アクションとして誤認識されるのを防ぐ。
+                const wasDraggingImage = !!imageDragInfo.current;
+                if (imageDragInfo.current) {
+                    imageDragInfo.current = null;
+                }
+
                 if (!mouseDownInfo.current) {
                     return;
                 }
 
-                if (!isDragging && !resizingHandleInfo) { // This was a click, not a drag or resize
+                // 下絵のドラッグ操作が終わった直後は、クリックイベントを発火させない
+                if (!isDragging && !resizingHandleInfo && !wasDraggingImage) { 
                     handleCanvasClick(e);
                 } else { // Drag or Resize ended
                     // If a single wall that was part of a group was dragged, break it from the group
@@ -2029,7 +2205,7 @@
                 historyOnActionStart.current = null;
                 mouseDownInfo.current = null; // この行は必要です
 
-            }, [isDragging, resizingHandleInfo, svgElements, selectedId, handleCanvasClick, editorMode, drawingMode, spaceShape]);
+            }, [isDragging, resizingHandleInfo, svgElements, selectedId, handleCanvasClick, editorMode, drawingMode, spaceShape, handleCanvasClick]);
 
             const StairsPreviewRenderer = ({ points, width, color }) => {
                 if (points.length < 2) return null;
@@ -2162,7 +2338,7 @@
                             y: ((startPoint.y + textOffsetY) / dimensions.height) * 100,
                             text: textContent,
                             color: stair.color,
-                            fontSize: 16,
+                            fontSize: 12,
                             fontFamily: 'sans-serif',
                             textAlign: 'center',
                             rotation: arrowAngle + 90
@@ -2194,8 +2370,11 @@
             }, []);
 
             const rotateSelectedElement90Degrees = useCallback(() => {
-                if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window' || selectedElement.type === 'compass')) {
-                    const newRotation = ((selectedElement.rotation || 0) + 90) % 360;
+                if (selectedElement && (selectedElement.type === 'door' || selectedElement.type === 'window' || selectedElement.type === 'compass' || selectedElement.type === 'fixture')) {
+                    let newRotation = (selectedElement.rotation || 0) + 90;
+                    if (newRotation > 180) {
+                        newRotation -= 360;
+                    }
                     handleSelectedElementUpdate({ rotation: newRotation });
                 }
             }, [selectedElement, handleSelectedElementUpdate]);
@@ -2321,7 +2500,7 @@
                 const handleKeyDown = (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
                     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
-                    else if (e.key === 'Delete' || e.key === 'Backspace') { 
+                    else if (e.key === 'Delete') { 
                         if (selectedId) {
                             e.preventDefault(); 
                             deleteSelectedElement();
@@ -2342,16 +2521,40 @@
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
                 if (!editorArea) return;
+
                 const handleWheel = (e) => {
                     if (e.ctrlKey) {
                         e.preventDefault();
+
+                        const oldZoom = zoom;
                         const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                        setZoom(prevZoom => Math.max(0.2, Math.min(3, prevZoom + delta)));
+                        const newZoom = Math.max(0.2, Math.min(3, oldZoom + delta));
+
+                        const rect = editorArea.getBoundingClientRect();
+
+                        // マウスカーソルのビューポート内での相対座標
+                        const mouseX = e.clientX - rect.left;
+                        const mouseY = e.clientY - rect.top;
+
+                        // ズーム前のマウスカーソルが指しているキャンバス上の座標
+                        // (スクロール位置を考慮)
+                        const canvasX = (editorArea.scrollLeft + mouseX) / oldZoom;
+                        const canvasY = (editorArea.scrollTop + mouseY) / oldZoom;
+
+                        // ズーム率を更新
+                        setZoom(newZoom);
+
+                        // 新しいズーム率で、マウスカーソルが指しているキャンバス上の同じ座標が
+                        // 引き続きマウスカーソルの下にくるようにスクロール位置を調整
+                        // 新しいスクロール位置 = (マウスが指すキャンバス座標 * 新しいズーム) - マウスのビューポート内相対座標
+                        editorArea.scrollLeft = canvasX * newZoom - mouseX;
+                        editorArea.scrollTop = canvasY * newZoom - mouseY;
                     }
                 };
+
                 editorArea.addEventListener('wheel', handleWheel, { passive: false });
                 return () => editorArea.removeEventListener('wheel', handleWheel);
-            }, []);
+            }, [zoom]); // zoom の変更で再評価されるように依存配列に含める
 
             useEffect(() => {
                 setDrawingStartPoint(null);
@@ -2362,7 +2565,7 @@
             useEffect(() => {
                 if (!isDisplaySettingsOpen) return;
                 function handleClickOutside(event) {
-                    if (isSidebarOpen && displaySettingsRef.current && !displaySettingsRef.current.contains(event.target) && !editorAreaRef.current.contains(event.target)) {
+                    if (displaySettingsRef.current && !displaySettingsRef.current.contains(event.target) && editorAreaRef.current && !editorAreaRef.current.contains(event.target)) {
                         setDisplaySettingsOpen(false);
                     }
                 }
@@ -2370,7 +2573,7 @@
                 return () => {
                     document.removeEventListener("mousedown", handleClickOutside);
                 };
-            }, [isDisplaySettingsOpen, isSidebarOpen]);
+            }, [isDisplaySettingsOpen]);
 
             useEffect(() => {
                 if (editorMode === 'create' || editorMode === 'continuous-create') {
@@ -2384,7 +2587,7 @@
                     textEditAreaRef.current.focus();
                     textEditAreaRef.current.select(); // テキストを全選択状態にする
                 }
-            }, [selectedId, svgElements]);
+            }, [selectedId]);
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
@@ -2412,6 +2615,19 @@
                     const edges = [
                         {x: (bbox.minX + bbox.maxX) / 2, y: bbox.minY}, {x: bbox.maxX, y: (bbox.minY + bbox.maxY) / 2},
                         {x: (bbox.minX + bbox.maxX) / 2, y: bbox.maxY}, {x: bbox.minX, y: (bbox.minY + bbox.maxY) / 2}
+                    ];
+                    return { vertices: [], corners, edges };
+                }
+                if (element.type === 'fixture') {
+                    const w = element.width;
+                    const h = element.height;
+                    const corners = [
+                        { x: -w / 2, y: -h / 2 }, { x: w / 2, y: -h / 2 },
+                        { x: w / 2, y: h / 2 }, { x: -w / 2, y: h / 2 }
+                    ];
+                    const edges = [
+                        { x: 0, y: -h / 2 }, { x: w / 2, y: 0 },
+                        { x: 0, y: h / 2 }, { x: -w / 2, y: 0 }
                     ];
                     return { vertices: [], corners, edges };
                 }
@@ -2446,6 +2662,12 @@
                     }
                 }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation]);
 
+                useEffect(() => {
+                    // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
+                    if (FIXTURE_TEMPLATES[fixtureCategory] && FIXTURE_TEMPLATES[fixtureCategory].length > 0) {
+                        setFixtureTemplateId(FIXTURE_TEMPLATES[fixtureCategory][0].id);
+                    }
+                }, [fixtureCategory]);
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
                 else if (element.textAlign === 'right') textAnchor = 'end';
@@ -2786,8 +3008,20 @@
                     <div className="flex-1 relative overflow-hidden">
                         <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
-                                <div className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
-                                    {imageUrl && <img ref={imageRef} src={imageUrl} alt="間取り図" className="editor-image" style={{ opacity: 1 - imageOpacity, transform: `translate(-50%, -50%) scale(${imageScale})` }} crossOrigin="anonymous"/>}
+                                <div ref={editorContainerRef} className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
+                                    {imageUrl && <img 
+                                        ref={imageRef} 
+                                        src={imageUrl} 
+                                        alt="間取り図" 
+                                        className="editor-image" 
+                                        style={{ 
+                                            opacity: 1 - imageOpacity, 
+                                            transform: `translate(-50%, -50%) translate(${imagePosition.x}px, ${imagePosition.y}px) scale(${imageScale})`,
+                                            cursor: isDisplaySettingsOpen ? 'grab' : 'default',
+                                            pointerEvents: isDisplaySettingsOpen ? 'all' : 'none'
+                                        }} 
+                                        crossOrigin="anonymous"
+                                    />}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
                                     <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown}>
                                         <defs>
@@ -2888,10 +3122,71 @@
                                                 const cy = el.y / 100 * dimensions.height;
                                                 const templateCategory = FIXTURE_TEMPLATES[Object.keys(FIXTURE_TEMPLATES).find(cat => FIXTURE_TEMPLATES[cat].some(t => t.id === el.templateId))] || FIXTURE_TEMPLATES.kitchen;
                                                 const template = templateCategory.find(t => t.id === el.templateId) || FIXTURE_TEMPLATES.kitchen[0];
-                                                const scaleFactor = el.size / template.defaultSize;
+
+                                                let handles = null;
+                                                // 選択されている場合にのみハンドルを描画
+                                                if (isDirectlySelected) {
+                                                    const { corners, edges } = getVerticesAndEdges(el);
+                                                    handles = (
+                                                        <g>
+                                                            {/* 青い枠線 */}
+                                                            <rect 
+                                                                x={-el.width / 2 - 5} y={-el.height / 2 - 5}
+                                                                width={el.width + 10} height={el.height + 10}
+                                                                fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
+                                                                strokeDasharray={`${4 / zoom}, ${2 / zoom}`}
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                            {/* 四隅の黒いポッチ */}
+                                                            {corners.map((corner, index) => (
+                                                                <circle key={`handle-corner-${el.id}-${index}`}
+                                                                    data-id={el.id} data-handle-index={index} data-handle-type="fixtureCorner"
+                                                                    cx={corner.x} cy={corner.y} r={6 / zoom}
+                                                                    fill="black" stroke="white" strokeWidth={2 / zoom}
+                                                                    style={{ cursor: ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'][index] }}
+                                                                />
+                                                            ))}
+                                                            {/* 各辺の白いひし形 */}
+                                                            {edges.map((edge, index) => (
+                                                                <rect key={`handle-edge-${el.id}-${index}`}
+                                                                    data-id={el.id} data-handle-index={index} data-handle-type="fixtureEdge"
+                                                                    x={edge.x - 5 / zoom} y={edge.y - 5 / zoom}
+                                                                    width={10 / zoom} height={10 / zoom}
+                                                                    fill="white" stroke="black" strokeWidth={1 / zoom}
+                                                                    style={{ cursor: (index === 0 || index === 2) ? 'ns-resize' : 'ew-resize' }}
+                                                                    transform={`rotate(45 ${edge.x} ${edge.y})`}
+                                                                />
+                                                            ))}
+                                                        </g>
+                                                    );
+                                                }
+
+                                                let fixtureElement;
+                                                if (template.src) {
+                                                    fixtureElement = <image
+                                                        href={template.src}
+                                                        x={-el.width / 2} y={-el.height / 2}
+                                                        width={el.width} height={el.height}
+                                                        preserveAspectRatio="none"
+                                                    />;
+                                                } else {
+                                                    const scaleX = el.width / template.defaultSize;
+                                                    const scaleY = el.height / template.defaultSize;
+                                                    fixtureElement = <g transform={`scale(${scaleX}, ${scaleY})`}>
+                                                        <path 
+                                                            d={template.path} 
+                                                            fill={el.fill} 
+                                                            stroke={el.stroke} 
+                                                            strokeWidth={el.strokeWidth}
+                                                            vectorEffect="non-scaling-stroke" // スケールしても線の太さを維持
+                                                        />
+                                                    </g>;
+                                                }
+
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) scale(${scaleFactor})`} style={{cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab'}}>
-                                                        <path d={template.path} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
+                                                        {fixtureElement}
+                                                        {handles}
                                                     </g>
                                                 );
                                             }
@@ -2980,6 +3275,60 @@
                                         })()}
 
                                         {/* Preview Rendering */}
+                                        {/* --- ここから設備プレビューの描画 --- */}
+                                        {(editorMode === 'create' || editorMode === 'continuous-create') && drawingMode === 'fixture' && (
+                                            (() => {
+                                                const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === fixtureTemplateId) || FIXTURE_TEMPLATES.kitchen[0];
+                                                if (!template) return null;
+
+                                                const previewPos = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                const previewStyle = { opacity: 0.7, pointerEvents: 'none' };
+                                                
+                                                const baseSize = BASE_FIXTURE_DEFAULT_SIZE;
+                                                const templateDefaultSize = template.defaultSize || baseSize;
+                                                const scaleRatio = baseSize / templateDefaultSize;
+                                                
+                                                const previewWidth = fixtureSize * scaleRatio;
+                                                const aspectRatio = template.aspectRatio || 1;
+                                                const previewHeight = previewWidth / aspectRatio;
+
+                                                if (template.src) {
+                                                    return (
+                                                        <g
+                                                            transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0})`}
+                                                            style={previewStyle}
+                                                        >
+                                                            <image
+                                                                href={template.src}
+                                                                x={-previewWidth / 2}
+                                                                y={-previewHeight / 2}
+                                                                width={previewWidth}
+                                                                height={previewHeight}
+                                                                preserveAspectRatio="none"
+                                                            />
+                                                        </g>
+                                                    );
+                                                } else { 
+                                                    const scaleX = previewWidth / template.defaultSize;
+                                                    const scaleY = previewHeight / template.defaultSize;
+                                                    return (
+                                                        <g
+                                                            transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0}) scale(${scaleX}, ${scaleY})`}
+                                                            style={previewStyle}
+                                                        >
+                                                            <path
+                                                                d={template.path}
+                                                                fill={template.defaultFill}
+                                                                stroke={template.defaultStroke}
+                                                                strokeWidth={template.defaultStrokeWidth}
+                                                                vectorEffect="non-scaling-stroke"
+                                                            />
+                                                        </g>
+                                                    );
+                                                }
+                                            })()
+                                        )}
+                                        {/* --- ここまで設備プレビューの描画 --- */}
                                         {drawingStartPoint && !linePoints.length && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
                                             let previewEndPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
                                             if (isSnappingToStart) {
@@ -3147,17 +3496,17 @@
                         </main>
 
                         <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
-                            {isSidebarOpen ? '◀' : '▶'}
+                            {isSidebarOpen ? '?' : '?'}
                         </button>
 
-                        <aside className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
+                        <aside ref={sidebarRef} className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
                             <div ref={displaySettingsRef}>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDisplaySettingsOpen(!isDisplaySettingsOpen)}>
                                     <span>表示設定</span>
-                                    <span className="text-gray-400">{isDisplaySettingsOpen ? '▼' : '▶'}</span>
+                                    <span className={`arrow-icon text-gray-400 ${isDisplaySettingsOpen ? 'arrow-icon-open' : 'arrow-icon-closed'}`}>▼</span>
                                 </h2>
-                                {isDisplaySettingsOpen && (
-                                    <div className="mt-2 space-y-4">
+                                <div className={`accordion-content ${isDisplaySettingsOpen ? 'accordion-content-open' : ''}`}>
+                                    <div className="space-y-4">
                                         <div>
                                             <label className="cursor-pointer block w-full text-sm text-center text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold py-2 px-4 rounded-full">
                                                 下絵を選択<input type="file" onChange={handleFileChange} accept="image/*" className="hidden"/>
@@ -3202,16 +3551,16 @@
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                             <hr/>
                             <div>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDrawingToolsOpen(!isDrawingToolsOpen)}>
                                     <span>図形描画</span>
-                                    <span className="text-gray-400">{isDrawingToolsOpen ? '▼' : '▶'}</span>
+                                    <span className={`arrow-icon text-gray-400 ${isDrawingToolsOpen ? 'arrow-icon-open' : 'arrow-icon-closed'}`}>▼</span>
                                 </h2>
-                                {isDrawingToolsOpen && (
-                                    <div className="mt-2">
+                                <div className={`accordion-content ${isDrawingToolsOpen ? 'accordion-content-open' : ''}`}>
+                                    <div>
                                         <div className="flex bg-gray-200 rounded-lg p-1 mb-4">
                                             <button onClick={() => setEditorMode('continuous-create')} className={`w-full py-1 rounded-md text-sm ${editorMode === 'continuous-create' ? 'bg-white shadow' : ''}`}>連続作成</button>
                                             <button onClick={() => setEditorMode('create')} className={`w-full py-1 rounded-md text-sm ${editorMode === 'create' ? 'bg-white shadow' : ''}`}>作成</button>
@@ -3383,7 +3732,157 @@
                                                     )}
                                                 </div>}
                                                 {drawingMode === 'fixture' && <div className="mt-4 space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
+                                                    <div className="mt-2 grid grid-cols-4 gap-2">
+                                                        {FIXTURE_CATEGORIES.map(cat => (
+                                                            <button
+                                                                key={cat.key}
+                                                                onClick={() => setFixtureCategory(cat.key)}
+                                                                className={`px-2 py-2 rounded text-xs text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                            >
+                                                                {cat.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                                     <FixtureTemplateSelector selectedTemplateId={fixtureTemplateId} onChange={setFixtureTemplateId} category={fixtureCategory} />
+                                                    {/* サイズ調整 */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700">サイズ: {fixtureSize}px</label>
+                                                        <div className="flex items-center space-x-2 mt-1">
+                                                            <input
+                                                                type="range"
+                                                                min="5"
+                                                                max="300"
+                                                                step="1"
+                                                                value={fixtureSize}
+                                                                onChange={(e) => setFixtureSize(parseInt(e.target.value))}
+                                                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                value={fixtureSize}
+                                                                onChange={(e) => setFixtureSize(parseInt(e.target.value) || 5)}
+                                                                className="w-20 p-1 border border-gray-300 rounded-md text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 回転調整 */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700">回転: {fixtureRotation}°</label>
+                                                        <div className="flex items-center space-x-2 mt-1">
+                                                            <input
+                                                                type="range"
+                                                                min="-180"
+                                                                max="180"
+                                                                step="1"
+                                                                value={fixtureRotation}
+                                                                onChange={(e) => setFixtureRotation(parseInt(e.target.value))}
+                                                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                value={fixtureRotation}
+                                                                onChange={(e) => setFixtureRotation(parseInt(e.target.value) || 0)}
+                                                                className="w-20 p-1 border border-gray-300 rounded-md text-sm"
+                                                            />
+                                                            <button
+                                                                onClick={() => setFixtureRotation(prev => {
+                                                                let newAngle = prev + 90;
+                                                                if (newAngle > 180) {
+                                                                    newAngle -= 360;
+                                                                }
+                                                                return newAngle;
+                                                            })}
+                                                                className="p-1 bg-gray-200 rounded hover:bg-gray-300 flex-shrink-0" // 少しスタイルを調整
+                                                                title="90度回転"
+                                                            >
+                                                                <img 
+                                                                    src="https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/90.jpg" 
+                                                                    alt="90度回転" 
+                                                                    className="h-9 w-9" // アイコンサイズを少し調整
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    {/* プレビューボックス */}
+                                                    <div className="w-full h-32 rounded-md flex items-center justify-center overflow-hidden relative">
+                                                        {(() => {
+                                                            const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === fixtureTemplateId);
+                                                            if (!template) return <div className="text-sm text-gray-500">設備を選択</div>;
+
+                                                            // 1. 実際の描画サイズを計算 (既存のロジック)
+                                                            const baseSize = BASE_FIXTURE_DEFAULT_SIZE;
+                                                            const templateDefaultSize = template.defaultSize || baseSize;
+                                                            const scaleRatio = baseSize / templateDefaultSize;
+                                                            const actualWidth = fixtureSize * scaleRatio;
+                                                            const aspectRatio = template.aspectRatio || 1;
+                                                            const actualHeight = actualWidth / aspectRatio;
+
+                                                            // 2. プレビューボックスに収まるように表示用の拡大率を計算
+                                                            const boxSize = 128; // h-32 = 8rem = 128px
+                                                            const paddingRatio = 0.8; // ボックスの80%の大きさで表示
+                                                            const itemMaxDim = Math.max(actualWidth, actualHeight);
+                                                            
+                                                            // 0除算を避ける
+                                                            if (itemMaxDim === 0) return null;
+
+                                                            const displayScale = (boxSize * paddingRatio) / itemMaxDim;
+                                                            const displayWidth = actualWidth * displayScale;
+                                                            const displayHeight = actualHeight * displayScale;
+
+                                                            // 3. 背景グリッドのサイズも表示スケールに合わせて調整
+                                                            const backgroundGridSize = gridSize * displayScale;
+                                                            const gridStyle = {
+                                                                backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
+                                                                backgroundSize: `${backgroundGridSize}px ${backgroundGridSize}px`
+                                                            };
+                                                            
+                                                            // プレビューボックスの親divにスタイルを適用
+                                                            const parentDiv = document.querySelector('.w-full.h-32.rounded-md');
+                                                            if (parentDiv) {
+                                                                Object.assign(parentDiv.style, gridStyle);
+                                                            }
+                                                            
+                                                            if (template.src) {
+                                                                return (
+                                                                    <div style={{ 
+                                                                        transform: `rotate(${fixtureRotation}deg)`, 
+                                                                        width: displayWidth, 
+                                                                        height: displayHeight,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center'
+                                                                    }}>
+                                                                        <img src={template.src} style={{ width: '100%', height: '100%' }} />
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                const viewBoxSize = Math.max(template.defaultSize, template.defaultSize / (template.aspectRatio || 1)) * 1.1;
+                                                                return (
+                                                                    <svg
+                                                                        width={displayWidth}
+                                                                        height={displayHeight}
+                                                                        viewBox={`${-viewBoxSize/2} ${-viewBoxSize/2} ${viewBoxSize} ${viewBoxSize}`}
+                                                                        style={{ transform: `rotate(${fixtureRotation}deg)`, overflow: 'visible' }}
+                                                                    >
+                                                                        <g transform={`scale(${displayWidth / template.defaultSize}, ${displayHeight / template.defaultSize})`}>
+                                                                            <path
+                                                                                d={template.path}
+                                                                                fill={template.defaultFill}
+                                                                                stroke={template.defaultStroke}
+                                                                                strokeWidth={template.defaultStrokeWidth}
+                                                                                vectorEffect="non-scaling-stroke"
+                                                                            />
+                                                                        </g>
+                                                                    </svg>
+                                                                );
+                                                            }
+                                                        })()}
+                                                    </div>
+                                                    {/* プレビューボックス ここまで*/}
                                                 </div>}
                                                 {drawingMode === 'compass' && <div className="mt-4 space-y-4">
                                                     <CompassTemplateSelector selectedTemplateId={compassTemplateId} onChange={setCompassTemplateId} />
@@ -3427,8 +3926,8 @@
                                                                             type="color" 
                                                                             value={selectedElement.fill === 'none' ? '#ffffff' : selectedElement.fill} 
                                                                             onChange={(e) => handleSelectedElementUpdate({ fill: e.target.value })} 
-                                                                            onFocus={() => setIsPickingColor(true)}  // ◀ この行を追加
-                                                                            onBlur={() => setIsPickingColor(false)}   // ◀ この行を追加
+                                                                            onFocus={() => setIsPickingColor(true)}  // ? この行を追加
+                                                                            onBlur={() => setIsPickingColor(false)}   // ? この行を追加
                                                                             className={`h-full w-full ${selectedElement.fill === 'none' ? 'opacity-0' : ''}`} 
                                                                             disabled={selectedElement.fill === 'none'}
                                                                         />
@@ -3633,17 +4132,17 @@
 
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
-                                                            <select
-                                                                value={fixtureCategory}
-                                                                onChange={(e) => setFixtureCategory(e.target.value)}
-                                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                                            >
-                                                                {Object.keys(FIXTURE_TEMPLATES).map(cat => (
-                                                                    <option key={cat} value={cat}>
-                                                                        {cat === 'kitchen' ? 'キッチン' : cat === 'bathroom' ? '浴室' : cat === 'bedroom' ? '寝室' : cat === 'livingDining' ? 'リビング・ダイニング' : 'その他'}
-                                                                    </option>
+                                                            <div className="mt-2 grid grid-cols-4 gap-2">
+                                                                {FIXTURE_CATEGORIES.map(cat => (
+                                                                    <button
+                                                                        key={cat.key}
+                                                                        onClick={() => setFixtureCategory(cat.key)}
+                                                                        className={`px-2 py-2 rounded text-xs text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                                    >
+                                                                        {cat.name}
+                                                                    </button>
                                                                 ))}
-                                                            </select>
+                                                            </div>
                                                         </div>
 
                                                         <FixtureTemplateSelector
@@ -3898,7 +4397,7 @@
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </aside>
                     </div>
