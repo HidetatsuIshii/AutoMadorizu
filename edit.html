@@ -3227,6 +3227,7 @@
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                         <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
                         <div className="flex items-center space-x-4">
+                            <button onClick={() => window.location.href = 'index.html'} className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">TOPに戻る</button>
                             <button onClick={handleSaveImage} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">PNGで保存</button>
                             <button onClick={handleUndo} disabled={historyState.past.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">戻る</button>
                             <button onClick={handleRedo} disabled={historyState.future.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">進む</button>
