@@ -51,7 +51,6 @@
             left: 50%;
             background-color: white;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            transform-origin: center center;
         }
         .editor-image {
             position: absolute;
@@ -223,20 +222,32 @@
 
         const FIXTURE_TEMPLATES = {
             kitchen: [
-                { id: 'kitchen-sink', name: 'シンク', path: 'M-20,-10 H20 V10 H-20 Z M-10,-10 V10 M0,-10 V10', defaultSize: 40, defaultFill: '#cccccc', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'refrigerator', name: '冷蔵庫', path: 'M-10,-20 H10 V20 H-10 Z M-10,0 H10', defaultSize: 40, defaultFill: '#e0e0e0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'gas-range', name: 'ガスコンロ', path: 'M-15,-15 H15 V15 H-15 Z M-10,-10 L10,10 M-10,10 L10,-10', defaultSize: 35, defaultFill: '#f0f0f0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'microwave', name: '電子レンジ', path: 'M-15,-10 H15 V10 H-15 Z M-10,-5 H10 M-10,0 H10', defaultSize: 30, defaultFill: '#f5f5f5', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'dishwasher', name: '食洗機', path: 'M-15,-10 H15 V10 H-15 Z M-10,0 V10 M0,0 V10 M10,0 V10', defaultSize: 30, defaultFill: '#e0f0f0', defaultStroke: '#000000', defaultStrokeWidth: 1 },
-                { id: 'pantry', name: '食器棚', path: 'M-15,-20 H15 V20 H-15 Z M0,-20 V20 M-10,-10 H10 M-10,0 H10 M-10,10 H10', defaultSize: 45, defaultFill: '#deb887', defaultStroke: '#000000', defaultStrokeWidth: 1 }
+                { id: 'kitchen01-from-svg', name: 'キッチン01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen01.svg', defaultSize: 20, aspectRatio: 128 / 49, },
+                { id: 'kitchen02-from-svg', name: 'キッチン02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen02.svg', defaultSize: 20, aspectRatio: 128 / 48, },
+                { id: 'kitchen03-from-svg', name: 'キッチン03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen03.svg', defaultSize: 20, aspectRatio: 128 / 58, },
+                { id: 'kitchen04-from-svg', name: 'キッチン04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen04.svg', defaultSize: 15, aspectRatio: 175 / 49, },
+                { id: 'kitchen05-from-svg', name: 'キッチン05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen05.svg', defaultSize: 15, aspectRatio: 175 / 58, },
+                { id: 'kitchen06-from-svg', name: 'キッチン06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen06.svg', defaultSize: 24, aspectRatio: 102 / 114, },
+                { id: 'kitchen07-from-svg', name: 'キッチン07', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen07.svg', defaultSize: 21, aspectRatio: 124 / 114, },
+                { id: 'kitchen08-from-svg', name: 'キッチン08', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen08.svg', defaultSize: 15, aspectRatio: 175 / 114, },
+                { id: 'kitchen09-from-svg', name: 'キッチン09', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen09.svg', defaultSize: 15, aspectRatio: 174 / 85, },
+                { id: 'kitchen10-from-svg', name: 'キッチン10', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen10.svg', defaultSize: 58, aspectRatio: 38 / 34, },
+                { id: 'kitchen11-from-svg', name: 'キッチン11', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen11.svg', defaultSize: 36, aspectRatio: 61 / 34, },
+                { id: 'kitchen12-from-svg', name: 'キッチン12', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen12.svg', defaultSize: 20, aspectRatio: 129 / 40, },
+                { id: 'kitchen13-from-svg', name: 'キッチン13', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen13.svg', defaultSize: 21, aspectRatio: 128 / 115, },
+                { id: 'kitchen14-from-svg', name: 'キッチン14', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen14.svg', defaultSize: 15, aspectRatio: 174 / 85, },
+                { id: 'kitchen15-from-svg', name: 'キッチン15', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen15.svg', defaultSize: 55, aspectRatio: 50 / 31, },
+                { id: 'kitchen16-from-svg', name: 'キッチン16', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen16.svg', defaultSize: 55, aspectRatio: 44 / 35, },
+                { id: 'kitchen17-from-svg', name: 'キッチン17', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen17.svg', defaultSize: 55, aspectRatio: 48 / 32, },
+                { id: 'kitchen18-from-svg', name: 'キッチン18', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/kitchen18.svg', defaultSize: 55, aspectRatio: 42 / 44, }
             ],
             washroom: [
-                { id: 'washroom01-from-svg', name: '洗面01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen01.svg', defaultSize: 60, aspectRatio: 139 / 84, },
-                { id: 'washroom02-from-svg', name: '洗面02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen02.svg', defaultSize: 60, aspectRatio: 126 / 85, },
-                { id: 'washroom03-from-svg', name: '洗面03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen03.svg', defaultSize: 60, aspectRatio: 122 / 62, },
-                { id: 'washroom04-from-svg', name: '洗面04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen04.svg', defaultSize: 60, aspectRatio: 121 / 102, },
-                { id: 'washroom05-from-svg', name: '洗面05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen05.svg', defaultSize: 60, aspectRatio: 115 / 52, },
-                { id: 'washroom06-from-svg', name: '洗面06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen06.svg', defaultSize: 60, aspectRatio: 121 / 96, }
+                { id: 'washroom01-from-svg', name: '洗面01', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen01.svg', defaultSize: 50, aspectRatio: 139 / 84, },
+                { id: 'washroom02-from-svg', name: '洗面02', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen02.svg', defaultSize: 50, aspectRatio: 126 / 85, },
+                { id: 'washroom03-from-svg', name: '洗面03', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen03.svg', defaultSize: 50, aspectRatio: 122 / 62, },
+                { id: 'washroom04-from-svg', name: '洗面04', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen04.svg', defaultSize: 50, aspectRatio: 121 / 102, },
+                { id: 'washroom05-from-svg', name: '洗面05', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen05.svg', defaultSize: 50, aspectRatio: 115 / 52, },
+                { id: 'washroom06-from-svg', name: '洗面06', src: 'https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/senmen06.svg', defaultSize: 50, aspectRatio: 121 / 96, }
             
             ],
             bathroom: [
@@ -294,7 +305,7 @@
             { key: 'washroom', name: '洗面' },
             { key: 'bathroom', name: '浴室' },
             { key: 'toilet', name: 'トイレ' },
-            { key: 'living', name: 'リビング' },
+            { key: 'livingDining', name: 'リビング' },
             { key: 'bedroom', name: '寝室' },
             { key: 'other', name: 'その他' }
         ];
@@ -1075,6 +1086,36 @@
             };
         };
 
+        const getClosestPointOnWalls = (p, walls) => {
+            let closestPoint = null;
+            let minDistanceSq = Infinity;
+
+            for (const wall of walls) {
+                const p1 = { x: wall.x1, y: wall.y1 };
+                const p2 = { x: wall.x2, y: wall.y2 };
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+
+                if (dx === 0 && dy === 0) continue;
+
+                const t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / (dx * dx + dy * dy);
+                const clampedT = Math.max(0, Math.min(1, t));
+
+                const pointOnLine = {
+                    x: p1.x + clampedT * dx,
+                    y: p1.y + clampedT * dy
+                };
+
+                const distSq = (p.x - pointOnLine.x) ** 2 + (p.y - pointOnLine.y) ** 2;
+
+                if (distSq < minDistanceSq) {
+                    minDistanceSq = distSq;
+                    closestPoint = pointOnLine;
+                }
+            }
+            return closestPoint;
+        };
+
         // --- UIコンポーネント ---
         const LineStyleSelector = ({ selectedStyle, onChange, isRectShape }) => (
             <div>
@@ -1190,11 +1231,30 @@
             </div>
         );
 
-        const FixtureTemplateSelector = ({ selectedTemplateId, onChange, category }) => {
+        const FixtureTemplateSelector = ({
+            selectedTemplateId,
+            onChange, // テンプレート変更時の関数
+            category,
+            isFlipped, // 反転しているか (true/false)
+            onFlipChange, // 反転状態を変更する関数
+            mode // 'create' or 'edit'
+        }) => {
             const templates = FIXTURE_TEMPLATES[category] || [];
             return (
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">設備の種類</label>
+                    <div className="flex justify-between items-center">
+                        <label className="block text-sm font-medium text-gray-700">設備の種類</label>
+                        <div className="flex items-center">
+                            <input
+                                id={`fixture-flip-${mode}`}
+                                type="checkbox"
+                                checked={isFlipped}
+                                onChange={(e) => onFlipChange(e.target.checked)}
+                                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <label htmlFor={`fixture-flip-${mode}`} className="ml-2 text-sm text-gray-700">反転</label>
+                        </div>
+                    </div>
                     <div className="mt-2 grid grid-cols-4 gap-1">
                         {templates.map(template => (
                             <button key={template.id} onClick={() => onChange(template.id)} className={`p-1 rounded-md border-2 ${selectedTemplateId === template.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'} hover:bg-gray-100 flex items-center justify-center`}>
@@ -1267,15 +1327,10 @@
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
             const [imageUrl, setImageUrl] = useState('');
-            const [historyState, setHistoryState] = useState({
-                past: [],
-                present: { ocrData: null, svgElements: [] },
-                future: []
-            });
+            const [historyState, setHistoryState] = useState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
             const { ocrData: currentOcrData, svgElements } = historyState.present;
-
             const [editorMode, setEditorMode] = useState('continuous-create'); // 'continuous-create', 'create', 'edit'
-            const [drawingMode, setDrawingMode] = useState('space');
+            const [drawingMode, setDrawingMode] = useState(null);
             const [spaceShape, setSpaceShape] = useState('rect');
             const [selectedId, setSelectedId] = useState(null);
             const [dimensions, setDimensions] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
@@ -1302,6 +1357,9 @@
             const [fixtureTemplateId, setFixtureTemplateId] = useState(FIXTURE_TEMPLATES.kitchen[0].id);
             const [fixtureSize, setFixtureSize] = useState(50); // 作成する設備のデフォルトサイズ
             const [fixtureRotation, setFixtureRotation] = useState(0); // 作成する設備のデフォルト回転角度
+            const [fixtureFlip, setFixtureFlip] = useState(false);
+            const [pendingFixture, setPendingFixture] = useState(null);
+            const [guideLines, setGuideLines] = useState([]);
             const [doorTemplateId, setDoorTemplateId] = useState(DOOR_TEMPLATES[0].id);
             const [windowTemplateId, setWindowTemplateId] = useState(WINDOW_TEMPLATES[0].id);
             const [stairWidth, setStairWidth] = useState(DEFAULT_STAIR_WIDTH);
@@ -1314,14 +1372,17 @@
             const [resizingHandleInfo, setResizingHandleInfo] = useState(null); // { id, handleIndex, type: 'wall' | 'spaceCorner' | 'spaceEdge' }
             const [isSnappingToStart, setIsSnappingToStart] = useState(false);
             const [isSnapToWall, setSnapToWall] = useState(true);
-            const [snappedWallInfo, setSnappedWallInfo] = useState(null);
             const activeSnapWallRef = useRef(null);
             const [wallObjectThickness, setWallObjectThickness] = useState(5);
             const [pendingWindow, setPendingWindow] = useState(null);
             const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
+            const [snappedInfo, setSnappedInfo] = useState(null);
+            const [tooltip, setTooltip] = useState({ visible: false, fading: false, x: 0, y: 0, message: '' });
+            const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
+            const tooltipTimers = useRef([]);
             const sidebarRef = useRef(null);
             const imageDragInfo = useRef(null);
             const canvasRef = useRef(null);
@@ -1334,6 +1395,7 @@
             const mouseDownInfo = useRef(null);
             const dragTarget = useRef(null); // Ref to store the potential drag target
             const textEditAreaRef = useRef(null);
+            const prevSelectedIdRef = useRef(null);
 
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
@@ -1476,100 +1538,132 @@
                 setLinePoints([]);
             }, [linePoints, drawingMode, spaceShape, createPolygonSpace, createStairs]);
 
-            const handleCanvasClick = useCallback((e) => {
+            const handleCanvasClick = useCallback((e) => {                
                 const clickPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
 
-                if (editorMode === 'create' || editorMode === 'continuous-create') {
+                if (editorMode === 'edit') {
+                    setSelectedId(targetId);
+                    return;
+                }
 
+                if (editorMode === 'create' || editorMode === 'continuous-create') {
+                    // 2クリック目：設備の描画を確定する
+                    if (pendingFixture) {
+                        const startPoint = pendingFixture;
+                        const currentPos = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        const dx = currentPos.x - startPoint.x;
+                        const dy = currentPos.y - startPoint.y;
+
+                        const finalRotation = fixtureRotation + ((dx < 0) ? 180 : 0);
+                        const isFlipped = (dy > 0);
+
+                        createItem(startPoint, null, { rotation: finalRotation, isFlipped: isFlipped });
+
+                        setPendingFixture(null);
+                        if (editorMode === 'create') {
+                            setEditorMode('edit');
+                        }
+                        return;
+                    }
+
+                    // ドア・窓の描画
                     if (drawingMode === 'window' || drawingMode === 'door') {
-                        // 3クリック目：方向を決定して描画を確定
+                        // 3回目のクリック
                         if (pendingWindow) {
-                            const center = {
-                                x: (pendingWindow.start.x + pendingWindow.end.x) / 2,
-                                y: (pendingWindow.start.y + pendingWindow.end.y) / 2,
-                            };
+                            const center = { x: (pendingWindow.start.x + pendingWindow.end.x) / 2, y: (pendingWindow.start.y + pendingWindow.end.y) / 2 };
                             const dx = clickPos.x - center.x;
                             const dy = clickPos.y - center.y;
 
                             let rotation = 0;
-                            let isInner = false; // isInnerで「反転」を表現します
+                            let isInner = false;
+                            if (dx < 0 && dy < 0) { rotation = 180; isInner = true; }
+                            else if (dx > 0 && dy < 0) { rotation = 0; isInner = false; }
+                            else if (dx > 0 && dy > 0) { rotation = 0; isInner = true; }
+                            else { rotation = 180; isInner = false; }
 
-                            if (dx < 0 && dy < 0) { // 左上
-                                rotation = 180;
-                                isInner = true;
-                            } else if (dx > 0 && dy < 0) { // 右上
-                                rotation = 0;
-                                isInner = false;
-                            } else if (dx > 0 && dy > 0) { // 右下
-                                rotation = 0;
-                                isInner = true;
-                            } else { // 左下
-                                rotation = 180;
-                                isInner = false;
-                            }
-                            
-                            // createItemに関数にオプションとして方向情報を渡します
                             createItem(pendingWindow.start, pendingWindow.end, { rotation, isInner });
-                            setPendingWindow(null); // 描画が完了したので一時情報をクリア
-                            return;
-                        }
 
-                        // 2クリック目：終点を決定し、方向決定ステップへ移行
-                        if (drawingStartPoint) {
-                            let finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                            if (snappedWallInfo) {
-                                finalEndPoint = snappedWallInfo.point;
-                            }
-                            // 始点と終点の情報を pendingWindow state に保存
-                            setPendingWindow({ start: drawingStartPoint, end: finalEndPoint });
-                            setDrawingStartPoint(null); // 始点情報はクリア
+                            setPendingWindow(null);
+                            setSnappedInfo(null);
                             activeSnapWallRef.current = null;
+                            if (editorMode === 'create') {
+                                setEditorMode('edit');
+                            }
                             return;
                         }
+                        // 2回目のクリック
+                        else if (drawingStartPoint) {
+                            let clickedEndPoint;
+                            const walls = svgElements.filter(el => el.type === 'wall');
 
-                        // 1クリック目：始点を決定 (この部分は既存のロジックとほぼ同じです)
-                        if (isSnapToWall && !snappedWallInfo) {
-                            return; 
+                            if (isSnapToWall && !isModifierKeyDown && walls.length > 0) {
+                                if (snappedInfo?.wall) {
+                                    clickedEndPoint = snappedInfo.point;
+                                } else {
+                                    clickedEndPoint = getClosestPointOnWalls(clickPos, walls);
+                                }
+                            } else {
+                                clickedEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                            }
+
+                            setPendingWindow({ start: drawingStartPoint, end: clickedEndPoint });
+                            setDrawingStartPoint(null);
+                            setSnappedInfo(null);
+                            return;
                         }
-                        const startPoint = snappedWallInfo ? snappedWallInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
-                        setDrawingStartPoint(startPoint);
-                        if (snappedWallInfo) {
-                            activeSnapWallRef.current = snappedWallInfo.wall;
+                        // 1回目のクリック
+                        else {
+                            if (isSnapToWall && !isModifierKeyDown && !snappedInfo?.wall) {
+                                return;
+                            }
+                            const startPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                            setDrawingStartPoint(startPoint);
+
+                            if (isSnapToWall && snappedInfo?.wall) {
+                                activeSnapWallRef.current = snappedInfo.wall;
+                            }
+                            setSnappedInfo(null);
+                            return;
                         }
-                        return; // 1クリック目はここで処理終了
                     }
 
                     // 多角形（空間・階段）の描画処理
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
-                        const snappedClickPos = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+                        const clickedPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+
                         if (linePoints.length > 0) {
-                            if (linePoints.length >= 2) {
-                                const firstPoint = linePoints[0];
-                                const distToStart = Math.sqrt(Math.pow(snappedClickPos.x - firstPoint.x, 2) + Math.pow(snappedClickPos.y - firstPoint.y, 2));
-                                if (distToStart < SNAP_THRESHOLD / zoom) {
+                            if (drawingMode === 'stairs') {
+                                const lastPoint = linePoints[linePoints.length - 1];
+                                const distToLast = Math.sqrt(Math.pow(clickedPoint.x - lastPoint.x, 2) + Math.pow(clickedPoint.y - lastPoint.y, 2));
+                                if (distToLast < SNAP_THRESHOLD / zoom) {
+                                    createStairs(linePoints);
                                     finishDrawing();
+                                    setSnappedInfo(null);
                                     return;
                                 }
                             }
-                            const lastPoint = linePoints[linePoints.length - 1];
-                            const dist = Math.sqrt(Math.pow(snappedClickPos.x - lastPoint.x, 2) + Math.pow(snappedClickPos.y - lastPoint.y, 2));
-                            if (dist < SNAP_THRESHOLD / zoom) {
-                                finishDrawing();
-                                return;
+
+                            if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
+                                const firstPoint = linePoints[0];
+                                const distToStart = Math.sqrt(Math.pow(clickedPoint.x - firstPoint.x, 2) + Math.pow(clickedPoint.y - firstPoint.y, 2));
+                                if (distToStart < SNAP_THRESHOLD / zoom) {
+                                    createPolygonSpace([...linePoints, firstPoint]);
+                                    finishDrawing();
+                                    setSnappedInfo(null);
+                                    return;
+                                }
                             }
                         }
-                        setLinePoints(prev => [...prev, snappedClickPos]);
+
+                        setLinePoints(prev => [...prev, clickedPoint]);
+                        setSnappedInfo(null);
                         return;
                     }
 
                     // 2点クリックで完了する描画処理
                     if (drawingStartPoint) {
-                        let finalEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                        if (snappedWallInfo) {
-                            finalEndPoint = snappedWallInfo.point;
-                        }
-
+                        let finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
                         if (drawingMode === 'space' && spaceShape === 'rect') {
                             const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
                             const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
@@ -1581,33 +1675,34 @@
                             createItem(drawingStartPoint, finalEndPoint);
                         }
                         setDrawingStartPoint(null);
-                        activeSnapWallRef.current = null; // スナップ壁をリセット
+                        setSnappedInfo(null);
                         return;
                     }
 
                     // 1点クリック or 始点を決める処理
-                    if (drawingMode === 'text' || drawingMode === 'fixture') {
-                        createItem(isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
-                    } else if (!((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs')) {
-                        if (drawingMode === 'window' && isSnapToWall && !snappedWallInfo) {
-                            return; // 壁にスナップしていない場合は描画を開始しない
+                    if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
+                        const startPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+
+                        // ▼▼▼ FIX PART 2: MODIFY FIXTURE 1ST CLICK LOGIC ▼▼▼
+                        if (drawingMode === 'fixture') {
+                            setPendingFixture(startPoint);
+                        } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
+                            setDrawingStartPoint(startPoint);
+                        } else { // text の場合
+                            createItem(startPoint);
                         }
-                        const startPoint = snappedWallInfo ? snappedWallInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
-                        setDrawingStartPoint(startPoint);
-                        if (snappedWallInfo) {
-                            activeSnapWallRef.current = snappedWallInfo.wall; // スナップした壁を記憶
-                        }
+                        // ▲▲▲ FIX PART 2 ▲▲▲
+                        setSnappedInfo(null);
                     }
-                } else { // 編集モード
-                    setSelectedId(targetId || null);
                 }
             }, [
-                svgElements, editorMode, drawingMode, spaceShape, drawingStartPoint, linePoints, 
-                isGridVisible, getCanvasCoords, getGridSnappedPoint, dimensions, strokeColor, 
-                fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType, 
-                fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom, 
-                backgroundPattern, finishDrawing, createPolygonSpace, createItem, createStairs, 
-                isSnapToWall, snappedWallInfo, activeSnapWallRef, isSnappingToStart
+                // ▼▼▼ 依存配列もこちらに置き換えてください ▼▼▼
+                svgElements, editorMode, drawingMode, spaceShape, drawingStartPoint, linePoints, pendingWindow, pendingFixture,
+                isGridVisible, getCanvasCoords, getGridSnappedPoint, dimensions, strokeColor,
+                fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType,
+                fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom,
+                backgroundPattern, createPolygonSpace, createItem, createStairs,
+                isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown
             ]);
 
             const createPolygonSpace = useCallback((points) => {
@@ -1794,7 +1889,8 @@
                         templateId: fixtureTemplateId,
                         width: actualWidth,
                         height: actualHeight,
-                        rotation: fixtureRotation,
+                        rotation: options.rotation !== undefined ? options.rotation : fixtureRotation,
+                        isFlipped: options.isFlipped !== undefined ? options.isFlipped : fixtureFlip,
                         fill: template.defaultFill,
                         stroke: template.defaultStroke,
                         strokeWidth: template.defaultStrokeWidth
@@ -1816,6 +1912,33 @@
 
             const handleMouseDown = useCallback((e) => {
                 e.stopPropagation();
+
+                if (!drawingMode && !imageUrl && editorMode !== 'edit') {
+                    const clickPos = getCanvasCoords(e);
+
+                    // 既存のタイマーをクリア
+                    tooltipTimers.current.forEach(clearTimeout);
+
+                    setTooltip({
+                        visible: true,
+                        fading: false,
+                        x: clickPos.x,
+                        y: clickPos.y,
+                        message: "下絵を選択、もしくは描画したい項目を選択してください。"
+                    });
+
+                    // 3秒後にフェードアウトを開始するタイマー
+                    const fadeTimer = setTimeout(() => {
+                        setTooltip(prev => ({ ...prev, fading: true }));
+                    }, 3000);
+
+                    // 5秒後 (3秒表示 + 2秒フェード) に完全に非表示にするタイマー
+                    const hideTimer = setTimeout(() => {
+                        setTooltip(prev => ({ ...prev, visible: false, fading: false }));
+                    }, 5000);
+
+                    tooltipTimers.current = [fadeTimer, hideTimer];
+                }
 
                 if (isDisplaySettingsOpen) {
                     // 表示設定が開いている時は、下絵のドラッグ操作を開始する
@@ -1862,74 +1985,104 @@
                         setLinePoints([]);
                     }
                 }
-            }, [isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, selectedId, historyState.present, drawingMode, spaceShape, dimensions]);
+            }, [
+                isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, 
+                selectedId, historyState.present, drawingMode, spaceShape, dimensions,
+                isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, 
+                selectedId, historyState.present, drawingMode, spaceShape, dimensions, imageUrl, setTooltip
+            ]);
 
             const handleMouseMove = useCallback((e) => {
                 const currentMousePos = getCanvasCoords(e);
-                const { x: currentCanvasX, y: currentCanvasY } = currentMousePos;
                 setMousePos(currentMousePos);
 
                 if (imageDragInfo.current) {
                     const dx = e.clientX - imageDragInfo.current.startMouseX;
                     const dy = e.clientY - imageDragInfo.current.startMouseY;
-                    // マウスの移動量に応じて画像の位置を更新 (ズーム率を考慮)
                     setImagePosition({
                         x: imageDragInfo.current.initialImageX + (dx / zoom),
                         y: imageDragInfo.current.initialImageY + (dy / zoom)
                     });
-                    return; // 他のMouseMove処理は行わない
+                    return;
                 }
 
-                // 壁へのスナップ処理
-                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door') && isSnapToWall;
-                if (isSnappingEnabled && (!drawingStartPoint || activeSnapWallRef.current)) {
-                    let wallToSnap = activeSnapWallRef.current;
-                    let closestPoint = null;
-                    if (!drawingStartPoint) {
-                        let minDistance = Infinity;
-                        for (const wall of svgElements.filter(el => el.type === 'wall')) {
-                            const p1 = { x: wall.x1, y: wall.y1 };
-                            const p2 = { x: wall.x2, y: wall.y2 };
-                            const dx = p2.x - p1.x;
-                            const dy = p2.y - p1.y;
-                            if (dx === 0 && dy === 0) continue;
-                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                            const clampedT = Math.max(0, Math.min(1, t));
-                            const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                            const distance = Math.sqrt(Math.pow(currentMousePos.x - pointOnLine.x, 2) + Math.pow(currentMousePos.y - pointOnLine.y, 2));
+                // ▼▼▼【修正点】ここからスナップ処理全体を修正 ▼▼▼
+                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space') && isSnapToWall && !isModifierKeyDown;
+
+                // 毎回のマウス移動でガイドラインを初期化
+                let newGuideLines = [];
+                let snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : { ...currentMousePos };
+
+                if (isSnappingEnabled) {
+                    let closestSnap = null;
+                    let minDistance = SNAP_THRESHOLD / zoom;
+
+                    // 1. 軸スナップの計算とガイドラインの生成
+                    let closestXSnap = { dist: minDistance, point: null };
+                    let closestYSnap = { dist: minDistance, point: null };
+                    for (const wall of svgElements.filter(el => el.type === 'wall')) {
+                        const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
+                        vertices.forEach(vertex => {
+                            const distX = Math.abs(currentMousePos.x - vertex.x);
+                            const distY = Math.abs(currentMousePos.y - vertex.y);
+                            if (distX < closestXSnap.dist) { closestXSnap = { dist: distX, point: vertex }; }
+                            if (distY < closestYSnap.dist) { closestYSnap = { dist: distY, point: vertex }; }
+                        });
+                    }
+                    if (closestXSnap.point) {
+                        snappedPos.x = closestXSnap.point.x;
+                        newGuideLines.push({ x1: closestXSnap.point.x, y1: closestXSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
+                    }
+                    if (closestYSnap.point) {
+                        snappedPos.y = closestYSnap.point.y;
+                        newGuideLines.push({ x1: closestYSnap.point.x, y1: closestYSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
+                    }
+
+                    // 2. 近接スナップの計算 (頂点を優先)
+                    for (const wall of svgElements.filter(el => el.type === 'wall')) {
+                        const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
+                        for (const vertex of vertices) {
+                            const distance = Math.sqrt(Math.pow(snappedPos.x - vertex.x, 2) + Math.pow(snappedPos.y - vertex.y, 2));
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                if (minDistance < SNAP_THRESHOLD / zoom) {
-                                    wallToSnap = wall;
-                                }
+                                closestSnap = { point: vertex, type: 'vertex' };
                             }
                         }
                     }
-                    if (wallToSnap) {
-                        const p1 = { x: wallToSnap.x1, y: wallToSnap.y1 };
-                        const p2 = { x: wallToSnap.x2, y: wallToSnap.y2 };
-                        const dx = p2.x - p1.x;
-                        const dy = p2.y - p1.y;
-                        if (dx !== 0 || dy !== 0) {
-                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                    if (!closestSnap) { // 頂点にスナップしなかった場合のみ、壁の線上を探す
+                        for (const wall of svgElements.filter(el => el.type === 'wall')) {
+                            const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
+                            const dx = p2.x - p1.x, dy = p2.y - p1.y;
+                            if (dx === 0 && dy === 0) continue;
+                            const t = ((snappedPos.x - p1.x) * dx + (snappedPos.y - p1.y) * dy) / (dx * dx + dy * dy);
                             const clampedT = Math.max(0, Math.min(1, t));
-                            closestPoint = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                            const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                            const distance = Math.sqrt(Math.pow(snappedPos.x - pointOnLine.x, 2) + Math.pow(snappedPos.y - pointOnLine.y, 2));
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                closestSnap = { point: pointOnLine, type: 'wall', wall: wall }; // ✅ wallオブジェクトを追加
+                            }
                         }
                     }
-                    if (closestPoint) {
-                        setSnappedWallInfo({ point: closestPoint, wall: wallToSnap });
+
+                    // 3. 最終的なスナップ情報をセット
+                    if (closestSnap) {
+                        setSnappedInfo(closestSnap);
+                    } else if (newGuideLines.length > 0) {
+                        setSnappedInfo({ point: snappedPos, type: 'extension' });
                     } else {
-                        setSnappedWallInfo(null);
+                         setSnappedInfo(null);
                     }
-                } else if (snappedWallInfo) {
-                    setSnappedWallInfo(null);
+                } else {
+                    setSnappedInfo(null);
                 }
-                
+                setGuideLines(newGuideLines);
+
                 // 始点へのスナップ処理
                 const isDrawingPolygon = (drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs';
                 if (isDrawingPolygon && linePoints.length >= 2) {
                     const firstPoint = linePoints[0];
-                    const distToStart = Math.sqrt(Math.pow(currentCanvasX - firstPoint.x, 2) + Math.pow(currentCanvasY - firstPoint.y, 2));
+                    const distToStart = Math.sqrt(Math.pow(currentMousePos.x - firstPoint.x, 2) + Math.pow(currentMousePos.y - firstPoint.y, 2));
                     setIsSnappingToStart(distToStart < SNAP_THRESHOLD / zoom);
                 } else if (isSnappingToStart) {
                     setIsSnappingToStart(false);
@@ -2156,26 +2309,24 @@
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                 }
             }, [
-                getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart, 
-                drawingMode, spaceShape, linePoints, zoom, isSnappingToStart, 
-                isSnapToWall, svgElements, drawingStartPoint, snappedWallInfo, activeSnapWallRef, mouseDownInfo, selectedId, editorMode, imagePosition
+                getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart,
+                drawingMode, spaceShape, linePoints, zoom, isSnappingToStart,
+                isSnapToWall, svgElements, drawingStartPoint, activeSnapWallRef, mouseDownInfo, selectedId, editorMode, imagePosition, isModifierKeyDown
             ]);
 
-            const handleMouseUp = useCallback((e) => {
+
+            const handleMouseUp = (e) => {
                 const wasDraggingImage = !!imageDragInfo.current;
                 if (imageDragInfo.current) {
                     imageDragInfo.current = null;
                 }
-
                 if (!mouseDownInfo.current) {
                     return;
                 }
 
-                // 下絵のドラッグ操作が終わった直後は、クリックイベントを発火させない
                 if (!isDragging && !resizingHandleInfo && !wasDraggingImage) { 
                     handleCanvasClick(e);
-                } else { // Drag or Resize ended
-                    // If a single wall that was part of a group was dragged, break it from the group
+                } else {
                     const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
                     if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
                         setHistoryState(prevState => {
@@ -2196,16 +2347,14 @@
                         setHistoryState(prev => ({ ...prev, past: [...prev.past, historyOnActionStart.current], future: [] }));
                     }
                 }
-
-                // Reset all interaction states
+                
                 setIsDragging(false);
                 setResizingHandleInfo(null);
                 dragTarget.current = null;
                 dragInfo.current = null;
                 historyOnActionStart.current = null;
-                mouseDownInfo.current = null; // この行は必要です
-
-            }, [isDragging, resizingHandleInfo, svgElements, selectedId, handleCanvasClick, editorMode, drawingMode, spaceShape, handleCanvasClick]);
+                mouseDownInfo.current = null;
+            };
 
             const StairsPreviewRenderer = ({ points, width, color }) => {
                 if (points.length < 2) return null;
@@ -2461,6 +2610,16 @@
                 img.src = url;
             };
 
+
+
+            useEffect(() => {
+                // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
+                const templates = FIXTURE_TEMPLATES[fixtureCategory];
+                if (templates && templates.length > 0) {
+                    setFixtureTemplateId(templates[0].id);
+                }
+            }, [fixtureCategory]); // fixtureCategory が変更された時だけこの処理を実行
+
             useEffect(() => {
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
@@ -2468,7 +2627,7 @@
                     document.removeEventListener('mousemove', handleMouseMove);
                     document.removeEventListener('mouseup', handleMouseUp);
                 };
-            }, [handleMouseMove, handleMouseUp]);
+            }, [svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, handleCanvasClick, getCanvasCoords, getGridSnappedPoint, zoom, drawingMode, spaceShape, isGridVisible, mouseDownInfo.current]);
 
             useEffect(() => {
                 const canvas = canvasRef.current;
@@ -2512,6 +2671,8 @@
                         setSelectedId(null);
                         setResizingHandleInfo(null);
                         setPendingWindow(null);
+                        setPendingFixture(null);
+                        activeSnapWallRef.current = null;
                     }
                 };
                 window.addEventListener('keydown', handleKeyDown);
@@ -2520,9 +2681,10 @@
 
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
+                const editorContainer = editorContainerRef.current;
                 if (!editorArea) return;
 
-                const handleWheel = (e) => {
+                    const handleWheel = (e) => {
                     if (e.ctrlKey) {
                         e.preventDefault();
 
@@ -2536,30 +2698,55 @@
                         const mouseX = e.clientX - rect.left;
                         const mouseY = e.clientY - rect.top;
 
-                        // ズーム前のマウスカーソルが指しているキャンバス上の座標
-                        // (スクロール位置を考慮)
-                        const canvasX = (editorArea.scrollLeft + mouseX) / oldZoom;
-                        const canvasY = (editorArea.scrollTop + mouseY) / oldZoom;
+                        // ズーム前のマウスカーソルが指している、キャンバス全体のコンテンツ座標
+                        // editorContainerがtranslate(-50%, -50%)されていることを考慮する必要がある
+                        // scroll-wrapperの原点からの座標で考える
+                        const contentMouseX = editorArea.scrollLeft + mouseX;
+                        const contentMouseY = editorArea.scrollTop + mouseY;
+
+                        // ズーム前のeditorContainerの左上基準の座標 (px)
+                        // editorContainerはscroll-wrapperの中央に配置されているため、そのオフセットを計算
+                        const currentContainerLeft = (editorArea.scrollWidth - dimensions.width * oldZoom) / 2;
+                        const currentContainerTop = (editorArea.scrollHeight - dimensions.height * oldZoom) / 2;
+
+                        // マウスが指している「editor-container」内の相対座標
+                        const mouseInContainerX = (contentMouseX - currentContainerLeft) / oldZoom;
+                        const mouseInContainerY = (contentMouseY - currentContainerTop) / oldZoom;
+
 
                         // ズーム率を更新
                         setZoom(newZoom);
 
-                        // 新しいズーム率で、マウスカーソルが指しているキャンバス上の同じ座標が
-                        // 引き続きマウスカーソルの下にくるようにスクロール位置を調整
-                        // 新しいスクロール位置 = (マウスが指すキャンバス座標 * 新しいズーム) - マウスのビューポート内相対座標
-                        editorArea.scrollLeft = canvasX * newZoom - mouseX;
-                        editorArea.scrollTop = canvasY * newZoom - mouseY;
+                        // 新しいズーム率でのeditorContainerのサイズ
+                        const newContainerWidth = dimensions.width * newZoom;
+                        const newContainerHeight = dimensions.height * newZoom;
+
+                        // 新しいズーム率でのeditorContainerの左上基準の座標
+                        const newContainerLeft = (editorArea.scrollWidth - newContainerWidth) / 2;
+                        const newContainerTop = (editorArea.scrollHeight - newContainerHeight) / 2;
+
+                        // マウスが指しているeditor-container内の相対座標を新しいズーム率で計算し、
+                        // 新しいeditorContainerの左上からのオフセットを加算
+                        const newScrollLeft = (mouseInContainerX * newZoom) + newContainerLeft - mouseX;
+                        const newScrollTop = (mouseInContainerY * newZoom) + newContainerTop - mouseY;
+
+                        // スクロール位置を調整
+                        editorArea.scrollLeft = newScrollLeft;
+                        editorArea.scrollTop = newScrollTop;
                     }
                 };
 
                 editorArea.addEventListener('wheel', handleWheel, { passive: false });
                 return () => editorArea.removeEventListener('wheel', handleWheel);
-            }, [zoom]); // zoom の変更で再評価されるように依存配列に含める
+            }, [zoom, dimensions.width, dimensions.height]); // dimensionsも依存配列に追加
 
             useEffect(() => {
                 setDrawingStartPoint(null);
                 setLinePoints([]);
                 setPendingWindow(null);
+                setPendingFixture(null);
+                setGuideLines([]);
+                activeSnapWallRef.current = null;
             }, [editorMode, drawingMode, spaceShape]);
 
             useEffect(() => {
@@ -2583,11 +2770,63 @@
 
             useEffect(() => {
                 const selectedEl = svgElements.find(el => el.id === selectedId);
-                if (selectedEl && selectedEl.type === 'text' && textEditAreaRef.current) {
-                    textEditAreaRef.current.focus();
-                    textEditAreaRef.current.select(); // テキストを全選択状態にする
+             
+                // 選択が解除された場合、前回IDの記録をリセット
+                if (!selectedEl) {
+                    prevSelectedIdRef.current = null;
+                    return;
                 }
-            }, [selectedId]);
+    
+                // テキスト要素が選択された場合
+                if (selectedEl.type === 'text' && textEditAreaRef.current) {
+                    // 前回選択されていたIDと現在のIDが異なる場合（＝新しく選択された場合）のみ全選択を実行
+                    if (selectedId !== prevSelectedIdRef.current) {
+                        textEditAreaRef.current.focus();
+                        textEditAreaRef.current.select();
+                    }
+                }
+    
+                // 設備が選択された場合の処理（変更なし）
+                if (selectedEl.type === 'fixture') {
+                    const categoryKey = Object.keys(FIXTURE_TEMPLATES).find(cat =>
+                        FIXTURE_TEMPLATES[cat].some(t => t.id === selectedEl.templateId)
+                    );
+                    if (categoryKey) {
+                        setFixtureCategory(categoryKey);
+                    }
+                }
+
+                // 今回のIDを「前回のID」として記録する
+                prevSelectedIdRef.current = selectedId;
+                
+            }, [selectedId, svgElements]);
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Alt' || e.key === 'Shift') {
+                        setIsModifierKeyDown(true);
+                    }
+                };
+                const handleKeyUp = (e) => {
+                    if (e.key === 'Alt' || e.key === 'Shift') {
+                        setIsModifierKeyDown(false);
+                    }
+                };
+                // ウィンドウからフォーカスが外れた場合もキー状態をリセット
+                const handleBlur = () => {
+                    setIsModifierKeyDown(false);
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+                window.addEventListener('blur', handleBlur);
+
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp);
+                    window.removeEventListener('blur', handleBlur);
+                };
+            }, []); // このuseEffectは初回レンダリング時のみ実行
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
@@ -2662,12 +2901,6 @@
                     }
                 }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation]);
 
-                useEffect(() => {
-                    // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
-                    if (FIXTURE_TEMPLATES[fixtureCategory] && FIXTURE_TEMPLATES[fixtureCategory].length > 0) {
-                        setFixtureTemplateId(FIXTURE_TEMPLATES[fixtureCategory][0].id);
-                    }
-                }, [fixtureCategory]);
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
                 else if (element.textAlign === 'right') textAnchor = 'end';
@@ -3184,7 +3417,7 @@
                                                 }
 
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
+                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0}) ${el.isFlipped ? 'scale(-1, 1)' : ''}`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
                                                         {fixtureElement}
                                                         {handles}
                                                     </g>
@@ -3244,7 +3477,50 @@
                                             }
                                             return null;
                                         })}
-                                        
+
+                                        {guideLines.map((line, index) => (
+                                            <line
+                                                key={`guide-${index}`}
+                                                x1={line.x1}
+                                                y1={line.y1}
+                                                x2={line.x2}
+                                                y2={line.y2}
+                                                stroke={SELECTED_ELEMENT_COLOR}
+                                                strokeWidth={1 / zoom}
+                                                strokeDasharray={`${4 / zoom}, ${4 / zoom}`}
+                                                style={{ pointerEvents: 'none' }}
+                                            />
+                                        ))}
+
+                                        {/* スナップされた位置に表示される丸印 */}
+                                        {snappedInfo && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
+                                            let snapStrokeColor;
+                                            let snapStrokeWidth;
+
+                                            if (snappedInfo.type === 'vertex' || snappedInfo.type === 'startPoint') { // 'startPoint' を追加
+                                                snapStrokeColor = '#FF0000'; // 赤色に統一
+                                                snapStrokeWidth = 4 / zoom; // 太めの線
+                                            } else if (snappedInfo.type === 'wall') {
+                                                snapStrokeColor = '#FF0000'; // 赤色に統一
+                                                snapStrokeWidth = 2 / zoom; // 通常の線
+                                            } else { // 'grid' の場合
+                                                snapStrokeColor = SELECTED_ELEMENT_COLOR; // グリッドスナップはデフォルトの青色
+                                                snapStrokeWidth = 2 / zoom;
+                                            }
+
+                                            return (
+                                                <circle
+                                                    cx={snappedInfo.point.x}
+                                                    cy={snappedInfo.point.y}
+                                                    r={8 / zoom} // ズームによってサイズを調整
+                                                    fill="none"
+                                                    stroke={snapStrokeColor}
+                                                    strokeWidth={snapStrokeWidth}
+                                                    style={{ pointerEvents: 'none' }}
+                                                />
+                                            );
+                                        })()}
+                                                
                                         {editorMode === 'edit' && (() => {
                                             if (!selectedElement) return null;
                                             if (selectedElement.type === 'wall' || selectedElement.type === 'door' || selectedElement.type === 'window') {
@@ -3274,68 +3550,84 @@
                                             return null;
                                         })()}
 
-                                        {/* Preview Rendering */}
-                                        {/* --- ここから設備プレビューの描画 --- */}
-                                        {(editorMode === 'create' || editorMode === 'continuous-create') && drawingMode === 'fixture' && (
-                                            (() => {
-                                                const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === fixtureTemplateId) || FIXTURE_TEMPLATES.kitchen[0];
-                                                if (!template) return null;
+                                        {/* --- 設備プレビューの描画 --- */}
+                                        {(editorMode === 'create' || editorMode === 'continuous-create') && drawingMode === 'fixture' && (() => {
+                                            const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === fixtureTemplateId) || FIXTURE_TEMPLATES.kitchen[0];
+                                            if (!template) return null;
 
-                                                const previewPos = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
-                                                const previewStyle = { opacity: 0.7, pointerEvents: 'none' };
-                                                
-                                                const baseSize = BASE_FIXTURE_DEFAULT_SIZE;
-                                                const templateDefaultSize = template.defaultSize || baseSize;
-                                                const scaleRatio = baseSize / templateDefaultSize;
-                                                
-                                                const previewWidth = fixtureSize * scaleRatio;
-                                                const aspectRatio = template.aspectRatio || 1;
-                                                const previewHeight = previewWidth / aspectRatio;
+                                            const baseSize = BASE_FIXTURE_DEFAULT_SIZE;
+                                            const templateDefaultSize = template.defaultSize || baseSize;
+                                            const scaleRatio = baseSize / templateDefaultSize;
+                                            const previewWidth = fixtureSize * scaleRatio;
+                                            const aspectRatio = template.aspectRatio || 1;
+                                            const previewHeight = previewWidth / aspectRatio;
 
-                                                if (template.src) {
-                                                    return (
-                                                        <g
-                                                            transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0})`}
-                                                            style={previewStyle}
-                                                        >
-                                                            <image
-                                                                href={template.src}
-                                                                x={-previewWidth / 2}
-                                                                y={-previewHeight / 2}
-                                                                width={previewWidth}
-                                                                height={previewHeight}
-                                                                preserveAspectRatio="none"
-                                                            />
-                                                        </g>
-                                                    );
-                                                } else { 
-                                                    const scaleX = previewWidth / template.defaultSize;
-                                                    const scaleY = previewHeight / template.defaultSize;
-                                                    return (
-                                                        <g
-                                                            transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0}) scale(${scaleX}, ${scaleY})`}
-                                                            style={previewStyle}
-                                                        >
-                                                            <path
-                                                                d={template.path}
-                                                                fill={template.defaultFill}
-                                                                stroke={template.defaultStroke}
-                                                                strokeWidth={template.defaultStrokeWidth}
-                                                                vectorEffect="non-scaling-stroke"
-                                                            />
-                                                        </g>
-                                                    );
-                                                }
-                                            })()
-                                        )}
-                                        {/* --- ここまで設備プレビューの描画 --- */}
-                                        {drawingStartPoint && !linePoints.length && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
-                                            let previewEndPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
-                                            if (isSnappingToStart) {
-                                                previewEndPoint = linePoints[0]; // スナップ中は終点を始点に固定
+                                            let previewElement;
+                                            if (template.src) {
+                                                previewElement = <image href={template.src} x={-previewWidth / 2} y={-previewHeight / 2} width={previewWidth} height={previewHeight} preserveAspectRatio="none" />;
+                                            } else {
+                                                const scaleX = previewWidth / template.defaultSize;
+                                                const scaleY = previewHeight / template.defaultSize;
+                                                previewElement = <g transform={`scale(${scaleX}, ${scaleY})`}><path d={template.path} fill={template.defaultFill} stroke={template.defaultStroke} strokeWidth={template.defaultStrokeWidth} vectorEffect="non-scaling-stroke" /></g>;
                                             }
-                                            if (snappedWallInfo) {
-                                                previewEndPoint = snappedWallInfo.point;
+
+                                            // ▼▼▼【修正点】1クリック前と後で処理を分岐 ▼▼▼
+                                            if (pendingFixture) {
+                                                // 1クリック後の処理 (位置を固定し、回転/反転をマウスで変更)
+                                                const startPoint = pendingFixture;
+                                                const endPoint = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                const dx = endPoint.x - startPoint.x;
+                                                const dy = endPoint.y - startPoint.y;
+                                                const finalRotation = fixtureRotation + ((dx < 0) ? 180 : 0);
+                                                const isFlipped = (dy > 0);
+                                                return (
+                                                    <g transform={`translate(${startPoint.x}, ${startPoint.y}) rotate(${finalRotation || 0}) ${isFlipped ? 'scale(-1, 1)' : ''}`} style={{ opacity: 0.7, pointerEvents: 'none' }}>
+                                                        {previewElement}
+                                                    </g>
+                                                );
+                                            } else {
+                                                // 1クリック前の処理 (マウスカーソルに追従)
+                                                const previewPos = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                return (
+                                                    <g transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0}) ${fixtureFlip ? 'scale(-1, 1)' : ''}`} style={{ opacity: 0.7, pointerEvents: 'none' }}>
+                                                        {previewElement}
+                                                    </g>
+                                                );
+                                            }
+                                        })()}
+
+                                        {/* --- 方角の1クリック前プレビュー --- */}
+                                          {!drawingStartPoint && (editorMode === 'create' || editorMode === 'continuous-create') && drawingMode === 'compass' && (() => {
+                                              const template = COMPASS_TEMPLATES.find(t => t.id === compassTemplateId) || COMPASS_TEMPLATES[0];
+                                              const previewSize = 50; // プレビュー用のデフォルトサイズ
+                                              const previewPos = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                  
+                                              return (
+                                                  <g transform={`translate(${previewPos.x}, ${previewPos.y})`} style={{ opacity: 0.7, pointerEvents: 'none' }}>
+                                                      <image
+                                                          href={template.src}
+                                                          x={-previewSize / 2}
+                                                          y={-previewSize / 2}
+                                                          width={previewSize}
+                                                          height={previewSize}
+                                                          preserveAspectRatio="xMidYMid meet"
+                                                      />
+                                                  </g>
+                                              );
+                                          })()}
+
+                                        {/* --- 既存の2クリック描画プレビュー --- */}
+                                        {drawingStartPoint && !linePoints.length && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
+                                            let previewEndPoint;
+                                            const walls = svgElements.filter(el => el.type === 'wall');
+
+                                            // 「壁の上に描画」が有効な場合
+                                            if ((drawingMode === 'door' || drawingMode === 'window') && isSnapToWall && !isModifierKeyDown && walls.length > 0) {
+                                                // マウスカーソルから最も近い壁上の点を計算する
+                                                previewEndPoint = getClosestPointOnWalls(mousePos, walls);
+                                            } else {
+                                                // それ以外の場合は、従来通りスナップ情報かグリッド位置を使用
+                                                previewEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(mousePos) : mousePos);
                                             }
                                             if(drawingMode === 'compass') {
                                                 const template = COMPASS_TEMPLATES.find(t => t.id === compassTemplateId) || COMPASS_TEMPLATES[0];
@@ -3350,34 +3642,41 @@
                                                     </g>
                                                 );
                                             }
-                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect x={Math.min(drawingStartPoint.x, previewEndPoint.x)} y={Math.min(drawingStartPoint.y, previewEndPoint.y)} width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} fill="transparent" stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" style={{ pointerEvents: 'none' }} shapeRendering="crispEdges" />;
+                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect 
+                                                x={Math.min(drawingStartPoint.x, previewEndPoint.x)} 
+                                                y={Math.min(drawingStartPoint.y, previewEndPoint.y)} 
+                                                width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
+                                                height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
+                                                fill="transparent" 
+                                                stroke={SELECTED_ELEMENT_COLOR}
+                                                strokeWidth={DEFAULT_STROKE_WIDTH} 
+                                                strokeDasharray="5,5" 
+                                                style={{ pointerEvents: 'none' }} 
+                                                shapeRendering="crispEdges" 
+                                            />;
                                             if(drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') return <line 
                                                 x1={drawingStartPoint.x} 
                                                 y1={drawingStartPoint.y} 
                                                 x2={previewEndPoint.x} 
                                                 y2={previewEndPoint.y} 
-                                                
-                                                // ▼▼▼ この行を修正 ▼▼▼
-                                                stroke={SELECTED_ELEMENT_COLOR} // 修正前: stroke={strokeColor}
-                                                // ▲▲▲ ここまで ▲▲▲
-                                                
+                                                stroke={SELECTED_ELEMENT_COLOR}
                                                 strokeWidth={strokeWidth} 
                                                 strokeDasharray="5,5" 
                                                 style={{ pointerEvents: 'none' }} 
                                             />;
                                             return null;
                                         })()}
-                                        {snappedWallInfo && (
+                                        {snappedInfo && (
                                             <g style={{ pointerEvents: 'none' }}>
                                                 <circle 
-                                                    cx={snappedWallInfo.point.x} 
-                                                    cy={snappedWallInfo.point.y} 
+                                                    cx={snappedInfo.point.x} 
+                                                    cy={snappedInfo.point.y} 
                                                     r={SNAP_THRESHOLD / zoom} 
                                                     fill="rgba(59, 130, 246, 0.2)" 
                                                 />
                                                 <circle 
-                                                    cx={snappedWallInfo.point.x} 
-                                                    cy={snappedWallInfo.point.y} 
+                                                    cx={snappedInfo.point.x} 
+                                                    cy={snappedInfo.point.y} 
                                                     r={6 / zoom} 
                                                     fill="white"
                                                     stroke="#3b82f6"
@@ -3385,17 +3684,17 @@
                                                 />
                                             </g>
                                         )}
-                                        {snappedWallInfo && !drawingStartPoint && (
+                                        {snappedInfo && !drawingStartPoint && (
                                             <g style={{ pointerEvents: 'none' }}>
                                                 <circle 
-                                                    cx={snappedWallInfo.point.x} 
-                                                    cy={snappedWallInfo.point.y} 
+                                                    cx={snappedInfo.point.x}
+                                                    cy={snappedInfo.point.y}
                                                     r={SNAP_THRESHOLD / zoom} 
                                                     fill="rgba(59, 130, 246, 0.2)" 
                                                 />
                                                 <circle 
-                                                    cx={snappedWallInfo.point.x} 
-                                                    cy={snappedWallInfo.point.y} 
+                                                    cx={snappedInfo.point.x} 
+                                                    cy={snappedInfo.point.y} 
                                                     r={6 / zoom} 
                                                     fill="white"
                                                     stroke="#3b82f6"
@@ -3408,14 +3707,14 @@
                                                 {linePoints.map((p, i) => {
                                                     if (i === 0) return null;
                                                     const p1 = linePoints[i-1];
-                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
+                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
                                                 })}
-                                                <line 
-                                                    x1={linePoints[linePoints.length - 1].x} 
-                                                    y1={linePoints[linePoints.length - 1].y} 
+                                                <line
+                                                    x1={linePoints[linePoints.length - 1].x}
+                                                    y1={linePoints[linePoints.length - 1].y}
                                                     x2={isSnappingToStart ? linePoints[0].x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x)}
                                                     y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y)}
-                                                    stroke={strokeColor} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" 
+                                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5"
                                                 />
                                             </g>
                                         )}
@@ -3490,6 +3789,37 @@
                                                 </g>
                                             );
                                         })()}
+                                        {tooltip.visible && (
+                                            <foreignObject x={tooltip.x - 125} y={tooltip.y - 55} width="250" height="60" style={{ pointerEvents: 'none', overflow: 'visible' }}>
+                                                <div xmlns="http://www.w3.org/1999/xhtml"
+                                                    style={{
+                                                        opacity: tooltip.fading ? 0 : 1,
+                                                        transition: 'opacity 2s ease-out',
+                                                        background: 'rgba(0, 0, 0, 0.75)',
+                                                        color: 'white',
+                                                        padding: '8px 12px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '13px',
+                                                        fontFamily: "'Noto Sans JP', sans-serif",
+                                                        position: 'relative',
+                                                        textAlign: 'center',
+                                                        userSelect: 'none'
+                                                    }}>
+                                                        {tooltip.message}
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            top: '100%',
+                                                            left: '50%',
+                                                            transform: 'translateX(-50%)',
+                                                            width: 0,
+                                                            height: 0,
+                                                            borderLeft: '8px solid transparent',
+                                                            borderRight: '8px solid transparent',
+                                                            orderTop: '8px solid rgba(0, 0, 0, 0.75)',
+                                                        }} />
+                                                    </div>
+                                            </foreignObject>
+                                        )}
                                     </svg>
                                 </div>
                             </div>
@@ -3732,21 +4062,28 @@
                                                     )}
                                                 </div>}
                                                 {drawingMode === 'fixture' && <div className="mt-4 space-y-4">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
-                                                    <div className="mt-2 grid grid-cols-4 gap-2">
-                                                        {FIXTURE_CATEGORIES.map(cat => (
-                                                            <button
-                                                                key={cat.key}
-                                                                onClick={() => setFixtureCategory(cat.key)}
-                                                                className={`px-2 py-2 rounded text-xs text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-                                                            >
-                                                                {cat.name}
-                                                            </button>
-                                                        ))}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
+                                                        <div className="mt-2 grid grid-cols-4 gap-2">
+                                                            {FIXTURE_CATEGORIES.map(cat => (
+                                                                <button
+                                                                    key={cat.key}
+                                                                    onClick={() => setFixtureCategory(cat.key)}
+                                                                    className={`px-2 py-2 rounded text-[11px] text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                                >
+                                                                    {cat.name}
+                                                                </button>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                    <FixtureTemplateSelector selectedTemplateId={fixtureTemplateId} onChange={setFixtureTemplateId} category={fixtureCategory} />
+                                                    <FixtureTemplateSelector
+                                                        selectedTemplateId={fixtureTemplateId}
+                                                        onChange={setFixtureTemplateId}
+                                                        category={fixtureCategory}
+                                                        mode="create"
+                                                        isFlipped={fixtureFlip}
+                                                        onFlipChange={setFixtureFlip}
+                                                    />
                                                     {/* サイズ調整 */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700">サイズ: {fixtureSize}px</label>
@@ -4130,6 +4467,7 @@
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中の設備を編集</h3>
 
+                                                        {/* カテゴリ */}
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
                                                             <div className="mt-2 grid grid-cols-4 gap-2">
@@ -4137,7 +4475,7 @@
                                                                     <button
                                                                         key={cat.key}
                                                                         onClick={() => setFixtureCategory(cat.key)}
-                                                                        className={`px-2 py-2 rounded text-xs text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                                        className={`px-2 py-2 rounded text-[11px] text-center ${fixtureCategory === cat.key ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
                                                                     >
                                                                         {cat.name}
                                                                     </button>
@@ -4145,58 +4483,153 @@
                                                             </div>
                                                         </div>
 
+                                                        {/* 設備の種類 */}
                                                         <FixtureTemplateSelector
                                                             selectedTemplateId={selectedElement.templateId}
                                                             onChange={(newTemplateId) => handleSelectedElementUpdate({ templateId: newTemplateId })}
                                                             category={fixtureCategory}
+                                                            mode="edit"
+                                                            isFlipped={selectedElement.isFlipped || false}
+                                                            onFlipChange={(isChecked) => handleSelectedElementUpdate({ isFlipped: isChecked })}
                                                         />
 
+                                                        {/* サイズ */}
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700">サイズ: {selectedElement.size}px</label>
+                                                            <label className="block text-sm font-medium text-gray-700">サイズ (幅): {Math.round(selectedElement.width)}px</label>
                                                             <div className="flex items-center space-x-2 mt-1">
                                                                 <input
                                                                     type="range"
                                                                     min="10"
-                                                                    max="100"
+                                                                    max="300"
                                                                     step="1"
-                                                                    value={selectedElement.size}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ size: parseInt(e.target.value) })}
+                                                                    value={selectedElement.width}
+                                                                    onChange={(e) => {
+                                                                        const newWidth = parseInt(e.target.value);
+                                                                        const templateCategory = FIXTURE_TEMPLATES[Object.keys(FIXTURE_TEMPLATES).find(cat => FIXTURE_TEMPLATES[cat].some(t => t.id === selectedElement.templateId))] || {};
+                                                                        const template = templateCategory.find(t => t.id === selectedElement.templateId);
+                                                                        const aspectRatio = template?.aspectRatio || 1;
+                                                                        const newHeight = newWidth / aspectRatio;
+                                                                        handleSelectedElementUpdate({ width: newWidth, height: newHeight });
+                                                                    }}
                                                                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                                                 />
                                                                 <input
                                                                     type="number"
-                                                                    value={selectedElement.size}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ size: parseInt(e.target.value) || 10 })}
+                                                                    value={Math.round(selectedElement.width)}
+                                                                    onChange={(e) => {
+                                                                        const newWidth = parseInt(e.target.value) || 10;
+                                                                        const templateCategory = FIXTURE_TEMPLATES[Object.keys(FIXTURE_TEMPLATES).find(cat => FIXTURE_TEMPLATES[cat].some(t => t.id === selectedElement.templateId))] || {};
+                                                                        const template = templateCategory.find(t => t.id === selectedElement.templateId);
+                                                                        const aspectRatio = template?.aspectRatio || 1;
+                                                                        const newHeight = newWidth / aspectRatio;
+                                                                        handleSelectedElementUpdate({ width: newWidth, height: newHeight });
+                                                                    }}
                                                                     className="w-20 p-1 border border-gray-300 rounded-md text-sm"
                                                                 />
                                                             </div>
                                                         </div>
 
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div>
-                                                                <label className="block text-sm font-medium text-gray-700">塗りつぶしの色</label>
+                                                        {/* 回転 */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">回転: {selectedElement.rotation || 0}°</label>
+                                                            <div className="flex items-center space-x-2 mt-1">
                                                                 <input
-                                                                    type="color"
-                                                                    value={selectedElement.fill}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ fill: e.target.value })}
-                                                                    onFocus={() => setIsPickingColor(true)}
-                                                                    onBlur={() => setIsPickingColor(false)}
-                                                                    className="mt-1 h-10 w-full border border-gray-300 rounded-md"
+                                                                    type="range"
+                                                                    min="-180"
+                                                                    max="180"
+                                                                    step="1"
+                                                                    value={selectedElement.rotation || 0}
+                                                                    onChange={(e) => handleSelectedElementUpdate({ rotation: parseInt(e.target.value) })}
+                                                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                                                 />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-sm font-medium text-gray-700">線の色</label>
                                                                 <input
-                                                                    type="color"
-                                                                    value={selectedElement.stroke}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ stroke: e.target.value })}
-                                                                    onFocus={() => setIsPickingColor(true)}
-                                                                    onBlur={() => setIsPickingColor(false)}
-                                                                    className="mt-1 h-10 w-full border border-gray-300 rounded-md"
+                                                                    type="number"
+                                                                    value={selectedElement.rotation || 0}
+                                                                    onChange={(e) => handleSelectedElementUpdate({ rotation: parseInt(e.target.value) || 0 })}
+                                                                    className="w-20 p-1 border border-gray-300 rounded-md text-sm"
                                                                 />
+                                                                <button
+                                                                    onClick={rotateSelectedElement90Degrees}
+                                                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300 flex-shrink-0"
+                                                                    title="90度回転"
+                                                                >
+                                                                    <img
+                                                                        src="https://automadorizu-upload-891377349958.s3.ap-northeast-1.amazonaws.com/img/90.jpg"
+                                                                        alt="90度回転"
+                                                                        className="h-9 w-9"
+                                                                    />
+                                                                </button>
                                                             </div>
                                                         </div>
 
+                                                        {/* プレビューボックス */}
+                                                        <div className="w-full h-32 rounded-md flex items-center justify-center overflow-hidden relative">
+                                                            {(() => {
+                                                                const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === selectedElement.templateId);
+                                                                if (!template) return <div className="text-sm text-gray-500">設備を選択</div>;
+
+                                                                const actualWidth = selectedElement.width;
+                                                                const actualHeight = selectedElement.height;
+
+                                                                const boxSize = 128;
+                                                                const paddingRatio = 0.8;
+                                                                const itemMaxDim = Math.max(actualWidth, actualHeight);
+                                                                
+                                                                if (itemMaxDim === 0) return null;
+
+                                                                const displayScale = (boxSize * paddingRatio) / itemMaxDim;
+                                                                const displayWidth = actualWidth * displayScale;
+                                                                const displayHeight = actualHeight * displayScale;
+
+                                                                const backgroundGridSize = gridSize * displayScale;
+                                                                const gridStyle = {
+                                                                    backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
+                                                                    backgroundSize: `${backgroundGridSize}px ${backgroundGridSize}px`
+                                                                };
+                                                                
+                                                                const parentDiv = document.querySelector('.w-full.h-32.rounded-md');
+                                                                if (parentDiv) {
+                                                                    Object.assign(parentDiv.style, gridStyle);
+                                                                }
+
+                                                                if (template.src) {
+                                                                    return (
+                                                                        <div style={{
+                                                                            transform: `rotate(${selectedElement.rotation || 0}deg)`,
+                                                                            width: displayWidth,
+                                                                            height: displayHeight,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center'
+                                                                        }}>
+                                                                            <img src={template.src} style={{ width: '100%', height: '100%' }} />
+                                                                        </div>
+                                                                    );
+                                                                } else {
+                                                                    const viewBoxSize = Math.max(template.defaultSize, template.defaultSize / (template.aspectRatio || 1)) * 1.1;
+                                                                    return (
+                                                                        <svg
+                                                                            width={displayWidth}
+                                                                            height={displayHeight}
+                                                                            viewBox={`${-viewBoxSize / 2} ${-viewBoxSize / 2} ${viewBoxSize} ${viewBoxSize}`}
+                                                                            style={{ transform: `rotate(${selectedElement.rotation || 0}deg)`, overflow: 'visible' }}
+                                                                        >
+                                                                            <g transform={`scale(${displayWidth / template.defaultSize}, ${displayHeight / template.defaultSize})`}>
+                                                                                <path
+                                                                                    d={template.path}
+                                                                                    fill={template.defaultFill}
+                                                                                    stroke={template.defaultStroke}
+                                                                                    strokeWidth={template.defaultStrokeWidth}
+                                                                                    vectorEffect="non-scaling-stroke"
+                                                                                />
+                                                                            </g>
+                                                                        </svg>
+                                                                    );
+                                                                }
+                                                            })()}
+                                                        </div>
+
+                                                        {/* 削除ボタン */}
                                                         <div className="mt-2">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この設備を削除</button>
                                                         </div>
