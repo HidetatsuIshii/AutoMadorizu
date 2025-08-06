@@ -1380,6 +1380,7 @@
             const [tooltip, setTooltip] = useState({ visible: false, fading: false, x: 0, y: 0, message: '' });
             const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
             const [saveStatus, setSaveStatus] = useState('保存済み'); // '保存済み', '未保存', '保存中...', 'エラー'
+            const [madorizuName, setMadorizuName] = useState('読み込み中...');
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
