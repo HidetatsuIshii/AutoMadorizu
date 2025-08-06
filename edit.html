@@ -1379,6 +1379,7 @@
             const [snappedInfo, setSnappedInfo] = useState(null);
             const [tooltip, setTooltip] = useState({ visible: false, fading: false, x: 0, y: 0, message: '' });
             const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
+            const [saveStatus, setSaveStatus] = useState('保存済み'); // '保存済み', '未保存', '保存中...', 'エラー'
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -2828,6 +2829,72 @@
                 };
             }, []); // このuseEffectは初回レンダリング時のみ実行
 
+            useEffect(() => {
+                // データが変更されたら、まずステータスを「未保存」にする
+                // ただし、初回読み込み時や過去のデータがない場合は何もしない
+                if (historyState.past.length === 0) {
+                    return;
+                }
+                setSaveStatus('未保存');
+
+                // サーバーへデータを保存する非同期関数
+                const handleAutoSave = async (dataToSave) => {
+                    setSaveStatus('保存中...');
+
+                    // URLから編集中の図面IDを取得 (新規作成の場合はnull)
+                    const params = new URLSearchParams(window.location.search);
+                    const madorizuId = params.get('id');
+
+                    const API_ENDPOINT = 'https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1';
+
+                    try {
+                        const response = await fetch(API_ENDPOINT, {
+                            method: 'POST', // or 'PUT'
+                            headers: {
+                                'Content-Type': 'application/json',
+                                // 必要であれば認証トークンなどを追加
+                            },
+                            body: JSON.stringify({
+                                id: madorizuId, // 新規の場合はnull, 編集の場合はIDが入る
+                                drawingData: dataToSave, // 保存する描画データ
+                                // その他、ユーザー情報なども必要であれば追加
+                            }),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('サーバーへの保存に失敗しました。');
+                        }
+
+                        const result = await response.json();
+
+                        // 新規保存後、もしサーバーから新しいIDが返ってくる場合は、URLを書き換えておく
+                        // これにより、次回以降は上書き保存になる
+                        if (!madorizuId && result.id) {
+                            const newUrl = `${window.location.pathname}?id=${result.id}`;
+                            window.history.replaceState({}, '', newUrl);
+                        }
+
+                        setSaveStatus('保存済み');
+
+                    } catch (error) {
+                        console.error("自動保存エラー:", error);
+                        setSaveStatus('エラー');
+                    }
+                };
+
+                // 2秒間操作がなかったら handleAutoSave を実行するタイマー
+                const timerId = setTimeout(() => {
+                    handleAutoSave(historyState.present);
+                }, 2000); // 2000ミリ秒 = 2秒
+
+                // このuseEffectが再実行される前（つまりデータが再度変更された時）に
+                // 前のタイマーをクリアする（これがデバウンスのキモです）
+                return () => {
+                    clearTimeout(timerId);
+                };
+
+            }, [historyState.present]); // historyState.presentが変更されるたびにこのuseEffectが実行される
+
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
                 if (editorMode === 'create' || editorMode === 'continuous-create') return 'cursor-crosshair';
@@ -3225,7 +3292,16 @@
             return (
                 <div className="flex flex-col h-screen">
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
-                        <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
+                            <div className="flex items-center space-x-4"> {/* 左側の要素をまとめるdiv */}
+                                <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
+                                <div className={`text-sm transition-opacity duration-300 
+                                    ${saveStatus === '保存済み' ? 'text-gray-500' : 
+                                    saveStatus === '保存中...' ? 'text-blue-500 animate-pulse' : 
+                                    'text-gray-800 font-medium'
+                                    }`}>
+                                    {saveStatus}
+                                </div>
+                            </div>
                         <div className="flex items-center space-x-4">
                             <button onClick={() => window.location.href = 'index.html'} className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">TOPに戻る</button>
                             <button onClick={handleSaveImage} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">PNGで保存</button>
