@@ -2837,44 +2837,57 @@
                 }
                 setSaveStatus('未保存');
             
-                const handleAutoSave = async (dataToSave) => {
-                    setSaveStatus('保存中...');
+                useEffect(() => {
                     const params = new URLSearchParams(window.location.search);
                     const madorizuId = params.get('id');
-            
-                    // IDがなければ保存処理を中断
+                
                     if (!madorizuId) {
-                        console.error("保存対象のIDがありません。");
-                        setSaveStatus('エラー');
+                        alert('編集する間取り図が指定されていません。トップページに戻ります。');
+                        window.location.href = 'index.html';
                         return;
                     }
-            
-                    const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
-            
-                    try {
-                        const response = await fetch(API_ENDPOINT, {
-                            method: 'PUT', // ★★★ POSTではなくPUTを使用します ★★★
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                name: madorizuName,
-                                drawingData: dataToSave
-                            }),
-                        });
-                        if (!response.ok) throw new Error('サーバーへの保存に失敗しました。');
-                        setSaveStatus('保存済み');
-                    } catch (error) {
-                        console.error("自動保存エラー:", error);
-                        setSaveStatus('エラー');
-                    }
-                };
-            
-                // 2秒後に保存を実行
-                const timerId = setTimeout(() => {
-                    handleAutoSave(historyState.present);
-                }, 2000);
-            
-                // クリーンアップ関数
-                return () => clearTimeout(timerId);
+                
+                    const fetchMadorizuData = async () => {
+                        setSaveStatus('読み込み中...');
+                        const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
+                
+                        try {
+                            const response = await fetch(API_ENDPOINT);
+                            if (!response.ok) throw new Error('データの読み込みに失敗しました。');
+                
+                            const data = await response.json();
+                
+                            // ▼▼▼ ここからが修正箇所 ▼▼▼
+                            if (data && data.drawingData && data.drawingData.svgElements) {
+                                setMadorizuName(data.name || '無題の間取り図');
+                
+                                // historyStateの present に直接データをセットする
+                                setHistoryState(prevState => ({
+                                    ...prevState, // past や future は維持しつつ
+                                    present: {
+                                        ocrData: data.drawingData.ocrData || null,
+                                        svgElements: data.drawingData.svgElements || []
+                                    }
+                                }));
+                
+                                setSaveStatus('保存済み');
+                            } else {
+                                // データが空の場合の初期化
+                                setMadorizuName(data.name || '無題の間取り図');
+                                setHistoryState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
+                                setSaveStatus('保存済み');
+                            }
+                            // ▲▲▲ ここまでが修正箇所 ▲▲▲
+                
+                        } catch (error) {
+                            console.error("読み込みエラー:", error);
+                            setSaveStatus('読み込みエラー');
+                            alert(error.message);
+                        }
+                    };
+                
+                    fetchMadorizuData();
+                }, []); // 初回のみ実行
             
             }, [historyState.present, madorizuName]);
 
