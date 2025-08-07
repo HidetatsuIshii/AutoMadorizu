@@ -2832,6 +2832,50 @@
 
             // ▼▼▼ 自動保存用のuseEffect ▼▼▼
             useEffect(() => {
+                const params = new URLSearchParams(window.location.search);
+                const madorizuId = params.get('id');
+        
+                if (!madorizuId) {
+                    alert('編集する間取り図が指定されていません。トップページに戻ります。');
+                    window.location.href = 'index.html';
+                    return;
+                }
+        
+                const fetchMadorizuData = async () => {
+                    setSaveStatus('読み込み中...');
+                    const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
+        
+                    try {
+                        const response = await fetch(API_ENDPOINT);
+                        if (!response.ok) throw new Error('データの読み込みに失敗しました。');
+        
+                        const data = await response.json();
+        
+                        if (data && data.drawingData && data.drawingData.svgElements) {
+                            setMadorizuName(data.name || '無題の間取り図');
+                            setHistoryState(prevState => ({
+                                ...prevState,
+                                present: {
+                                    ocrData: data.drawingData.ocrData || null,
+                                    svgElements: data.drawingData.svgElements || []
+                                }
+                            }));
+                        } else {
+                            setMadorizuName(data.name || '無題の間取り図');
+                            setHistoryState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
+                        }
+                         setSaveStatus('保存済み');
+                    } catch (error) {
+                        console.error("読み込みエラー:", error);
+                        setSaveStatus('読み込みエラー');
+                        alert(error.message);
+                    }
+                };
+        
+                fetchMadorizuData();
+            }, []); // このuseEffectは初回のみ実行
+            
+            useEffect(() => {
                 if (historyState.past.length === 0) {
                     return;
                 }
