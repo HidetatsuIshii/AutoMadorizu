@@ -2830,65 +2830,44 @@
                 };
             }, []); // このuseEffectは初回レンダリング時のみ実行
 
+            // ▼▼▼ 自動保存用のuseEffect ▼▼▼
             useEffect(() => {
-                // データの変更を検知
                 if (historyState.past.length === 0) {
-                    return; // 初回読み込み時やデータがない場合は何もしない
+                    return;
                 }
                 setSaveStatus('未保存');
-            
-                useEffect(() => {
+        
+                const handleAutoSave = async (dataToSave) => {
+                    setSaveStatus('保存中...');
                     const params = new URLSearchParams(window.location.search);
                     const madorizuId = params.get('id');
-                
                     if (!madorizuId) {
-                        alert('編集する間取り図が指定されていません。トップページに戻ります。');
-                        window.location.href = 'index.html';
+                        console.error("保存対象のIDがありません。");
+                        setSaveStatus('エラー');
                         return;
                     }
-                
-                    const fetchMadorizuData = async () => {
-                        setSaveStatus('読み込み中...');
-                        const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
-                
-                        try {
-                            const response = await fetch(API_ENDPOINT);
-                            if (!response.ok) throw new Error('データの読み込みに失敗しました。');
-                
-                            const data = await response.json();
-                
-                            // ▼▼▼ ここからが修正箇所 ▼▼▼
-                            if (data && data.drawingData && data.drawingData.svgElements) {
-                                setMadorizuName(data.name || '無題の間取り図');
-                
-                                // historyStateの present に直接データをセットする
-                                setHistoryState(prevState => ({
-                                    ...prevState, // past や future は維持しつつ
-                                    present: {
-                                        ocrData: data.drawingData.ocrData || null,
-                                        svgElements: data.drawingData.svgElements || []
-                                    }
-                                }));
-                
-                                setSaveStatus('保存済み');
-                            } else {
-                                // データが空の場合の初期化
-                                setMadorizuName(data.name || '無題の間取り図');
-                                setHistoryState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
-                                setSaveStatus('保存済み');
-                            }
-                            // ▲▲▲ ここまでが修正箇所 ▲▲▲
-                
-                        } catch (error) {
-                            console.error("読み込みエラー:", error);
-                            setSaveStatus('読み込みエラー');
-                            alert(error.message);
-                        }
-                    };
-                
-                    fetchMadorizuData();
-                }, []); // 初回のみ実行
-            
+                    const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
+        
+                    try {
+                        const response = await fetch(API_ENDPOINT, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: madorizuName,
+                                drawingData: dataToSave
+                            }),
+                        });
+                        if (!response.ok) throw new Error('サーバーへの保存に失敗しました。');
+                        setSaveStatus('保存済み');
+                    } catch (error) {
+                        console.error("自動保存エラー:", error);
+                        setSaveStatus('エラー');
+                    }
+                };
+                const timerId = setTimeout(() => {
+                    handleAutoSave(historyState.present);
+                }, 2000);
+                return () => clearTimeout(timerId);
             }, [historyState.present, madorizuName]);
 
             const getCursorClass = () => {
