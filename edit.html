@@ -1382,6 +1382,7 @@
             const [saveStatus, setSaveStatus] = useState('保存済み'); // '保存済み', '未保存', '保存中...', 'エラー'
             const [madorizuName, setMadorizuName] = useState('読み込み中...');
             const [isEditingName, setIsEditingName] = useState(false);
+            const isInitialNameLoad = useRef(true);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -2876,44 +2877,52 @@
                 fetchMadorizuData();
             }, []); // このuseEffectは初回のみ実行
             
-            useEffect(() => {
-                if (historyState.past.length === 0) {
-                    return;
-                }
-                setSaveStatus('未保存');
-        
-                const handleAutoSave = async (dataToSave) => {
+            // ▼▼▼ 名前変更時の自動保存用useEffect ▼▼▼
+        useEffect(() => {
+            // 初回読み込み時は、名前がセットされても保存しない
+            if (isInitialNameLoad.current) {
+                isInitialNameLoad.current = false;
+                return;
+            }
+
+            // 名前が変更されたら「未保存」にする
+            setSaveStatus('未保存');
+
+            // 2秒後に保存処理を実行するタイマーを設定
+            const timerId = setTimeout(() => {
+                const saveData = async () => {
                     setSaveStatus('保存中...');
                     const params = new URLSearchParams(window.location.search);
                     const madorizuId = params.get('id');
                     if (!madorizuId) {
-                        console.error("保存対象のIDがありません。");
                         setSaveStatus('エラー');
                         return;
                     }
                     const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
-        
+
                     try {
                         const response = await fetch(API_ENDPOINT, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                name: madorizuName,
-                                drawingData: dataToSave
+                                name: madorizuName, // 更新された名前を使用
+                                drawingData: historyState.present // 描画データは現在の状態をそのまま使用
                             }),
                         });
                         if (!response.ok) throw new Error('サーバーへの保存に失敗しました。');
                         setSaveStatus('保存済み');
                     } catch (error) {
-                        console.error("自動保存エラー:", error);
+                        console.error("名前の自動保存エラー:", error);
                         setSaveStatus('エラー');
                     }
                 };
-                const timerId = setTimeout(() => {
-                    handleAutoSave(historyState.present);
-                }, 2000);
-                return () => clearTimeout(timerId);
-            }, [historyState.present, madorizuName]);
+                saveData();
+            }, 2000); // ユーザーの入力が終わるのを2秒待つ
+
+            // ユーザーがさらに入力を続けた場合、前回のタイマーはキャンセルする
+            return () => clearTimeout(timerId);
+
+        }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
