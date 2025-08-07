@@ -348,7 +348,7 @@
                                                     <div className="flex space-x-2 flex-wrap">
                                                         {/* ▼▼▼ 「編集」ボタンのonClickを変更 ▼▼▼ */}
                                                         <button onClick={() => window.location.href = `edit.html?id=${item.id}`} className="text-sm bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">✏️編集</button>
-                                                        <button className="text-sm text-red-500 hover:text-red-700 font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0">🗑️削除</button>
+                                                        <button onClick={() => handleDelete(item.id)} className="text-sm bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md mt-2 sm:mt-0 transition-colors">🗑️削除</button>
                                                     </div>
                                                 </li>
                                             )) : (
