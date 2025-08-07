@@ -1381,6 +1381,7 @@
             const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
             const [saveStatus, setSaveStatus] = useState('保存済み'); // '保存済み', '未保存', '保存中...', 'エラー'
             const [madorizuName, setMadorizuName] = useState('読み込み中...');
+            const [isEditingName, setIsEditingName] = useState(false);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -3308,11 +3309,28 @@
                 );
             };
 
-            return (
-                <div className="flex flex-col h-screen">
+            return (                    
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                             <div className="flex items-center space-x-4"> {/* 左側の要素をまとめるdiv */}
-                                <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
+                                {isEditingName ? (
+                                    <input
+                                        type="text"
+                                        value={madorizuName}
+                                        onChange={(e) => setMadorizuName(e.target.value)}
+                                        onBlur={() => setIsEditingName(false)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingName(false); }}
+                                        className="text-xl font-bold text-gray-800 ml-4 bg-gray-100 border-b-2 border-indigo-500 focus:outline-none"
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <span
+                                        onClick={() => setIsEditingName(true)}
+                                        className="text-xl font-bold text-gray-800 ml-4 cursor-pointer hover:bg-gray-100 p-1 rounded-md"
+                                        title="クリックして名前を編集"
+                                    >
+                                        {madorizuName}
+                                    </span>
+                                )}
                                 <div className={`text-sm transition-opacity duration-300 
                                     ${saveStatus === '保存済み' ? 'text-gray-500' : 
                                     saveStatus === '保存中...' ? 'text-blue-500 animate-pulse' : 
