@@ -1780,8 +1780,9 @@
                 // Base64データからBlobオブジェクトを生成
                 const fetchRes = await fetch(imageDataUrl);
                 const blob = await fetchRes.blob();
-                const fileName = `uploads/floorplan-${Date.now()}.png`;
-                const resultKey = `public/results/floorplan-${Date.now()}.png.json`;
+                const uniqueFileName = `floorplan-${Date.now()}.png`;
+                const fileName = `uploads/${uniqueFileName}`;
+                const resultKey = `public/results/${uniqueFileName}.json`;
             
                 // S3へのアップロード処理
                 try {
