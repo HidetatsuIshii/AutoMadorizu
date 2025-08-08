@@ -1321,6 +1321,105 @@
         );
 
         // --- メインエディタコンポーネント ---
+
+        const UploadModal = ({ isOpen, onClose, onSubmit }) => {
+            if (!isOpen) return null;
+        
+            const [localPreview, setLocalPreview] = useState(null);
+            const [localUseAi, setLocalUseAi] = useState(false);
+            const fileInputRef = useRef(null);
+        
+            const handleFileChange = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setLocalPreview(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        
+            const handleSubmit = () => {
+                if (localPreview) {
+                    onSubmit(localPreview, localUseAi);
+                }
+                onClose(); // モーダルを閉じる
+                // 次回のためにモーダルの状態をリセット
+                setLocalPreview(null);
+                setLocalUseAi(false);
+            };
+        
+            const handleClose = () => {
+                onClose();
+                setLocalPreview(null);
+                setLocalUseAi(false);
+            };
+        
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">下絵のアップロード</h3>
+                        <div className="space-y-4">
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current.click()}
+                                className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                ファイルを選択
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
+                            </button>
+        
+                            <div className="w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center">
+                                {localPreview ? (
+                                    <img src={localPreview} alt="プレビュー" className="max-h-full max-w-full object-contain" />
+                                ) : (
+                                    <span className="text-gray-500">プレビュー</span>
+                                )}
+                            </div>
+        
+                            <div className="flex items-center">
+                                <input
+                                    id="ai-checkbox"
+                                    type="checkbox"
+                                    checked={localUseAi}
+                                    onChange={(e) => setLocalUseAi(e.target.checked)}
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                />
+                                <label htmlFor="ai-checkbox" className="ml-2 block text-sm text-gray-900">
+                                    AIで読み取る
+                                </label>
+                            </div>
+                        </div>
+        
+                        <div className="mt-6 flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={!localPreview}
+                                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                決定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
         function Editor() {
             // --- ステート定義 ---
             const [isSidebarOpen, setSidebarOpen] = useState(true);
@@ -1383,6 +1482,8 @@
             const [madorizuName, setMadorizuName] = useState('読み込み中...');
             const [isEditingName, setIsEditingName] = useState(false);
             const isInitialNameLoad = useRef(true);
+            const [isUploadModalOpen, setUploadModalOpen] = useState(false);
+            const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -1477,45 +1578,110 @@
                 });
             }, [selectedElement]);
 
-
-            const handleFileChange = async (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const imageUrl = e.target.result;
-                        // 画像オブジェクトを作成してサイズを取得
-                        const img = new Image();
-                        img.onload = () => {
-                            // 画像とキャンバスのサイズを取得
-                            const imageWidth = img.naturalWidth;
-                            const imageHeight = img.naturalHeight;
-                            const canvasWidth = dimensions.width;
-                            const canvasHeight = dimensions.height;
-
-                            // キャンバスにフィットするようスケールを計算
-                            const scaleX = canvasWidth / imageWidth;
-                            const scaleY = canvasHeight / imageHeight;
-                            const fitScale = Math.min(scaleX, scaleY);
-                            setImagePosition({ x: 0, y: 0 }); // 位置をリセット
-
-                            // 画像URLと計算したスケールをstateにセット
-                            setImageUrl(imageUrl);
-                            setImageScale(fitScale);
-
-                            // OCRデータのセット（既存の処理）
-                            const newOcrData = DUMMY_OCR_DATA;
-                            setHistoryState(prevState => ({
-                                past: [...prevState.past, prevState.present],
-                                present: { ocrData: newOcrData, svgElements: prevState.present.svgElements },
-                                future: []
-                            }));
-                        };
-                        img.src = imageUrl;
+            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
+                const newElements = [];
+                // ダミーデータを使って間取り図要素を生成
+                aiData.Blocks.forEach((block, index) => {
+                    const { Width, Height, Left, Top } = block.Geometry.BoundingBox;
+                    const x1 = Left * dimensions.width;
+                    const y1 = Top * dimensions.height;
+                    const x2 = (Left + Width) * dimensions.width;
+                    const y2 = (Top + Height) * dimensions.height;
+            
+                    const points = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
+                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
+            
+                    // 部屋の塗りつぶし要素
+                    const spaceElement = {
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: block.type,
+                        groupId: subGroupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[block.type] || '#ffffff',
+                        backgroundPattern: 'none'
                     };
-                    reader.readAsDataURL(file);
+                    newElements.push(spaceElement);
+            
+                    // 壁要素
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
+                        newElements.push({
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
+                    }
+            
+                    // ラベル要素
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    newElements.push(labelElement);
+                });
+            
+                return newElements;
+            }, [dimensions]);
+
+            
+            
+            const handleModalSubmit = useCallback((imageDataUrl, useAi) => {
+                // 常に下絵はキャンバスに表示する
+                const img = new Image();
+                img.onload = () => {
+                    const imageWidth = img.naturalWidth;
+                    const imageHeight = img.naturalHeight;
+                    const canvasWidth = dimensions.width;
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+            
+                    setImageUrl(imageDataUrl);
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
+                };
+                img.src = imageDataUrl;
+            
+                if (useAi) {
+                    // AIで読み取る場合の処理
+                    const aiGeneratedElements = generateDrawingFromAi(DUMMY_OCR_DATA, dimensions);
+            
+                    // 生成した要素を履歴に追加
+                    setHistoryState(prev => ({
+                        past: [...prev.past, prev.present],
+                        present: { ...prev.present, svgElements: [...prev.present.svgElements, ...aiGeneratedElements] },
+                        future: []
+                    }));
                 }
-            };
+            
+                // OCRデータをダミーでセット（既存のロジックを流用）
+                 const newOcrData = DUMMY_OCR_DATA;
+                 setHistoryState(prevState => ({
+                     ...prevState,
+                     present: { ...prevState.present, ocrData: newOcrData },
+                 }));
+            
+            }, [dimensions, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -3320,6 +3486,11 @@
 
             return (                    
                 <div className="flex flex-col h-screen">
+                    <UploadModal
+                        isOpen={isUploadModalOpen}
+                        onClose={() => setUploadModalOpen(false)}
+                        onSubmit={handleModalSubmit}
+                    />
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                         <div className="flex items-center space-x-4">
                             {isEditingName ? (
@@ -3962,9 +4133,12 @@
                                 <div className={`accordion-content ${isDisplaySettingsOpen ? 'accordion-content-open' : ''}`}>
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="cursor-pointer block w-full text-sm text-center text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold py-2 px-4 rounded-full">
-                                                下絵を選択<input type="file" onChange={handleFileChange} accept="image/*" className="hidden"/>
-                                            </label>
+                                            <button 
+                                                onClick={() => setUploadModalOpen(true)}
+                                                className="cursor-pointer block w-full text-sm text-center text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold py-2 px-4 rounded-full"
+                                            >
+                                                下絵をアップロード
+                                            </button>
                                         </div>
                                         {imageUrl && (
                                             <>
