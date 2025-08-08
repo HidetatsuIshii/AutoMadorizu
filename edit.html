@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1588.0.min.js"></script>
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -1321,7 +1322,7 @@
         );
 
         // --- メインエディタコンポーネント ---
-        const UploadModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
+        const UploadModal = ({ isOpen, onClose, onSubmit, isLoading, loadingMessage }) => {
             if (!isOpen) return null;
         
             const [localPreview, setLocalPreview] = useState(null);
@@ -1344,7 +1345,7 @@
                     onSubmit(localPreview, localUseAi);
                 }
             };
-            
+        
             const handleClose = () => {
                 onClose();
                 setLocalPreview(null);
@@ -1361,7 +1362,7 @@
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                <p className="mt-4 text-gray-600">AIで解析中...</p>
+                                <p className="mt-4 text-gray-600">{loadingMessage}</p>
                             </div>
                         ) : (
                             <>
@@ -1398,7 +1399,7 @@
                                             className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                                         />
                                         <label htmlFor="ai-checkbox" className="ml-2 block text-sm text-gray-900">
-                                            AIで読み取る
+                                            AIで読み取る (Amazon Textract)
                                         </label>
                                     </div>
                                 </div>
@@ -1491,6 +1492,7 @@
             const isInitialNameLoad = useRef(true);
             const [isUploadModalOpen, setUploadModalOpen] = useState(false);
             const [isLoading, setIsLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -1731,8 +1733,7 @@
             
             
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
-                setUploadModalOpen(false); // 先にモーダルを閉じる
-            
+                // 下絵の表示は共通処理
                 const img = new Image();
                 img.onload = () => {
                     const imageWidth = img.naturalWidth;
@@ -1742,28 +1743,113 @@
                     const scaleX = canvasWidth / imageWidth;
                     const scaleY = canvasHeight / imageHeight;
                     const fitScale = Math.min(scaleX, scaleY);
-            
+                    
                     setImageUrl(imageDataUrl);
                     setImageScale(fitScale);
                     setImagePosition({ x: 0, y: 0 });
                 };
                 img.src = imageDataUrl;
             
-                if (useAi) {
-                    setIsLoading(true);
-                    const aiData = await analyzeImageWithAI(imageDataUrl);
-                    setIsLoading(false);
-            
-                    if (aiData && aiData.Blocks) {
-                        const aiGeneratedElements = generateDrawingFromAi(aiData, dimensions);
-                        setHistoryState(prev => ({
-                            past: [...prev.past, prev.present],
-                            present: { ...prev.present, svgElements: [...prev.present.svgElements, ...aiGeneratedElements], ocrData: aiData },
-                            future: []
-                        }));
-                    }
+                if (!useAi) {
+                    setUploadModalOpen(false);
+                    return; // AIを使わない場合はここで処理終了
                 }
-            }, [dimensions, generateDrawingFromAi]);
+            
+                // --- ここからAI (Textract) 処理 ---
+                setIsLoading(true);
+                setLoadingMessage('画像をアップロード中...');
+            
+                // --- AWS設定 (重要：ご自身の環境に合わせてください) ---
+                const BUCKET_NAME = 'automadorizu-upload-891377349958'; // LambdaがトリガーされるS3バケット名
+                const REGION = 'ap-northeast-1'; // S3バケットのリージョン
+                const COGNITO_IDENTITY_POOL_ID = 'ap-northeast-1:f7a257e9-3de2-4d6a-8a12-3241e6f9e4b1'; // Cognito Identity Pool ID
+            
+                // Cognitoから一時的な認証情報を取得
+                AWS.config.update({
+                    region: REGION,
+                    credentials: new AWS.CognitoIdentityCredentials({
+                        IdentityPoolId: COGNITO_IDENTITY_POOL_ID
+                    })
+                });
+            
+                const s3 = new AWS.S3({
+                    apiVersion: '2006-03-01',
+                    params: { Bucket: BUCKET_NAME }
+                });
+            
+                // Base64データからBlobオブジェクトを生成
+                const fetchRes = await fetch(imageDataUrl);
+                const blob = await fetchRes.blob();
+                const fileName = `uploads/floorplan-${Date.now()}.png`;
+                const resultKey = `public/results/floorplan-${Date.now()}.png.json`;
+            
+                // S3へのアップロード処理
+                try {
+                    await s3.putObject({
+                        Key: fileName,
+                        Body: blob,
+                        ContentType: blob.type
+                    }).promise();
+                    
+                    setLoadingMessage('AIで解析中...');
+            
+                    // --- 結果ファイルのポーリング処理 ---
+                    const pollForResult = async (key, retries = 20, delay = 2000) => {
+                        for (let i = 0; i < retries; i++) {
+                            try {
+                                const data = await s3.getObject({ Key: key }).promise();
+                                return JSON.parse(data.Body.toString('utf-8'));
+                            } catch (err) {
+                                if (err.code === 'NoSuchKey') {
+                                    await new Promise(resolve => setTimeout(resolve, delay));
+                                } else {
+                                    throw err;
+                                }
+                            }
+                        }
+                        throw new Error("OCR処理がタイムアウトしました。");
+                    };
+            
+                    const ocrResult = await pollForResult(resultKey);
+                    
+                    // --- Textractの結果を解析して描画 ---
+                    const newElements = [];
+                    ocrResult.Blocks.forEach(block => {
+                        if (block.BlockType === 'LINE') {
+                            const { Width, Height, Left, Top } = block.Geometry.BoundingBox;
+                            const x = (Left + Width / 2) * dimensions.width;
+                            const y = (Top + Height / 2) * dimensions.height;
+                            
+                            newElements.push({
+                                id: `text-ai-${block.Id}`,
+                                type: 'text',
+                                x: (x / dimensions.width) * 100,
+                                y: (y / dimensions.height) * 100,
+                                text: block.Text,
+                                color: '#000000',
+                                backgroundColor: 'none',
+                                fontSize: 14,
+                                fontFamily: 'sans-serif',
+                                textAlign: 'center',
+                            });
+                        }
+                    });
+                    
+                    setHistoryState(prev => ({
+                        past: [...prev.past, prev.present],
+                        present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements], ocrData: ocrResult },
+                        future: []
+                    }));
+            
+                } catch (err) {
+                    console.error("AWS処理エラー:", err);
+                    alert(`エラーが発生しました: ${err.message}`);
+                } finally {
+                    setIsLoading(false);
+                    setUploadModalOpen(false);
+                }
+            
+            }, [dimensions]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -3573,6 +3659,7 @@
                         onClose={() => setUploadModalOpen(false)}
                         onSubmit={handleModalSubmit}
                         isLoading={isLoading}
+                        loadingMessage={loadingMessage}
                     />
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                         <div className="flex items-center space-x-4">
