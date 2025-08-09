@@ -1589,16 +1589,18 @@
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
+                
+
                 const prompt = `あなたはプロの間取り図解析エキスパートです。提供された間取り図の画像を精密に分析し、壁で区切られた各部屋やスペースを正確に識別してください。
-
-それぞれのスペースについて、以下の情報を含むJSONオブジェクトの配列を生成してください。
-
-1. type: 部屋の種類（例: "LDK", "洋室", "和室", "浴室", "トイレ", "洗面所", "収納", "WIC", "玄関", "廊下", "バルコニー"）。
-2. Text: 部屋の内部に書かれているテキストラベル全体（例: "LDK 12.5帖", "洋室 6.0帖"）。
-3. Geometry: 部屋の形状を定義するオブジェクト。
-   - BoundingBox: 部屋の形状を完全に内包する、最もタイトなバウンディングボックス。座標は画像全体に対する正規化されたパーセンテージ（0.0～1.0）で、Top, Left, Width, Height を含みます。これはテキストラベルの範囲ではなく、部屋全体の最大範囲を示す必要があります。
-
-分析の際は、壁の線を境界として認識し、L字型などの複雑な形状の部屋であっても、その部屋全体の範囲を正確にBoundingBoxで囲ってください。`;
+                
+                それぞれのスペースについて、以下の情報を含むJSONオブジェクトの配列を生成してください。
+                
+                1.  type: 部屋の種類（例: "LDK", "洋室", "浴室"）。
+                2.  Text: 部屋の内部に書かれているテキストラベル全体（例: "LDK 12.5帖"）。
+                3.  Geometry: 部屋の形状を定義するオブジェクト。
+                    - Polygon: 部屋の輪郭を形成する頂点の配列。各頂点は、正規化された { "x": number, "y": number } 形式のオブジェクトです。頂点は壁の内側に沿って、必ず時計回りまたは反時計回りの順序で並べてください。
+                
+                分析の際は、壁の線を境界として正確にトレースし、L字型などの複雑な形状の部屋もその形状通りに頂点データを作成してください。`;
 
                 const payload = {
                     contents: [{
@@ -1617,23 +1619,23 @@
                                     items: {
                                         type: "OBJECT",
                                         properties: {
-                                            "type": { "type": "STRING" },
-                                            "Text": { "type": "STRING" },
+                                            // ... type, Text ...
                                             "Geometry": {
                                                 type: "OBJECT",
                                                 properties: {
-                                                    "BoundingBox": {
-                                                        type: "OBJECT",
-                                                        properties: {
-                                                            "Width": { "type": "NUMBER" },
-                                                            "Height": { "type": "NUMBER" },
-                                                            "Left": { "type": "NUMBER" },
-                                                            "Top": { "type": "NUMBER" }
-                                                        },
-                                                        required: ["Width", "Height", "Left", "Top"]
+                                                    "Polygon": { // ← BoundingBoxからPolygonに変更
+                                                        type: "ARRAY",
+                                                        items: {
+                                                            type: "OBJECT",
+                                                            properties: {
+                                                                "x": { "type": "NUMBER" },
+                                                                "y": { "type": "NUMBER" }
+                                                            },
+                                                            required: ["x", "y"]
+                                                        }
                                                     }
                                                 },
-                                                required: ["BoundingBox"]
+                                                required: ["Polygon"]
                                             }
                                         },
                                         required: ["type", "Text", "Geometry"]
