@@ -1680,8 +1680,8 @@
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
                 const newElements = [];
                 aiData.Blocks.forEach((block, index) => {
-                    // ★AIから受け取ったPolygonデータをピクセル座標に変換
-                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return; // 頂点が3つ未満ならスキップ
+                    // AIから受け取ったPolygonデータ（頂点リスト）をピクセル座標に変換します
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return; // 頂点が3つ未満の不正なデータはスキップ
             
                     const points = block.Geometry.Polygon.map(p => ({
                         x: p.x * dimensions.width,
@@ -1690,7 +1690,7 @@
             
                     const subGroupId = `space-group-ai-${Date.now()}-${index}`;
             
-                    // 部屋の塗りつぶし要素
+                    // 部屋の塗りつぶし要素を作成
                     const spaceElement = {
                         id: subGroupId,
                         type: 'space',
@@ -1703,10 +1703,10 @@
                     };
                     newElements.push(spaceElement);
             
-                    // 壁要素
+                    // 頂点データから壁要素を作成
                     for (let i = 0; i < points.length; i++) {
                         const p1 = points[i];
-                        const p2 = points[(i + 1) % points.length];
+                        const p2 = points[(i + 1) % points.length]; // 最後の点と最初の点を結ぶ
                         newElements.push({
                             id: `wall-ai-${Date.now()}-${index}-${i}`,
                             type: 'wall',
@@ -1720,7 +1720,7 @@
                         });
                     }
             
-                    // ラベル要素
+                    // 部屋のラベル要素を作成
                     const centroid = getPolygonCentroid(points);
                     const labelElement = {
                         id: `text-ai-${Date.now()}-${index}`,
@@ -1735,53 +1735,6 @@
                         fontFamily: 'sans-serif',
                         textAlign: 'center',
                     };
-
-                    // 部屋の塗りつぶし要素
-                    const spaceElement = {
-                        id: subGroupId,
-                        type: 'space',
-                        shape: 'polygon',
-                        spaceType: block.type,
-                        groupId: subGroupId,
-                        points: points.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[block.type] || '#ffffff',
-                        backgroundPattern: 'none'
-                    };
-                    newElements.push(spaceElement);
-            
-                    // 壁要素
-                    for (let i = 0; i < points.length; i++) {
-                        const p1 = points[i];
-                        const p2 = points[(i + 1) % points.length];
-                        newElements.push({
-                            id: `wall-ai-${Date.now()}-${index}-${i}`,
-                            type: 'wall',
-                            groupId: subGroupId,
-                            edgeIndex: i,
-                            x1: p1.x, y1: p1.y,
-                            x2: p2.x, y2: p2.y,
-                            color: DEFAULT_STROKE_COLOR,
-                            strokeWidth: DEFAULT_STROKE_WIDTH,
-                            lineStyle: 'solid'
-                        });
-                    }
-            
-                    // ラベル要素
-                    const centroid = getPolygonCentroid(points);
-                    const labelElement = {
-                        id: `text-ai-${Date.now()}-${index}`,
-                        type: 'text',
-                        groupId: subGroupId,
-                        x: (centroid.x / dimensions.width) * 100,
-                        y: (centroid.y / dimensions.height) * 100,
-                        text: block.Text,
-                        color: '#000000',
-                        backgroundColor: 'none',
-                        fontSize: 16,
-                        fontFamily: 'sans-serif',
-                        textAlign: 'center',
-                    };
-                    
                     newElements.push(labelElement);
                 });
             
