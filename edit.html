@@ -1693,8 +1693,8 @@
                 }
             };
             
-            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!originalImageDimensions) return []; // 元画像サイズがなければ処理を中断
+            const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
+                if (!originalImageDimensions) return []; 
             
                 // 1. キャンバスと元画像のサイズを取得
                 const canvasWidth = dimensions.width;
@@ -1777,18 +1777,20 @@
                 });
             
                 return newElements;
-            }, [dimensions, originalImageDimensions]);
+            }, [dimensions]); 
 
             
             
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
                 // 下絵の表示は共通処理
                 const img = new Image();
-                img.onload = () => {
+                img.onload = async () => { // ★ img.onload を async 関数に変更
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
-                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
                     
+                    // ★ Stateに保存（これはUIの他の部分で使う可能性があるので残します）
+                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+            
                     const canvasWidth = dimensions.width;
                     const canvasHeight = dimensions.height;
                     const scaleX = canvasWidth / imageWidth;
@@ -1798,74 +1800,45 @@
                     setImageUrl(imageDataUrl);
                     setImageScale(fitScale);
                     setImagePosition({ x: 0, y: 0 });
+            
+                    if (useAi) {
+                        // ★ AI解析から描画までの処理一式を、img.onload の中に移動
+                        setIsLoading(true);
+                        setLoadingMessage('AIで間取り図を解析中...');
+            
+                        try {
+                            const aiResult = await analyzeImageWithAI(imageDataUrl);
+            
+                            if (aiResult && aiResult.Blocks) {
+                                // ★ generateDrawingFromAi に、Stateではなく直接画像のサイズを渡す
+                                const newElements = generateDrawingFromAi(aiResult, dimensions, { width: imageWidth, height: imageHeight });
+                                
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: { 
+                                        ...prev.present, 
+                                        svgElements: [...prev.present.svgElements, ...newElements], 
+                                        ocrData: aiResult 
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                console.error("AIからの応答がnullまたは不正な形式です。");
+                                alert("AIによる解析に失敗しました。画像の形式を変えるか、時間をおいて再度お試しください。");
+                            }
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
+                    } else {
+                         setUploadModalOpen(false);
+                    }
                 };
                 img.src = imageDataUrl;
             
-                if (!useAi) {
-                    setUploadModalOpen(false);
-                    return; // AIを使わない場合はここで処理終了
-                }
-            
-                // --- ここからAI (Textract) 処理 ---
-                setIsLoading(true);
-                setLoadingMessage('画像をアップロード中...');
-            
-                // --- AWS設定 (重要：ご自身の環境に合わせてください) ---
-                const BUCKET_NAME = 'automadorizu-upload-seoul-891377349959'; // LambdaがトリガーされるS3バケット名
-                const REGION = 'ap-northeast-2'; // S3バケットのリージョン
-                const COGNITO_IDENTITY_POOL_ID = 'ap-northeast-2:e1a0623a-b4df-42ff-aec5-ae12c2e38257'; // Cognito Identity Pool ID
-            
-                // Cognitoから一時的な認証情報を取得
-                AWS.config.update({
-                    region: REGION,
-                    credentials: new AWS.CognitoIdentityCredentials({
-                        IdentityPoolId: COGNITO_IDENTITY_POOL_ID
-                    })
-                });
-            
-                const s3 = new AWS.S3({
-                    apiVersion: '2006-03-01',
-                    params: { Bucket: BUCKET_NAME }
-                });
-            
-                // Base64データからBlobオブジェクトを生成
-                const fetchRes = await fetch(imageDataUrl);
-                const blob = await fetchRes.blob();
-                const uniqueFileName = `floorplan-${Date.now()}.png`;
-                const fileName = `uploads/${uniqueFileName}`;
-                const resultKey = `public/results/${uniqueFileName}.json`;
-            
-                try {
-                    // 1. Gemini APIで画像を解析
-                    const aiResult = await analyzeImageWithAI(imageDataUrl);
-                
-                    // 2. 結果が存在すれば、描画要素を生成
-                    if (aiResult && aiResult.Blocks) {
-                        const newElements = generateDrawingFromAi(aiResult, dimensions);
-                        
-                        // 3. 生成された要素（空間、壁、テキスト）をキャンバスに追加
-                        setHistoryState(prev => ({
-                            past: [...prev.past, prev.present],
-                            present: { 
-                                ...prev.present, 
-                                svgElements: [...prev.present.svgElements, ...newElements], 
-                                ocrData: aiResult 
-                            },
-                            future: []
-                        }));
-                    } else {
-                        // AIからの結果が不正な場合のフォールバック
-                        console.error("AIからの応答がnullまたは不正な形式です。");
-                        alert("AIによる解析に失敗しました。画像の形式を変えるか、時間をおいて再度お試しください。");
-                    }
-                
-                } catch (err) {
-                    console.error("AI処理エラー:", err);
-                    alert(`エラーが発生しました: ${err.message}`);
-                } finally {
-                    setIsLoading(false);
-                    setUploadModalOpen(false);
-                }
             }, [dimensions]);
 
             const getCanvasCoords = useCallback((event) => {
