@@ -1493,6 +1493,7 @@
             const [isUploadModalOpen, setUploadModalOpen] = useState(false);
             const [isLoading, setIsLoading] = useState(false);
             const [loadingMessage, setLoadingMessage] = useState('');
+            const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -1693,14 +1694,36 @@
             };
             
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
+                if (!originalImageDimensions) return []; // 元画像サイズがなければ処理を中断
+            
+                // 1. キャンバスと元画像のサイズを取得
+                const canvasWidth = dimensions.width;
+                const canvasHeight = dimensions.height;
+                const originalWidth = originalImageDimensions.width;
+                const originalHeight = originalImageDimensions.height;
+            
+                // 2. 下絵がキャンバスに合わせてどのようにリサイズされたかを計算
+                //    （handleModalSubmit内のimg.onloadのロジックと同じ計算です）
+                const scaleX = canvasWidth / originalWidth;
+                const scaleY = canvasHeight / originalHeight;
+                const fitScale = Math.min(scaleX, scaleY);
+            
+                // 3. キャンバス上に表示されている下絵の実際のサイズ
+                const displayedWidth = originalWidth * fitScale;
+                const displayedHeight = originalHeight * fitScale;
+            
+                // 4. 下絵が中央に配置されているため、キャンバスの左上からの余白（オフセット）を計算
+                const offsetX = (canvasWidth - displayedWidth) / 2;
+                const offsetY = (canvasHeight - displayedHeight) / 2;
+                
                 const newElements = [];
                 aiData.Blocks.forEach((block, index) => {
                     // AIから受け取ったPolygonデータ（頂点リスト）をピクセル座標に変換します
                     if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return; // 頂点が3つ未満の不正なデータはスキップ
             
                     const points = block.Geometry.Polygon.map(p => ({
-                        x: p.x * dimensions.width,
-                        y: p.y * dimensions.height
+                        x: (p.x * displayedWidth) + offsetX, // 元の計算式から変更
+                        y: (p.y * displayedHeight) + offsetY  // 元の計算式から変更
                     }));
             
                     const subGroupId = `space-group-ai-${Date.now()}-${index}`;
@@ -1754,7 +1777,7 @@
                 });
             
                 return newElements;
-            }, [dimensions]);
+            }, [dimensions, originalImageDimensions]);
 
             
             
@@ -1764,6 +1787,8 @@
                 img.onload = () => {
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
+                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+                    
                     const canvasWidth = dimensions.width;
                     const canvasHeight = dimensions.height;
                     const scaleX = canvasWidth / imageWidth;
