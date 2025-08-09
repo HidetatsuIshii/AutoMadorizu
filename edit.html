@@ -1589,19 +1589,17 @@
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
-                
-
                 const prompt = `あなたはプロの間取り図解析エキスパートです。提供された間取り図の画像を精密に分析し、壁で区切られた各部屋やスペースを正確に識別してください。
-                
-                それぞれのスペースについて、以下の情報を含むJSONオブジェクトの配列を生成してください。
-                
-                1.  type: 部屋の種類（例: "LDK", "洋室", "浴室"）。
-                2.  Text: 部屋の内部に書かれているテキストラベル全体（例: "LDK 12.5帖"）。
-                3.  Geometry: 部屋の形状を定義するオブジェクト。
-                    - Polygon: 部屋の輪郭を形成する頂点の配列。各頂点は、正規化された { "x": number, "y": number } 形式のオブジェクトです。頂点は壁の内側に沿って、必ず時計回りまたは反時計回りの順序で並べてください。
-                
-                分析の際は、壁の線を境界として正確にトレースし、L字型などの複雑な形状の部屋もその形状通りに頂点データを作成してください。`;
 
+それぞれのスペースについて、以下の情報を含むJSONオブジェクトの配列を生成してください。
+
+1.  type: 部屋の種類（例: "LDK", "洋室", "浴室"）。
+2.  Text: 部屋の内部に書かれているテキストラベル全体（例: "LDK 12.5帖"）。
+3.  Geometry: 部屋の形状を定義するオブジェクト。
+- Polygon: 部屋の輪郭を形成する頂点の配列。各頂点は、正規化された { "x": number, "y": number } 形式のオブジェクトです。頂点は壁の内側に沿って、必ず時計回りまたは反時計回りの順序で並べてください。
+
+分析の際は、壁の線を境界として正確にトレースし、L字型などの複雑な形状の部屋もその形状通りに頂点データを作成してください。`;
+            
                 const payload = {
                     contents: [{
                         parts: [
@@ -1611,6 +1609,7 @@
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
+                        // ★エラーの原因箇所を修正した完全なスキーマ
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -1619,11 +1618,12 @@
                                     items: {
                                         type: "OBJECT",
                                         properties: {
-                                            // ... type, Text ...
+                                            "type": { "type": "STRING" },
+                                            "Text": { "type": "STRING" },
                                             "Geometry": {
                                                 type: "OBJECT",
                                                 properties: {
-                                                    "Polygon": { // ← BoundingBoxからPolygonに変更
+                                                    "Polygon": {
                                                         type: "ARRAY",
                                                         items: {
                                                             type: "OBJECT",
