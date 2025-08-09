@@ -1784,72 +1784,37 @@
                 const fileName = `uploads/${uniqueFileName}`;
                 const resultKey = `public/results/${uniqueFileName}.json`;
             
-                // S3へのアップロード処理
                 try {
-                    await s3.putObject({
-                        Key: fileName,
-                        Body: blob,
-                        ContentType: blob.type
-                    }).promise();
-                    
-                    setLoadingMessage('AIで解析中...');
-            
-                    // --- 結果ファイルのポーリング処理 ---
-                    const pollForResult = async (key, retries = 20, delay = 2000) => {
-                        for (let i = 0; i < retries; i++) {
-                            try {
-                                const data = await s3.getObject({ Key: key }).promise();
-                                return JSON.parse(data.Body.toString('utf-8'));
-                            } catch (err) {
-                                if (err.code === 'NoSuchKey') {
-                                    await new Promise(resolve => setTimeout(resolve, delay));
-                                } else {
-                                    throw err;
-                                }
-                            }
-                        }
-                        throw new Error("OCR処理がタイムアウトしました。");
-                    };
-            
-                    const ocrResult = await pollForResult(resultKey);
-                    
-                    // --- Textractの結果を解析して描画 ---
-                    const newElements = [];
-                    ocrResult.Blocks.forEach(block => {
-                        if (block.BlockType === 'LINE') {
-                            const { Width, Height, Left, Top } = block.Geometry.BoundingBox;
-                            const x = (Left + Width / 2) * dimensions.width;
-                            const y = (Top + Height / 2) * dimensions.height;
-                            
-                            newElements.push({
-                                id: `text-ai-${block.Id}`,
-                                type: 'text',
-                                x: (x / dimensions.width) * 100,
-                                y: (y / dimensions.height) * 100,
-                                text: block.Text,
-                                color: '#000000',
-                                backgroundColor: 'none',
-                                fontSize: 14,
-                                fontFamily: 'sans-serif',
-                                textAlign: 'center',
-                            });
-                        }
-                    });
-                    
-                    setHistoryState(prev => ({
-                        past: [...prev.past, prev.present],
-                        present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements], ocrData: ocrResult },
-                        future: []
-                    }));
-            
+                    // 1. Gemini APIで画像を解析
+                    const aiResult = await analyzeImageWithAI(imageDataUrl);
+                
+                    // 2. 結果が存在すれば、描画要素を生成
+                    if (aiResult && aiResult.Blocks) {
+                        const newElements = generateDrawingFromAi(aiResult, dimensions);
+                        
+                        // 3. 生成された要素（空間、壁、テキスト）をキャンバスに追加
+                        setHistoryState(prev => ({
+                            past: [...prev.past, prev.present],
+                            present: { 
+                                ...prev.present, 
+                                svgElements: [...prev.present.svgElements, ...newElements], 
+                                ocrData: aiResult 
+                            },
+                            future: []
+                        }));
+                    } else {
+                        // AIからの結果が不正な場合のフォールバック
+                        console.error("AIからの応答がnullまたは不正な形式です。");
+                        alert("AIによる解析に失敗しました。画像の形式を変えるか、時間をおいて再度お試しください。");
+                    }
+                
                 } catch (err) {
-                    console.error("AWS処理エラー:", err);
+                    console.error("AI処理エラー:", err);
                     alert(`エラーが発生しました: ${err.message}`);
                 } finally {
                     setIsLoading(false);
                     setUploadModalOpen(false);
                 }
-            
             }, [dimensions]);
 
             const getCanvasCoords = useCallback((event) => {
