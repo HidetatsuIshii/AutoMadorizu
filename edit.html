@@ -1774,16 +1774,12 @@
                 return newElements;
             }, [dimensions]); 
 
-            
-            
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
-                // 下絵の表示は共通処理
                 const img = new Image();
-                img.onload = async () => { // img.onload を async 関数に変更
+                img.onload = async () => {
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
             
-                    // Stateに保存（これはUIの他の部分で使う可能性があるので残します）
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
             
                     const canvasWidth = dimensions.width;
@@ -1791,58 +1787,22 @@
                     const scaleX = canvasWidth / imageWidth;
                     const scaleY = canvasHeight / imageHeight;
                     const fitScale = Math.min(scaleX, scaleY);
-                    
+            
                     setImageUrl(imageDataUrl);
                     setImageScale(fitScale);
                     setImagePosition({ x: 0, y: 0 });
             
                     if (useAi) {
-                        // AI解析から描画までの処理一式を、img.onload の中に移動
                         setIsLoading(true);
                         setLoadingMessage('AIで間取り図を解析中...');
             
                         try {
-                            // 1. Gemini APIで画像を解析
-                            //const aiResult = await analyzeImageWithAI(imageDataUrl);
-
-                            const DUMMY_AI_RESPONSE = {
-                                "Blocks": [
-                                    {
-                                        "type": "LDK",
-                                        "Text": "LDK 12.5帖",
-                                        "Geometry": {
-                                            "Polygon": [
-                                                { "x": 0.1, "y": 0.1 },
-                                                { "x": 0.5, "y": 0.1 },
-                                                { "x": 0.5, "y": 0.6 },
-                                                { "x": 0.1, "y": 0.6 }
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "type": "洋室",
-                                        "Text": "洋室 6.0帖",
-                                        "Geometry": {
-                                            "Polygon": [
-                                                { "x": 0.6, "y": 0.2 },
-                                                { "x": 0.9, "y": 0.2 },
-                                                { "x": 0.9, "y": 0.5 },
-                                                { "x": 0.6, "y": 0.5 }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            };
-                            const aiResult = DUMMY_AI_RESPONSE;
-                            console.log("ダミーデータで描画します:", aiResult);
+                            // 実際のAI呼び出し
+                            const aiResult = await analyzeImageWithAI(imageDataUrl);
             
-                            // 2. 結果が存在すれば、描画要素を生成
                             if (aiResult && aiResult.Blocks) {
-                                // 3. generateDrawingFromAi に、Stateではなく直接画像のサイズを渡す
                                 const newElements = generateDrawingFromAi(aiResult, dimensions, { width: imageWidth, height: imageHeight });
-                                console.log("生成されたSVG要素:", newElements);
-                                
-                                // 4. 生成された要素（空間、壁、テキスト）をキャンバスに追加
+            
                                 setHistoryState(prev => ({
                                     past: [...prev.past, prev.present],
                                     present: { 
@@ -1869,7 +1829,7 @@
                 };
                 img.src = imageDataUrl;
             
-            }, [dimensions]);
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
