@@ -1679,15 +1679,15 @@
             
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
                 const newElements = [];
-                // ダミーデータを使って間取り図要素を生成
                 aiData.Blocks.forEach((block, index) => {
-                    const { Width, Height, Left, Top } = block.Geometry.BoundingBox;
-                    const x1 = Left * dimensions.width;
-                    const y1 = Top * dimensions.height;
-                    const x2 = (Left + Width) * dimensions.width;
-                    const y2 = (Top + Height) * dimensions.height;
+                    // ★AIから受け取ったPolygonデータをピクセル座標に変換
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return; // 頂点が3つ未満ならスキップ
             
-                    const points = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
+                    const points = block.Geometry.Polygon.map(p => ({
+                        x: p.x * dimensions.width,
+                        y: p.y * dimensions.height
+                    }));
+            
                     const subGroupId = `space-group-ai-${Date.now()}-${index}`;
             
                     // 部屋の塗りつぶし要素
@@ -1735,6 +1735,53 @@
                         fontFamily: 'sans-serif',
                         textAlign: 'center',
                     };
+
+                    // 部屋の塗りつぶし要素
+                    const spaceElement = {
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: block.type,
+                        groupId: subGroupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[block.type] || '#ffffff',
+                        backgroundPattern: 'none'
+                    };
+                    newElements.push(spaceElement);
+            
+                    // 壁要素
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
+                        newElements.push({
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
+                    }
+            
+                    // ラベル要素
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    
                     newElements.push(labelElement);
                 });
             
