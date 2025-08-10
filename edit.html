@@ -3443,50 +3443,53 @@ ${JSON.stringify(exampleData10)}
                 img.onload = async () => {
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
-            
+
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
-            
+
                     const canvasWidth = dimensions.width;
-                    const canvasHeight = dimensions.height;
-                    const scaleX = canvasWidth / imageWidth;
-                    const scaleY = canvasHeight / imageHeight;
-                    const fitScale = Math.min(scaleX, scaleY);
-            
-                    setImageUrl(imageDataUrl);
-                    setImageScale(fitScale);
-                    setImagePosition({ x: 0, y: 0 });
-            
-                    if (useAi) {
-                        setIsLoading(true);
-                        try {
-                            setLoadingMessage('AIが間取り図を解析中...');
-                            // AI呼び出しを1回に統合
-                            const finalOcrData = await analyzeImageWithAI(imageDataUrl);
-                    
-                            if (finalOcrData && finalOcrData.Blocks) {
-                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: {
-                                        ...prev.present,
-                                        svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData // 最終的なデータを保存
-                                    },
-                                    future: []
-                                }));
-                            } else {
-                                throw new Error("AIからの応答が不正、または空です。");
-                            }
-                        } catch (err) {
-                            console.error("AI処理エラー:", err);
-                            alert(`エラーが発生しました: ${err.message}`);
-                        } finally {
-                            setIsLoading(false);
-                            setUploadModalOpen(false);
-                        }
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+                    
+                    setImageUrl(imageDataUrl);
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
+                    
+                    if (useAi) {
+                        setIsLoading(true);
+                        try {
+                            setLoadingMessage('AIが間取り図を解析中...');
+                            // AI呼び出しを1回に統合
+                            const finalOcrData = await analyzeImageWithAI(imageDataUrl);
+
+                            if (finalOcrData && finalOcrData.Blocks) {
+                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        ...prev.present,
+                                        svgElements: [...prev.present.svgElements, ...newElements],
+                                        ocrData: finalOcrData // 最終的なデータを保存
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
+                    } else {
+                    setUploadModalOpen(false);
                     }
-                    img.src = imageDataUrl;
-            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
+                };
+                img.src = imageDataUrl;
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
