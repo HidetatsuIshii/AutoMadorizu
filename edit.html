@@ -2963,6 +2963,33 @@
                 img.src = url;
             };
 
+            const handleExportJson = useCallback(() => {
+                if (!historyState.present || !historyState.present.svgElements) {
+                    alert("エクスポートするデータがありません。");
+                    return;
+                }
+    
+                // AIへのお手本として使いやすいように、svgElements部分だけを抽出
+                const exportData = {
+                    "Blocks": [
+                        // ここでデータを変換することも可能ですが、まずは生のデータをコピーします
+                    ],
+                    // svgElementsのデータをここに含める形が良いでしょう
+                    "svgElements": historyState.present.svgElements 
+                };
+                
+                // JSONデータを整形して文字列に変換
+                const jsonString = JSON.stringify(historyState.present, null, 2); // historyState.present全体をコピー
+    
+                // クリップボードにコピー
+                navigator.clipboard.writeText(jsonString).then(() => {
+                    alert("間取り図のJSONデータをクリップボードにコピーしました。");
+                }).catch(err => {
+                    console.error("コピーに失敗しました:", err);
+                    alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
+                });
+            }, [historyState.present]);
+
 
 
             useEffect(() => {
@@ -3705,9 +3732,10 @@
                                 {saveStatus}
                             </div>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
                             <button onClick={() => window.location.href = 'index.html'} className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">TOPに戻る</button>
                             <button onClick={handleSaveImage} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">PNGで保存</button>
+                            <button onClick={handleExportJson} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">JSONコピー</button>
                             <button onClick={handleUndo} disabled={historyState.past.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">戻る</button>
                             <button onClick={handleRedo} disabled={historyState.future.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">進む</button>
                             <div className="flex items-center space-x-2">
