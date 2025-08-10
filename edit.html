@@ -3134,6 +3134,7 @@
 ルール2. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、"WIC"などは"収納"に分類します。"PS・MB"というテキストがあっても、そこが明らかにトイレの空間であれば'type'は"トイレ"と判断してください。
 ルール3. 全ての空間を網羅: 非常に小さな収納スペースも見逃さず、必ず個別のブロックとして抽出してください。
 ルール4. テキストの完全性: 'Text'には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
+ルール5. 自己検証: 全ての空間を抽出した後、壁で囲まれているにも関わらずどのブロックにも含まれていない「隙間」や「未定義領域」がないか、もう一度全体を見直してください。もし見つかった場合は、それを「廊下」や「収納」などの適切なブロックとして追加してください。
 
 
 ---
@@ -3278,40 +3279,75 @@ ${JSON.stringify(exampleData10)}
                 }
             };
 
-            const straightenAndAlignPolygon = (points) => {
+            const straightenAndAlignPolygon = (points, threshold = 10) => {
                 if (points.length < 3) return points;
             
-                const newPoints = [];
-                for (let i = 0; i < points.length; i++) {
-                    const p1 = points[i];
-                    const p2 = points[(i + 1) % points.length];
-                    const dx = Math.abs(p1.x - p2.x);
-                    const dy = Math.abs(p1.y - p2.y);
-                    
-                    // 最後の頂点は、次の頂点(最初の頂点)との関係で補正する
-                    const p_next = points[(i + 2) % points.length];
-                    
-                    let correctedP;
-                    if (dx > dy) { // 水平に近い辺
-                        correctedP = { x: p2.x, y: p1.y };
-                        // 次の辺が垂直になるように、次の点のx座標も補正しておく
-                        points[(i + 1) % points.length].y = p1.y;
-                    } else { // 垂直に近い辺
-                        correctedP = { x: p1.x, y: p2.y };
-                        // 次の辺が水平になるように、次の点のy座標も補正しておく
-                        points[(i + 1) % points.length].x = p1.x;
+                // 座標の「揺れ」を吸収するためのクラスタリング関数
+                const clusterValues = (values, threshold) => {
+                    values.sort((a, b) => a - b);
+                    const clusters = [];
+                    if (values.length === 0) return {};
+            
+                    let currentCluster = [values[0]];
+                    for (let i = 1; i < values.length; i++) {
+                        if (values[i] - currentCluster[currentCluster.length - 1] <= threshold) {
+                            currentCluster.push(values[i]);
+                        } else {
+                            clusters.push(currentCluster);
+                            currentCluster = [values[i]];
+                        }
                     }
-                    newPoints.push(correctedP);
+                    clusters.push(currentCluster);
+            
+                    const map = {};
+                    clusters.forEach(cluster => {
+                        const representative = cluster[Math.floor(cluster.length / 2)]; // 中央値を代表値とする
+                        cluster.forEach(val => {
+                            map[val] = representative;
+                        });
+                    });
+                    return map;
+                };
+            
+                const allX = [...new Set(points.map(p => p.x))];
+                const allY = [...new Set(points.map(p => p.y))];
+            
+                const xMap = clusterValues(allX, threshold);
+                const yMap = clusterValues(allY, threshold);
+                
+                let newPoints = points.map(p => ({
+                    x: xMap[p.x],
+                    y: yMap[p.y]
+                }));
+            
+                // 連続する重複頂点を削除
+                newPoints = newPoints.filter((point, i) => {
+                    const prev = newPoints[i === 0 ? newPoints.length - 1 : i - 1];
+                    return point.x !== prev.x || point.y !== prev.y;
+                });
+                
+                // 3点以上が直線上に並んでしまう中間点を削除
+                const finalPoints = [];
+                if (newPoints.length > 2) {
+                    for (let i = 0; i < newPoints.length; i++) {
+                        const p1 = newPoints[i];
+                        const p2 = newPoints[(i + 1) % newPoints.length];
+                        const p3 = newPoints[(i + 2) % newPoints.length];
+            
+                        // 3点が同じX座標またはY座標を持つ場合、中間点(p2)をスキップ
+                        const isCollinear = (p1.x === p2.x && p2.x === p3.x) || (p1.y === p2.y && p2.y === p3.y);
+                        if (!isCollinear) {
+                            finalPoints.push(p2);
+                        }
+                    }
+                } else {
+                    return newPoints;
                 }
                 
-                // 重複する可能性のある頂点を削除
-                const cleanedPoints = newPoints.filter((point, index, self) =>
-                    index === self.findIndex((p) => (
-                        Math.abs(p.x - point.x) < 1 && Math.abs(p.y - point.y) < 1
-                    ))
-                );
+                // フィルター処理で点が減りすぎた場合のフォールバック
+                if(finalPoints.length < 3) return newPoints;
             
-                return cleanedPoints;
+                return finalPoints;
             };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
