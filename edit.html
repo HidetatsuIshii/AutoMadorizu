@@ -1590,6 +1590,30 @@
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
+                const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
+提供された間取り図画像から、以下の要素を抽出してください。
+
+【抽出対象】
+1. 壁: 画像内の黒い線として認識される壁の線分。
+2. 区画: 壁によって囲まれた全ての閉じた領域。複雑な形状であっても、その輪郭を忠実にトレースしてください。
+3. テキスト: 区画内に存在する全てのテキストラベル。
+
+【出力形式】
+以下のJSON形式で、抽出した全ての情報を 빠짐なく出力してください。部屋のタイプの推測など、意味的な解釈は不要です。テキストをそのまま出力してください。
+
+{
+  "Blocks": [
+    {
+      "Text": "抽出したテキスト",
+      "Geometry": {
+        "Polygon": [
+          { "x": 0, "y": 0 },
+        ]
+      }
+    }
+  ]
+}
+`;
                 const exampleData1 = {
                   "Blocks": [
                     {
@@ -3106,7 +3130,7 @@
 【絶対厳守ルール】
 ルール1. 輪郭の絶対的な正確性: 部屋の形状を、決して単純な四角形やL字型に簡略化してはいけません。理想の出力例にあるLDKのように、どんなに複雑な凹凸を持つ多角形であっても、その全ての頂点を完全に捉えてください。部屋と部屋の境界は共有されるべきです。
 ルール2. タイプ分類の優先順位: 'type'を決定する際、その空間の使われ方を示唆する日本語の部屋名（例：「浴室」「トイレ」）を最優先してください。アルファベットの略語（例：「PS」「MB」）よりも日本語の部屋名を優先してタイプを決定します。もし部屋名が無ければ、図面上の文脈から判断してください。
-ルール3. 全ての空間を網羅: 画像に描かれている全ての部屋、収納、廊下、バルコニーなどを 빠짐없이抽出してください。非常に小さな収納スペースも見落としてはいけません。
+ルール3. 全ての空間を網羅: 画像に描かれている全ての部屋、収納、廊下、バルコニーなどを 抽出してください。非常に小さな収納スペースも見落としてはいけません。
 ルール4. 頂点の順序: Polygonの頂点は、必ず時計回りの順序で出力してください。
 ルール5. テキストの抽出: 'Text'には、部屋の内部に書かれている、その空間を説明するテキストのみをそのまま記述してください。
 ルール6. 無視する要素: 家具、建具の記号（ドアの開き戸を除く）、寸法線は解析の対象外とし、無視してください。
@@ -3169,30 +3193,20 @@ ${JSON.stringify(exampleData10)}
                 const payload = {
                     contents: [{
                         parts: [
-                            { text: prompt },
+                            { text: promptForExtraction },
                             { inlineData: { mimeType: "image/png", data: base64ImageData } }
                         ]
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // ★エラーの原因箇所を修正した完全なスキーマ
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "scaleAnalysis": {
-                                    type: "OBJECT",
-                                    properties: {
-                                        "referenceText": { "type": "STRING" }, // 例: "4,550mm"
-                                        "pixelLength": { "type": "NUMBER" },   // 例: 520.5
-                                        "pixelsPerMillimeter": { "type": "NUMBER" } // 例: 0.114
-                                    }
-                                },
                                 "Blocks": {
                                     type: "ARRAY",
                                     items: {
                                         type: "OBJECT",
                                         properties: {
-                                            "type": { "type": "STRING" },
                                             "Text": { "type": "STRING" },
                                             "Geometry": {
                                                 type: "OBJECT",
@@ -3212,7 +3226,7 @@ ${JSON.stringify(exampleData10)}
                                                 required: ["Polygon"]
                                             }
                                         },
-                                        required: ["type", "Text", "Geometry"]
+                                        required: ["Text", "Geometry"]
                                     }
                                 }
                             },
@@ -3259,6 +3273,113 @@ ${JSON.stringify(exampleData10)}
                     console.error("AIの解析中にエラーが発生しました:", error);
                     alert("AIの解析に失敗しました。時間をおいて再度お試しください。");
                     return null;
+                }
+            };
+
+            const refineFloorPlanDataWithAI = async (extractedData) => {
+                // 理想的な出力例（exampleData1から10）は、この修正AIへの手本として使います
+                const exampleData1 = { "Blocks": [ { "type": "LDK", "Text": "LDK", "Geometry": { "Polygon": [ { "x": 310, "y": 35 }, { "x": 630, "y": 35 }, { "x": 630, "y": 195 }, { "x": 565, "y": 195 }, { "x": 565, "y": 265 }, { "x": 580, "y": 265 }, { "x": 580, "y": 460 }, { "x": 310, "y": 460 } ] } }, { "type": "玄関", "Text": "玄関", "Geometry": { "Polygon": [ { "x": 565, "y": 195 }, { "x": 630, "y": 195 }, { "x": 630, "y": 265 }, { "x": 565, "y": 265 } ] } }, { "type": "トイレ", "Text": "トイレ", "Geometry": { "Polygon": [ { "x": 645, "y": 295 }, { "x": 710, "y": 295 }, { "x": 710, "y": 390 }, { "x": 645, "y": 390 } ] } }, { "type": "浴室", "Text": "浴室", "Geometry": { "Polygon": [ { "x": 580, "y": 390 }, { "x": 710, "y": 390 }, { "x": 710, "y": 515 }, { "x": 580, "y": 515 } ] } }, { "type": "洗面所", "Text": "洗面所", "Geometry": { "Polygon": [ { "x": 580, "y": 295 }, { "x": 645, "y": 295 }, { "x": 645, "y": 390 }, { "x": 580, "y": 390 } ] } }, { "type": "居室", "Text": "洋室 約7帖", "Geometry": { "Polygon": [ { "x": 310, "y": 460 }, { "x": 515, "y": 460 }, { "x": 515, "y": 785 }, { "x": 310, "y": 785 } ] } }, { "type": "居室", "Text": "洋室 約5帖", "Geometry": { "Polygon": [ { "x": 515, "y": 460 }, { "x": 710, "y": 460 }, { "x": 710, "y": 715 }, { "x": 580, "y": 715 }, { "x": 580, "y": 515 }, { "x": 515, "y": 515 } ] } }, { "type": "バルコニー", "Text": "バルコニー", "Geometry": { "Polygon": [ { "x": 310, "y": 785 }, { "x": 710, "y": 785 }, { "x": 710, "y": 820 }, { "x": 310, "y": 820 } ] } } ] };
+                // ...ここにexampleData2から10までを同様に定義してください...
+                
+                const promptForRefinement = `あなたは、日本の間取り図に関する深い知識を持つ建築専門家AIです。
+            以下に、画像解析AIが抽出した間取り図の生データ（JSON形式）を提示します。
+            このデータには、いくつかの認識ミスや欠落が含まれている可能性があります。
+            
+            あなたのタスクは、この生データを専門家の視点からレビューし、以下のルールに従って完璧な間取り図データに修正することです。
+            
+            【修正ルール】
+            1. タイプの決定: 各区画の'Text'フィールドと、その幾何学的な位置関係を基に、最も適切な'type'を["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択してください。例えば、'Text'が"WIC"なら'type'は"収納"になります。
+            2. 意味的な補完: 'Text'が空でも、浴室の隣にある小さな個室は「洗面所」や「トイレ」である可能性が高いです。このように、文脈から'type'を補完してください。
+            3. 誤認識の修正: 'Text'が"PS・MB"であっても、その区画が明らかにトイレとして使われる形状・位置である場合、'type'を"トイレ"に修正してください。日本語の部屋名が最も優先されます。
+            4. 欠落の補完: もし、主要な部屋（例：洋室）の隣に、テキストラベルのない小さな閉じた区画がある場合、それは「収納」である可能性が非常に高いです。その区画を新しいブロックとしてデータに追加してください。
+            5. データの整形: 最終的な出力は、元のJSONと同じ構造を維持してください。座標データはいじらず、'type'と'Text'の修正、そして必要であれば新しいブロックの追加のみを行ってください。
+            
+            ---
+            【完璧な出力例】
+            ${JSON.stringify(exampleData1)}
+            ---
+            
+            【あなたのタスク】
+            上記のルールに基づき、以下の生データを修正し、完璧なJSONデータのみを出力してください。
+            
+            【修正対象の生データ】
+            ${JSON.stringify(extractedData)}
+            `;
+            
+                const payload = {
+                    contents: [{ parts: [{ text: promptForRefinement }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: { // スキーマは理想のデータ形式（typeあり）を指定
+                            type: "OBJECT",
+                            properties: {
+                                "Blocks": {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            "type": { "type": "STRING" },
+                                            "Text": { "type": "STRING" },
+                                            "Geometry": {
+                                                type: "OBJECT",
+                                                properties: {
+                                                    "Polygon": {
+                                                        type: "ARRAY",
+                                                        items: {
+                                                            type: "OBJECT",
+                                                            properties: {
+                                                                "x": { "type": "NUMBER" },
+                                                                "y": { "type": "NUMBER" }
+                                                            },
+                                                            required: ["x", "y"]
+                                                        }
+                                                    }
+                                                },
+                                                required: ["Polygon"]
+                                            }
+                                        },
+                                        required: ["type", "Text", "Geometry"]
+                                    }
+                                }
+                            },
+                            required: ["Blocks"]
+                        }
+                    }
+                };
+            
+                try {
+                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU"; // セキュリティリスクについては認識済み
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+            
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        throw new Error(`API Error: ${response.status} ${errorBody}`);
+                    }
+                    const result = await response.json();
+            
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                        const jsonText = result.candidates[0].content.parts[0].text;
+                        console.log("第2段階AIからのレスポンス(生テキスト):", jsonText);
+                        try {
+                            const parsedJson = JSON.parse(jsonText);
+                            console.log("第2段階AIからのレスポンス(パース後):", parsedJson);
+                            return parsedJson;
+                        } catch (e) {
+                            console.error("第2段階JSONのパースに失敗:", e, jsonText);
+                            return extractedData; // 失敗した場合は、第1段階のデータをそのまま返す
+                        }
+                    } else {
+                        throw new Error("第2段階AIからの応答が予期した形式ではありません。");
+                    }
+                } catch (error) {
+                    console.error("第2段階AIの解析中にエラーが発生しました:", error);
+                    alert("第2段階AIの解析に失敗しました。");
+                    return extractedData; // 失敗した場合は、第1段階のデータをそのまま返す
                 }
             };
             
@@ -3403,27 +3524,32 @@ ${JSON.stringify(exampleData10)}
             
                     if (useAi) {
                         setIsLoading(true);
-                        setLoadingMessage('AIで間取り図を解析中...');
-            
                         try {
-                            // 実際のAI呼び出し
-                            const aiResult = await analyzeImageWithAI(imageDataUrl);
+                            // 第1段階：図形抽出AIを呼び出す
+                            setLoadingMessage('AIで図形を抽出中...(ステップ1/2)');
+                            const rawOcrData = await analyzeImageWithAI(imageDataUrl);
             
-                            if (aiResult && aiResult.Blocks) {
-                                const newElements = generateDrawingFromAi(aiResult, dimensions, { width: imageWidth, height: imageHeight });
+                            if (rawOcrData && rawOcrData.Blocks) {
+                                // 第2段階：データ修正AIを呼び出す
+                                setLoadingMessage('AIがデータを解釈・修正中...(ステップ2/2)');
+                                const refinedOcrData = await refineFloorPlanDataWithAI(rawOcrData);
             
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: { 
-                                        ...prev.present, 
-                                        svgElements: [...prev.present.svgElements, ...newElements], 
-                                        ocrData: aiResult 
-                                    },
-                                    future: []
-                                }));
+                                if (refinedOcrData && refinedOcrData.Blocks) {
+                                    const newElements = generateDrawingFromAi(refinedOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                    setHistoryState(prev => ({
+                                        past: [...prev.past, prev.present],
+                                        present: {
+                                            ...prev.present,
+                                            svgElements: [...prev.present.svgElements, ...newElements],
+                                            ocrData: refinedOcrData // 最終的なデータを保存
+                                        },
+                                        future: []
+                                    }));
+                                } else {
+                                     throw new Error("第2段階AIからの応答が不正です。");
+                                }
                             } else {
-                                console.error("AIからの応答がnullまたは不正な形式です。");
-                                alert("AIによる解析に失敗しました。画像の形式を変えるか、時間をおいて再度お試しください。");
+                                throw new Error("第1段階AIからの応答が不正です。");
                             }
                         } catch (err) {
                             console.error("AI処理エラー:", err);
