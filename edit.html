@@ -1689,39 +1689,64 @@
             };
             
             const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
-                if (!originalImageDimensions) return []; 
+                if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
             
-                // 元画像のサイズと、キャンバス上に表示される画像のサイズ・位置を計算
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
-                const originalWidth = originalImageDimensions.width;
-                const originalHeight = originalImageDimensions.height;
             
-                const scaleX = canvasWidth / originalWidth;
-                const scaleY = canvasHeight / originalHeight;
-                const fitScale = Math.min(scaleX, scaleY);
+                // --- ▼▼▼ ここから修正・追加 ▼▼▼ ---
             
-                const displayedWidth = originalWidth * fitScale;
-                const displayedHeight = originalHeight * fitScale;
+                // 1. AIが返した全座標から、間取り図全体の大きさを推定する
+                let allPointsX = [];
+                let allPointsY = [];
+                aiData.Blocks.forEach(block => {
+                    if (block.Geometry.Polygon) {
+                        block.Geometry.Polygon.forEach(p => {
+                            allPointsX.push(p.x);
+                            allPointsY.push(p.y);
+                        });
+                    }
+                });
             
+                if (allPointsX.length === 0) return []; // 座標がなければ何も描画しない
+            
+                const minX = Math.min(...allPointsX);
+                const minY = Math.min(...allPointsY);
+                const maxX = Math.max(...allPointsX);
+                const maxY = Math.max(...allPointsY);
+            
+                const aiDrawingWidth = maxX - minX;
+                const aiDrawingHeight = maxY - minY;
+            
+                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
+            
+                // 2. AIが認識した間取り図のサイズが、キャンバスにフィットするように縮尺を計算する
+                //    （下絵の表示スケールとは別に、AIデータ専用のスケールを計算する）
+                const scaleX = canvasWidth / aiDrawingWidth;
+                const scaleY = canvasHeight / aiDrawingHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.95; // 95%のサイズにして少し余白を持たせる
+            
+                // 3. 中央に配置するためのオフセットを計算
+                const displayedWidth = aiDrawingWidth * fitScale;
+                const displayedHeight = aiDrawingHeight * fitScale;
                 const offsetX = (canvasWidth - displayedWidth) / 2;
                 const offsetY = (canvasHeight - displayedHeight) / 2;
+            
+                // --- ▲▲▲ ここまで修正・追加 ▲▲▲ ---
             
                 const newElements = [];
                 aiData.Blocks.forEach((block, index) => {
                     if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
             
-                    // --- ▼▼▼ ここを修正します ▼▼▼ ---
-                    // AIからのピクセル座標を、キャンバス上の表示に合わせてスケーリングとオフセット調整
+                    // 4. 新しく計算したスケールとオフセットで座標を変換する
                     const points = block.Geometry.Polygon.map(p => ({
-                        x: (p.x * fitScale) + offsetX, 
-                        y: (p.y * fitScale) + offsetY
+                        x: ((p.x - minX) * fitScale) + offsetX, 
+                        y: ((p.y - minY) * fitScale) + offsetY
                     }));
-                    // --- ▲▲▲ ここまで修正 ▲▲▲ ---
             
                     const subGroupId = `space-group-ai-${Date.now()}-${index}`;
             
-                    // 部屋のタイプ名を変換（"Room" -> "居室"など）
+                    // 部屋のタイプ名を変換
                     let spaceType = block.type;
                     const text = block.Text || "";
                     if (spaceType === "Room") {
@@ -1732,19 +1757,19 @@
                         else if (text.includes("浴室")) spaceType = "浴室";
                         else if (text.includes("トイレ")) spaceType = "トイレ";
                         else if (text.includes("玄関")) spaceType = "玄関";
-                        else spaceType = "居室"; // デフォルト
+                        else spaceType = "居室";
                     } else if (spaceType === "Storage" || spaceType === "Cabinet") {
                         spaceType = "収納";
                     } else if (spaceType === "Balcony") {
                         spaceType = "バルコニー";
                     }
             
-                    // 部屋の塗りつぶし要素を作成
+                    // 以下、要素の生成処理 (変更なし)
                     const spaceElement = {
                         id: subGroupId,
                         type: 'space',
                         shape: 'polygon',
-                        spaceType: spaceType, // 変換後のタイプ名を使用
+                        spaceType: spaceType,
                         groupId: subGroupId,
                         points: points.map(p => `${p.x},${p.y}`).join(' '),
                         fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
@@ -1752,7 +1777,6 @@
                     };
                     newElements.push(spaceElement);
             
-                    // 頂点データから壁要素を作成
                     for (let i = 0; i < points.length; i++) {
                         const p1 = points[i];
                         const p2 = points[(i + 1) % points.length];
@@ -1769,7 +1793,6 @@
                         });
                     }
             
-                    // 部屋のラベル要素を作成
                     const centroid = getPolygonCentroid(points);
                     const labelElement = {
                         id: `text-ai-${Date.now()}-${index}`,
