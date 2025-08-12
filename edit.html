@@ -1062,6 +1062,66 @@
             return { x: x / f, y: y / f };
         };
 
+        const buildPolygonFromWalls = (roomWalls) => {
+            if (!roomWalls || roomWalls.length < 2) return [];
+        
+            const tolerance = 0.1; // 座標の誤差を許容する閾値
+            const pointToString = (p) => `${Math.round(p.x / tolerance)},${Math.round(p.y / tolerance)}`;
+        
+            const connections = new Map();
+        
+            // 1. 各頂点がどの頂点と繋がっているかの接続マップを作成
+            roomWalls.forEach(wall => {
+                const p1 = { x: wall.x1, y: wall.y1 };
+                const p2 = { x: wall.x2, y: wall.y2 };
+                const p1Str = pointToString(p1);
+                const p2Str = pointToString(p2);
+        
+                if (!connections.has(p1Str)) connections.set(p1Str, []);
+                if (!connections.has(p2Str)) connections.set(p2Str, []);
+                connections.get(p1Str).push(p2);
+                connections.get(p2Str).push(p1);
+            });
+        
+            // 2. 最初の壁を基準に、一筆書きを開始
+            const firstWall = roomWalls[0];
+            const startPoint = { x: firstWall.x1, y: firstWall.y1 };
+            let prevPoint = startPoint;
+            let currentPoint = { x: firstWall.x2, y: firstWall.y2 };
+            
+            const orderedPoints = [startPoint];
+            const maxIterations = roomWalls.length + 1; // 無限ループ防止
+        
+            for (let i = 0; i < maxIterations; i++) {
+                if (pointToString(currentPoint) === pointToString(startPoint)) {
+                    break; // スタート地点に戻ってきたら終了
+                }
+                orderedPoints.push(currentPoint);
+        
+                const candidates = connections.get(pointToString(currentPoint));
+                if (!candidates) {
+                    console.warn("ポリゴンの連鎖が途切れました:", currentPoint);
+                    return orderedPoints; 
+                }
+        
+                // 次の点は「今来た道」ではない方の点を選択
+                let nextPoint = candidates.find(p => pointToString(p) !== pointToString(prevPoint));
+                if (!nextPoint) {
+                     // 行き止まりの場合、他の候補を試す (複雑な交差に対応)
+                     nextPoint = candidates.length > 0 ? candidates[0] : null;
+                     if (!nextPoint) {
+                        console.warn("次の頂点が見つかりません:", currentPoint);
+                        return orderedPoints;
+                     }
+                }
+                
+                prevPoint = currentPoint;
+                currentPoint = nextPoint;
+            }
+        
+            return orderedPoints;
+        };
+
         const createSpaceLabel = (spaceType, centroid, dimensions) => {
             if (["柱", "その他"].includes(spaceType)) {
                 return null;
@@ -3266,8 +3326,7 @@ ${JSON.stringify(wallLines)}
 
             const reconstructSvgFromAnalysis = (aiAnalysis, wallLines, dimensions) => {
                 if (!aiAnalysis || !aiAnalysis.rooms || aiAnalysis.rooms.length === 0) return [];
-                
-                // 1. 検出された全壁座標から、間取り図全体の大きさを特定する
+            
                 let allPointsX = [];
                 let allPointsY = [];
                 wallLines.forEach(line => {
@@ -3287,20 +3346,17 @@ ${JSON.stringify(wallLines)}
             
                 if (drawingWidth === 0 || drawingHeight === 0) return [];
             
-                // 2. 間取り図全体がキャンバスにフィットするように縮尺を計算
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
                 const scaleX = canvasWidth / drawingWidth;
                 const scaleY = canvasHeight / drawingHeight;
-                const fitScale = Math.min(scaleX, scaleY) * 0.9; // 90%のサイズで表示
+                const fitScale = Math.min(scaleX, scaleY) * 0.9;
             
-                // 3. 中央に配置するためのオフセット（ずれ）を計算
                 const displayedWidth = drawingWidth * fitScale;
                 const displayedHeight = drawingHeight * fitScale;
                 const offsetX = (canvasWidth - displayedWidth) / 2;
                 const offsetY = (canvasHeight - displayedHeight) / 2;
                 
-                // 4. 計算したスケールとオフセットを適用して、壁座標を変換
                 const scaledWallLines = wallLines.map(line => ({
                     x1: ((line.x1 - minX) * fitScale) + offsetX,
                     y1: ((line.y1 - minY) * fitScale) + offsetY,
@@ -3308,11 +3364,9 @@ ${JSON.stringify(wallLines)}
                     y2: ((line.y2 - minY) * fitScale) + offsetY,
                 }));
             
-            
                 const newElements = [];
                 const createdWalls = new Map();
             
-                // 5. まず全ての壁要素を生成
                 scaledWallLines.forEach((line, index) => {
                     const wallId = `wall-ai-${index}`;
                     const wallElement = {
@@ -3324,24 +3378,17 @@ ${JSON.stringify(wallLines)}
                     createdWalls.set(index, wallElement);
                 });
             
-                // 6. 次にAIの解析結果を元に空間とテキストを生成
                 aiAnalysis.rooms.forEach((room, roomIndex) => {
                     const groupId = `space-group-ai-${Date.now()}-${roomIndex}`;
                     const roomWallIndices = room.wallIndices || [];
                     const roomWalls = roomWallIndices.map(i => createdWalls.get(i)).filter(Boolean);
                     
-                    // TODO: roomWalls を元に、連結した頂点リスト `points` を作成する
-                    // これは次のステップの課題です。今はダミーの四角形を生成しておきます。
-                    let points = [];
-                    if (roomWalls.length > 0) {
-                        // ダミーとして、最初の壁の座標を使う
-                        points = [
-                            {x: roomWalls[0].x1, y: roomWalls[0].y1},
-                            {x: roomWalls[0].x2, y: roomWalls[0].y1},
-                            {x: roomWalls[0].x2, y: roomWalls[0].y2},
-                            {x: roomWalls[0].x1, y: roomWalls[0].y2},
-                        ];
-                    }
+                    // ▼▼▼【ここが修正点】▼▼▼
+                    // バラバラの壁リストから、一筆書きの頂点リストを生成
+                    const points = buildPolygonFromWalls(roomWalls);
+                    // ▲▲▲【ここまで修正】▲▲▲
+            
+                    if (points.length < 3) return; // ポリゴンが作れない場合はスキップ
             
                     const spaceElement = {
                         id: groupId, type: 'space', shape: 'polygon', spaceType: room.type, groupId,
@@ -3351,14 +3398,13 @@ ${JSON.stringify(wallLines)}
                     };
                     newElements.push(spaceElement);
                     
-                    // 壁要素にgroupIdを付与
                     roomWallIndices.forEach(wallIndex => {
                         const wall = newElements.find(el => el.id === `wall-ai-${wallIndex}`);
                         if(wall) wall.groupId = groupId;
                     });
             
                     const centroid = getPolygonCentroid(points);
-                    if (room.text) { // テキストがある場合のみラベルを生成
+                    if (room.text) {
                         const labelElement = {
                             id: `text-ai-${Date.now()}-${roomIndex}`, type: 'text', groupId,
                             x: (centroid.x / dimensions.width) * 100,
