@@ -3402,7 +3402,7 @@ ${JSON.stringify(exampleData10)}
                         });
                     }
                 });
-            
+                console.log("generateDrawingFromAiが生成したデータ:", newElements);
                 return newElements;
             };
 
@@ -3552,6 +3552,7 @@ ${JSON.stringify(exampleData10)}
             
                             if (dataForDrawing) {
                                 const newElements = generateDrawingFromAi(dataForDrawing, dimensions, { width: imageWidth, height: imageHeight });
+                                console.log("handleModalSubmitが受け取ったデータ:", newElements);
                                 setHistoryState(prev => ({
                                     past: [...prev.past, prev.present],
                                     present: {
