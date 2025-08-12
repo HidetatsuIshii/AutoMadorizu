@@ -3325,25 +3325,33 @@ ${JSON.stringify(exampleData10)}
             };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
+                // 入力データの検証
                 if (!aiData || !aiData.Blocks || aiData.Blocks.length === 0 || !originalImageDimensions) {
-                    console.error("generateDrawingFromAi: Invalid input data.");
+                    console.error("generateDrawingFromAi: 入力データが不正か、空です。");
                     return [];
                 }
             
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
+                
+                // 基準となる元の画像のサイズを取得
+                const imageWidth = originalImageDimensions.width;
+                const imageHeight = originalImageDimensions.height;
             
-                // AIが認識した座標は、元の画像のピクセル座標系に基づいている
-                const imgWidth = originalImageDimensions.width;
-                const imgHeight = originalImageDimensions.height;
+                if (imageWidth === 0 || imageHeight === 0) {
+                    console.error("generateDrawingFromAi: 元の画像のサイズが0です。");
+                    return [];
+                }
             
                 // 画像全体がキャンバスにフィットするようにスケールとオフセットを計算
-                const scaleX = canvasWidth / imgWidth;
-                const scaleY = canvasHeight / imgHeight;
-                const fitScale = Math.min(scaleX, scaleY) * 0.9; // 90%のサイズで余白を持たせる
+                const scaleX = canvasWidth / imageWidth;
+                const scaleY = canvasHeight / imageHeight;
+                // 画面の上下左右に5%ずつの余白を設ける
+                const fitScale = Math.min(scaleX, scaleY) * 0.9; 
             
-                const scaledWidth = imgWidth * fitScale;
-                const scaledHeight = imgHeight * fitScale;
+                // スケール後の画像の寸法と、中央配置のためのオフセットを計算
+                const scaledWidth = imageWidth * fitScale;
+                const scaledHeight = imageHeight * fitScale;
                 const offsetX = (canvasWidth - scaledWidth) / 2;
                 const offsetY = (canvasHeight - scaledHeight) / 2;
             
@@ -3352,69 +3360,71 @@ ${JSON.stringify(exampleData10)}
                     if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
             
                     // 元の画像のピクセル座標を、画面のSVGキャンバス座標に変換
+                    // 計算基準がAIの認識範囲(minX, minY)から、画像全体の大きさ(0, 0)に変わっている点に注目
                     let points = block.Geometry.Polygon.map(p => ({
                         x: (p.x * fitScale) + offsetX,
                         y: (p.y * fitScale) + offsetY
                     }));
             
+                    // 座標の補正
                     points = straightenAndAlignPolygon(points);
-                    if (points.length < 3) return; // 補正後、ポリゴンが成立しない場合はスキップ
+                    if (points.length < 3) return;
             
                     const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const spaceType = block.type || "その他"; // AIがtypeを返さない場合への備え
+                    const spaceType = block.type || "その他";
             
-                    // 1. 空間（space）要素の作成
+                    // 空間（space）要素の作成
                     const spaceElement = {
-                        id: groupId,
-                        type: 'space',
-                        shape: 'polygon',
-                        spaceType: spaceType,
-                        groupId: groupId,
+                        id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId: groupId,
                         points: points.map(p => `${p.x},${p.y}`).join(' '),
                         fill: DEFAULT_FILL_COLORS[spaceType] || DEFAULT_FILL_COLORS["その他"],
                         backgroundPattern: 'none'
                     };
                     newElements.push(spaceElement);
             
-                    // 2. 空間を構成する壁（wall）要素の作成
+                    // 壁（wall）要素の作成
                     for (let i = 0; i < points.length; i++) {
                         const p1 = points[i];
                         const p2 = points[(i + 1) % points.length];
                         newElements.push({
-                            id: `wall-ai-${groupId}-${i}`,
-                            type: 'wall',
-                            groupId: groupId,
-                            edgeIndex: i,
-                            x1: p1.x, y1: p1.y,
-                            x2: p2.x, y2: p2.y,
-                            color: DEFAULT_STROKE_COLOR,
-                            strokeWidth: DEFAULT_STROKE_WIDTH,
-                            lineStyle: 'solid'
+                            id: `wall-ai-${groupId}-${i}`, type: 'wall', groupId: groupId, edgeIndex: i,
+                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH, lineStyle: 'solid'
                         });
                     }
                     
-                    // 3. テキスト（text）要素の作成
+                    // テキスト（text）要素の作成
                     const centroid = getPolygonCentroid(points);
                     if (block.Text) {
+                        // テキスト要素のフォントサイズを部屋の大きさに基づいて調整
+                        const area = Math.abs(getPolygonArea(points));
+                        const baseArea = 200 * 200; // 200x200ピクセルを基準エリアとする
+                        const calculatedFontSize = Math.max(8, Math.min(20, Math.sqrt(area / baseArea) * 16));
+            
                         newElements.push({
-                            id: `text-ai-${groupId}`,
-                            type: 'text',
-                            groupId: groupId,
+                            id: `text-ai-${groupId}`, type: 'text', groupId: groupId,
                             x: (centroid.x / dimensions.width) * 100,
                             y: (centroid.y / dimensions.height) * 100,
-                            text: block.Text,
-                            color: '#000000',
-                            backgroundColor: 'none',
-                            fontSize: 16,
-                            fontFamily: 'sans-serif',
-                            textAlign: 'center',
+                            text: block.Text, color: '#000000', backgroundColor: 'none',
+                            fontSize: calculatedFontSize, fontFamily: 'sans-serif', textAlign: 'center',
                         });
                     }
                 });
             
-                console.log("generateDrawingFromAiが生成したSVG要素:", newElements);
+                console.log("最終的に生成されたSVG要素:", newElements);
                 return newElements;
             }, [dimensions]);
+            
+            // generateDrawingFromAi の中で使うヘルパー関数を2つ追加
+            const getPolygonArea = (points) => {
+                let area = 0;
+                for (let i = 0; i < points.length; i++) {
+                    const p1 = points[i];
+                    const p2 = points[(i + 1) % points.length];
+                    area += p1.x * p2.y - p2.x * p1.y;
+                }
+                return area / 2;
+            };
 
             const extractWallsFromImage = (imageDataUrl) => {
                 return new Promise((resolve, reject) => {
@@ -3529,23 +3539,30 @@ ${JSON.stringify(exampleData10)}
                     const imageHeight = img.naturalHeight;
             
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+                    setImageUrl(imageDataUrl);
             
+                    //【重要】下絵のスケールと位置の計算ロジックを generateDrawingFromAi と完全に一致させる
                     const canvasWidth = dimensions.width;
                     const canvasHeight = dimensions.height;
                     const scaleX = canvasWidth / imageWidth;
                     const scaleY = canvasHeight / imageHeight;
-                    const fitScale = Math.min(scaleX, scaleY);
+                    const fitScale = Math.min(scaleX, scaleY) * 0.9;
                     
-                    setImageUrl(imageDataUrl);
-                    setImageScale(fitScale);
-                    setImagePosition({ x: 0, y: 0 });
+                    const scaledWidth = imageWidth * fitScale;
+                    const scaledHeight = imageHeight * fitScale;
+                    const offsetX = (canvasWidth - scaledWidth) / 2;
+                    const offsetY = (canvasHeight - scaledHeight) / 2;
+                    
+                    // 下絵のスケールと位置を設定
+                    setImageScale(fitScale); 
+                    // CSSのtransform: translate(-50%, -50%)を考慮し、中心からのオフセットで位置を調整
+                    setImagePosition({ x: offsetX + scaledWidth / 2 - canvasWidth / 2, y: offsetY + scaledHeight / 2 - canvasHeight / 2 });
                     
                     if (useAi) {
                         setIsLoading(true);
                         try {
                             setLoadingMessage('OpenCVで壁線を検出中...');
                             const wallData = await detectWallsWithOpenCvJs(imageDataUrl);
-            
                             if (!wallData || !wallData.walls) {
                                  throw new Error('OpenCVでの壁線検出に失敗、または壁が見つかりませんでした。');
                             }
@@ -3562,14 +3579,9 @@ ${JSON.stringify(exampleData10)}
             
                             if (dataForDrawing) {
                                 const newElements = generateDrawingFromAi(dataForDrawing, dimensions, { width: imageWidth, height: imageHeight });
-                                console.log("handleModalSubmitが受け取ったデータ:", newElements);
                                 setHistoryState(prev => ({
                                     past: [...prev.past, prev.present],
-                                    present: {
-                                        ...prev.present,
-                                        svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData
-                                    },
+                                    present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements], ocrData: finalOcrData },
                                     future: []
                                 }));
                             } else {
