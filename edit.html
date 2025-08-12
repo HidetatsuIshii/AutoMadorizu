@@ -3511,23 +3511,20 @@ ${JSON.stringify(exampleData10)}
             
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
                     setImageUrl(imageDataUrl);
-                    // ... (setImageScale, setImagePosition の処理はそのまま)
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
             
                     if (useAi) {
                         setIsLoading(true);
                         try {
-                            // --- ▼▼▼ ここを書き換えます ▼▼▼ ---
-            
-                            // Step 1: OpenCV.jsで壁線を検出
                             setLoadingMessage('OpenCVで壁線を検出中...');
                             
-                            // opencv.jsの準備が完了するまで少し待つ処理
                             await new Promise(resolve => {
                                 const checkCv = () => {
                                     if (typeof cv !== 'undefined' && cv.imread) {
                                         resolve();
                                     } else {
-                                        setTimeout(checkCv, 100); // 100ms後に再確認
+                                        setTimeout(checkCv, 100);
                                     }
                                 };
                                 checkCv();
@@ -3539,26 +3536,35 @@ ${JSON.stringify(exampleData10)}
                                  throw new Error('OpenCVでの壁線検出に失敗、または壁が見つかりませんでした。');
                             }
                             
-                            // Step 2: 検出した壁線データと元の画像をAIに渡してポリゴンを生成
                             setLoadingMessage('AIが部屋の構造を解析中...');
-                            const finalOcrData = await analyzeImageWithAI(imageDataUrl, wallData); 
+                            const finalOcrData = await analyzeImageWithAI(imageDataUrl, wallData);
             
-                            // Step 3: AIからのレスポンスを元に描画 (ここは変更なし)
+                            // AIのレスポンス形式の揺れを吸収する処理
+                            let dataForDrawing = null;
                             if (finalOcrData && finalOcrData.Blocks) {
-                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                // 期待通りの形式: { "Blocks": [...] }
+                                dataForDrawing = finalOcrData;
+                            } else if (finalOcrData && finalOcrData.ocrData && finalOcrData.ocrData.Blocks) {
+                                // ネストされた形式: { "ocrData": { "Blocks": [...] } } にも対応
+                                dataForDrawing = finalOcrData.ocrData;
+                            }
+            
+                            if (dataForDrawing) {
+                                const newElements = generateDrawingFromAi(dataForDrawing, dimensions, { width: imageWidth, height: imageHeight });
                                 setHistoryState(prev => ({
                                     past: [...prev.past, prev.present],
                                     present: {
                                         ...prev.present,
                                         svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData
+                                        ocrData: finalOcrData // 元のレスポンス全体を保存
                                     },
                                     future: []
                                 }));
                             } else {
-                                throw new Error("AIからの応答が不正、または空です。");
+                                // デバッグ用に実際のレスポンスをコンソールに出力
+                                console.error("AI Response (for debugging):", finalOcrData);
+                                throw new Error("AIからの応答が不正、またはBlocksデータが見つかりませんでした。");
                             }
-                            // --- ▲▲▲ ここまで書き換え ▲▲▲ ---
             
                         } catch (err) {
                             console.error("AI処理エラー:", err);
