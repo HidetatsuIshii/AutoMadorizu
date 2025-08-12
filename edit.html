@@ -3477,7 +3477,6 @@ ${JSON.stringify(exampleData10)}
                             const gray = new cv.Mat();
                             cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
                             const edges = new cv.Mat();
-                            // Cannyエッジ検出 (引数の順番を修正済み)
                             cv.Canny(gray, edges, 50, 150, 3);
             
                             const lines = new cv.Mat();
@@ -6060,8 +6059,7 @@ ${JSON.stringify(exampleData10)}
                             </div>
                         </main>
 
-                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
-                            {isSidebarOpen ? '?' : '?'}
+                       <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}> {isSidebarOpen ? '<' : '>'}
                         </button>
 
                         <aside ref={sidebarRef} className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
