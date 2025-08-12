@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1588.0.min.js"></script>
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -1321,6 +1322,112 @@
         );
 
         // --- メインエディタコンポーネント ---
+        const UploadModal = ({ isOpen, onClose, onSubmit, isLoading, loadingMessage }) => {
+            if (!isOpen) return null;
+        
+            const [localPreview, setLocalPreview] = useState(null);
+            const [localUseAi, setLocalUseAi] = useState(true);
+            const fileInputRef = useRef(null);
+        
+            const handleFileChange = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setLocalPreview(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        
+            const handleSubmit = () => {
+                if (localPreview) {
+                    onSubmit(localPreview, localUseAi);
+                }
+            };
+        
+            const handleClose = () => {
+                onClose();
+                setLocalPreview(null);
+                setLocalUseAi(true);
+            };
+        
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">下絵のアップロード</h3>
+                        {isLoading ? (
+                            <div className="flex flex-col items-center justify-center h-64">
+                                <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <p className="mt-4 text-gray-600">{loadingMessage}</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current.click()}
+                                        className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    >
+                                        ファイルを選択
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleFileChange}
+                                            accept="image/*"
+                                            className="hidden"
+                                        />
+                                    </button>
+        
+                                    <div className="w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center">
+                                        {localPreview ? (
+                                            <img src={localPreview} alt="プレビュー" className="max-h-full max-w-full object-contain" />
+                                        ) : (
+                                            <span className="text-gray-500">プレビュー</span>
+                                        )}
+                                    </div>
+        
+                                    <div className="flex items-center">
+                                        <input
+                                            id="ai-checkbox"
+                                            type="checkbox"
+                                            checked={localUseAi}
+                                            onChange={(e) => setLocalUseAi(e.target.checked)}
+                                            className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                        />
+                                        <label htmlFor="ai-checkbox" className="ml-2 block text-sm text-gray-900">
+                                            AIで読み取る (Amazon Textract)
+                                        </label>
+                                    </div>
+                                </div>
+        
+                                <div className="mt-6 flex justify-end space-x-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleClose}
+                                        className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    >
+                                        キャンセル
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        disabled={!localPreview}
+                                        className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                    >
+                                        決定
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
         function Editor() {
             // --- ステート定義 ---
             const [isSidebarOpen, setSidebarOpen] = useState(true);
@@ -1380,6 +1487,13 @@
             const [tooltip, setTooltip] = useState({ visible: false, fading: false, x: 0, y: 0, message: '' });
             const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
             const [saveStatus, setSaveStatus] = useState('保存済み'); // '保存済み', '未保存', '保存中...', 'エラー'
+            const [madorizuName, setMadorizuName] = useState('読み込み中...');
+            const [isEditingName, setIsEditingName] = useState(false);
+            const isInitialNameLoad = useRef(true);
+            const [isUploadModalOpen, setUploadModalOpen] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
+            const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -1474,45 +1588,1944 @@
                 });
             }, [selectedElement]);
 
+            const analyzeImageWithAI = async (imageDataUrl) => {
+                const base64ImageData = imageDataUrl.split(',')[1];
+                const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
+提供された間取り図画像から、以下の要素を抽出してください。
 
-            const handleFileChange = async (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const imageUrl = e.target.result;
-                        // 画像オブジェクトを作成してサイズを取得
-                        const img = new Image();
-                        img.onload = () => {
-                            // 画像とキャンバスのサイズを取得
-                            const imageWidth = img.naturalWidth;
-                            const imageHeight = img.naturalHeight;
-                            const canvasWidth = dimensions.width;
-                            const canvasHeight = dimensions.height;
+【抽出対象】
+1. 壁: 画像内の黒い線として認識される壁の線分。
+2. 区画: 壁によって囲まれた全ての閉じた領域。複雑な形状であっても、その輪郭を忠実にトレースしてください。
+3. テキスト: 区画内に存在する全てのテキストラベル。
 
-                            // キャンバスにフィットするようスケールを計算
-                            const scaleX = canvasWidth / imageWidth;
-                            const scaleY = canvasHeight / imageHeight;
-                            const fitScale = Math.min(scaleX, scaleY);
-                            setImagePosition({ x: 0, y: 0 }); // 位置をリセット
+【出力形式】
+以下のJSON形式で、抽出した全ての情報を 빠짐なく出力してください。部屋のタイプの推測など、意味的な解釈は不要です。テキストをそのまま出力してください。
 
-                            // 画像URLと計算したスケールをstateにセット
-                            setImageUrl(imageUrl);
-                            setImageScale(fitScale);
+{
+  "Blocks": [
+    {
+      "Text": "抽出したテキスト",
+      "Geometry": {
+        "Polygon": [
+          { "x": 0, "y": 0 },
+        ]
+      }
+    }
+  ]
+}
+`;
+                const exampleData1 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 310, "y": 35 }, { "x": 630, "y": 35 },
+                          { "x": 630, "y": 195 }, { "x": 565, "y": 195 },
+                          { "x": 565, "y": 265 }, { "x": 580, "y": 265 },
+                          { "x": 580, "y": 460 }, { "x": 310, "y": 460 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 565, "y": 195 }, { "x": 630, "y": 195 },
+                          { "x": 630, "y": 265 }, { "x": 565, "y": 265 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 645, "y": 295 }, { "x": 710, "y": 295 },
+                          { "x": 710, "y": 390 }, { "x": 645, "y": 390 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 580, "y": 390 }, { "x": 710, "y": 390 },
+                          { "x": 710, "y": 515 }, { "x": 580, "y": 515 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗面所",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 580, "y": 295 }, { "x": 645, "y": 295 },
+                          { "x": 645, "y": 390 }, { "x": 580, "y": 390 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 約7帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 310, "y": 460 }, { "x": 515, "y": 460 },
+                          { "x": 515, "y": 785 }, { "x": 310, "y": 785 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 約5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 515, "y": 460 }, { "x": 710, "y": 460 },
+                          { "x": 710, "y": 715 }, { "x": 580, "y": 715 },
+                          { "x": 580, "y": 515 }, { "x": 515, "y": 515 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 310, "y": 785 }, { "x": 710, "y": 785 },
+                          { "x": 710, "y": 820 }, { "x": 310, "y": 820 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData2 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 約 13.5 帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 170, "y": 275 }, { "x": 450, "y": 275 },
+                          { "x": 450, "y": 480 }, { "x": 395, "y": 480 },
+                          { "x": 395, "y": 450 }, { "x": 365, "y": 450 },
+                          { "x": 365, "y": 385 }, { "x": 395, "y": 385 },
+                          { "x": 395, "y": 275 }, { "x": 170, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 約 4.9帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 275 }, { "x": 630, "y": 275 },
+                          { "x": 630, "y": 410 }, { "x": 450, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 約 4.4帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 480 }, { "x": 630, "y": 480 },
+                          { "x": 630, "y": 600 }, { "x": 450, "y": 600 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 約 5.5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 600 }, { "x": 630, "y": 600 },
+                          { "x": 630, "y": 715 }, { "x": 450, "y": 715 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 195 }, { "x": 630, "y": 195 },
+                          { "x": 630, "y": 275 }, { "x": 450, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗面室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 170, "y": 195 }, { "x": 395, "y": 195 },
+                          { "x": 395, "y": 275 }, { "x": 170, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 170, "y": 385 }, { "x": 365, "y": 385 },
+                          { "x": 365, "y": 450 }, { "x": 170, "y": 450 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "収納",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 365, "y": 385 }, { "x": 395, "y": 385 },
+                          { "x": 395, "y": 450 }, { "x": 365, "y": 450 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 365, "y": 305 }, { "x": 395, "y": 305 },
+                          { "x": 395, "y": 385 }, { "x": 365, "y": 385 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 410 }, { "x": 540, "y": 410 },
+                          { "x": 540, "y": 480 }, { "x": 450, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 540, "y": 410 }, { "x": 630, "y": 410 },
+                          { "x": 630, "y": 480 }, { "x": 540, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 450, "y": 600 }, { "x": 530, "y": 600 },
+                          { "x": 530, "y": 650 }, { "x": 450, "y": 650 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 160, "y": 770 }, { "x": 640, "y": 770 },
+                          { "x": 640, "y": 805 }, { "x": 160, "y": 805 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData3 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LD 12.2帖\nK 3.2帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 555 }, { "x": 470, "y": 555 },
+                          { "x": 470, "y": 710 }, { "x": 60, "y": 710 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 6.0帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 330, "y": 100 }, { "x": 470, "y": 100 },
+                          { "x": 470, "y": 310 }, { "x": 330, "y": 310 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.0帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 100 }, { "x": 255, "y": 100 },
+                          { "x": 255, "y": 310 }, { "x": 60, "y": 310 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.0帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 330, "y": 410 }, { "x": 470, "y": 410 },
+                          { "x": 470, "y": 540 }, { "x": 330, "y": 540 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 255, "y": 230 }, { "x": 315, "y": 230 },
+                          { "x": 315, "y": 555 }, { "x": 255, "y": 555 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 100 }, { "x": 315, "y": 100 },
+                          { "x": 315, "y": 230 }, { "x": 270, "y": 230 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 380 }, { "x": 220, "y": 380 },
+                          { "x": 220, "y": 440 }, { "x": 60, "y": 440 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 455 }, { "x": 220, "y": 455 },
+                          { "x": 220, "y": 540 }, { "x": 60, "y": 540 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "T",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 255, "y": 115 }, { "x": 270, "y": 115 },
+                          { "x": 270, "y": 165 }, { "x": 255, "y": 165 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "CL CL",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 310 }, { "x": 220, "y": 310 },
+                          { "x": 220, "y": 360 }, { "x": 60, "y": 360 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "CL CL",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 330, "y": 310 }, { "x": 380, "y": 310 },
+                          { "x": 380, "y": 340 }, { "x": 330, "y": 340 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "ウォークイン\nクローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 340 }, { "x": 470, "y": 340 },
+                          { "x": 470, "y": 395 }, { "x": 380, "y": 395 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "物入",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 255, "y": 340 }, { "x": 315, "y": 340 },
+                          { "x": 315, "y": 410 }, { "x": 255, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 60, "y": 725 }, { "x": 470, "y": 725 },
+                          { "x": 470, "y": 760 }, { "x": 60, "y": 760 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData4 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 11.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 410 }, { "x": 590, "y": 410 },
+                          { "x": 590, "y": 715 }, { "x": 300, "y": 715 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 5.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 85 }, { "x": 270, "y": 85 },
+                          { "x": 270, "y": 290 }, { "x": 65, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 6.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 85 }, { "x": 590, "y": 85 },
+                          { "x": 590, "y": 290 }, { "x": 380, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 6.5J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 490 }, { "x": 300, "y": 490 },
+                          { "x": 300, "y": 715 }, { "x": 65, "y": 715 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 245 }, { "x": 380, "y": 245 },
+                          { "x": 380, "y": 490 }, { "x": 300, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "Ent.",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 85 }, { "x": 380, "y": 85 },
+                          { "x": 380, "y": 245 }, { "x": 300, "y": 245 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "Washroom",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 160, "y": 290 }, { "x": 270, "y": 290 },
+                          { "x": 270, "y": 385 }, { "x": 160, "y": 385 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "Bathroom",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 385 }, { "x": 270, "y": 385 },
+                          { "x": 270, "y": 490 }, { "x": 65, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "Lav.",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 290 }, { "x": 480, "y": 290 },
+                          { "x": 480, "y": 370 }, { "x": 380, "y": 370 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Closet",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 290 }, { "x": 160, "y": 290 },
+                          { "x": 160, "y": 340 }, { "x": 65, "y": 340 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "SB",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 85 }, { "x": 300, "y": 85 },
+                          { "x": 300, "y": 150 }, { "x": 270, "y": 150 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "WIC",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 480, "y": 290 }, { "x": 590, "y": 290 },
+                          { "x": 590, "y": 380 }, { "x": 480, "y": 380 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Str",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 370 }, { "x": 480, "y": 370 },
+                          { "x": 480, "y": 410 }, { "x": 380, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Storage",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 385 }, { "x": 300, "y": 385 },
+                          { "x": 300, "y": 490 }, { "x": 270, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "PS",
+                      "Text": "PS",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 340 }, { "x": 110, "y": 340 },
+                          { "x": 110, "y": 385 }, { "x": 65, "y": 385 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "PS",
+                      "Text": "PS",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 480, "y": 380 }, { "x": 515, "y": 380 },
+                          { "x": 515, "y": 410 }, { "x": 480, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "MB",
+                      "Text": "MB",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 40 }, { "x": 130, "y": 40 },
+                          { "x": 130, "y": 75 }, { "x": 65, "y": 75 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "Balcony",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 715 }, { "x": 590, "y": 715 },
+                          { "x": 590, "y": 770 }, { "x": 65, "y": 770 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData5 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 11.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 410 }, { "x": 590, "y": 410 },
+                          { "x": 590, "y": 715 }, { "x": 300, "y": 715 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 5.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 85 }, { "x": 270, "y": 85 },
+                          { "x": 270, "y": 290 }, { "x": 65, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 6.0J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 85 }, { "x": 590, "y": 85 },
+                          { "x": 590, "y": 290 }, { "x": 380, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "Bedroom 6.5J",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 490 }, { "x": 300, "y": 490 },
+                          { "x": 300, "y": 715 }, { "x": 65, "y": 715 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 245 }, { "x": 380, "y": 245 },
+                          { "x": 380, "y": 490 }, { "x": 300, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "Ent.",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 300, "y": 85 }, { "x": 380, "y": 85 },
+                          { "x": 380, "y": 245 }, { "x": 300, "y": 245 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "Washroom",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 160, "y": 290 }, { "x": 270, "y": 290 },
+                          { "x": 270, "y": 385 }, { "x": 160, "y": 385 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "Bathroom",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 385 }, { "x": 270, "y": 385 },
+                          { "x": 270, "y": 490 }, { "x": 65, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "Lav.",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 290 }, { "x": 480, "y": 290 },
+                          { "x": 480, "y": 370 }, { "x": 380, "y": 370 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Closet",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 290 }, { "x": 160, "y": 290 },
+                          { "x": 160, "y": 340 }, { "x": 65, "y": 340 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "SB",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 85 }, { "x": 300, "y": 85 },
+                          { "x": 300, "y": 150 }, { "x": 270, "y": 150 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "WIC",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 480, "y": 290 }, { "x": 590, "y": 290 },
+                          { "x": 590, "y": 380 }, { "x": 480, "y": 380 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Str",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 380, "y": 370 }, { "x": 480, "y": 370 },
+                          { "x": 480, "y": 410 }, { "x": 380, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "Storage",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 385 }, { "x": 300, "y": 385 },
+                          { "x": 300, "y": 490 }, { "x": 270, "y": 490 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "PS",
+                      "Text": "PS",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 340 }, { "x": 110, "y": 340 },
+                          { "x": 110, "y": 385 }, { "x": 65, "y": 385 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "PS",
+                      "Text": "PS",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 480, "y": 380 }, { "x": 515, "y": 380 },
+                          { "x": 515, "y": 410 }, { "x": 480, "y": 410 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "MB",
+                      "Text": "MB",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 40 }, { "x": 130, "y": 40 },
+                          { "x": 130, "y": 75 }, { "x": 65, "y": 75 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "Balcony",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 715 }, { "x": 590, "y": 715 },
+                          { "x": 590, "y": 770 }, { "x": 65, "y": 770 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData6 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 約 20.5 帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 75, "y": 475 }, { "x": 490, "y": 475 },
+                          { "x": 490, "y": 620 }, { "x": 465, "y": 620 },
+                          { "x": 465, "y": 705 }, { "x": 75, "y": 705 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "和室",
+                      "Text": "和室 約 4.5 帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 490, "y": 560 }, { "x": 655, "y": 560 },
+                          { "x": 655, "y": 705 }, { "x": 490, "y": 705 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 480, "y": 75 }, { "x": 610, "y": 75 },
+                          { "x": 610, "y": 205 }, { "x": 480, "y": 205 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗面室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 220, "y": 155 }, { "x": 330, "y": 155 },
+                          { "x": 330, "y": 275 }, { "x": 220, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室 (1116)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 155 }, { "x": 220, "y": 155 },
+                          { "x": 220, "y": 275 }, { "x": 65, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 270, "y": 75 }, { "x": 330, "y": 75 },
+                          { "x": 330, "y": 155 }, { "x": 270, "y": 155 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "廊下",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 340, "y": 155 }, { "x": 470, "y": 155 },
+                          { "x": 470, "y": 275 }, { "x": 340, "y": 275 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "シューズイン\nクローク",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 340, "y": 75 }, { "x": 470, "y": 75 },
+                          { "x": 470, "y": 155 }, { "x": 340, "y": 155 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "土間収納",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 580, "y": 530 }, { "x": 655, "y": 530 },
+                          { "x": 655, "y": 560 }, { "x": 580, "y": 560 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 490, "y": 530 }, { "x": 580, "y": 530 },
+                          { "x": 580, "y": 560 }, { "x": 490, "y": 560 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "パントリー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 440, "y": 380 }, { "x": 490, "y": 380 },
+                          { "x": 490, "y": 475 }, { "x": 440, "y": 475 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "MB",
+                      "Text": "MB",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 65, "y": 35 }, { "x": 130, "y": 35 },
+                          { "x": 130, "y": 75 }, { "x": 65, "y": 75 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData7 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 14.3帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 295, "y": 42 }, { "x": 473, "y": 42 },
+                          { "x": 473, "y": 597 }, { "x": 295, "y": 597 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.3帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 691 }, { "x": 229, "y": 691 },
+                          { "x": 229, "y": 855 }, { "x": 52, "y": 855 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 42 }, { "x": 724, "y": 42 },
+                          { "x": 724, "y": 278 }, { "x": 546, "y": 278 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 646 }, { "x": 724, "y": 646 },
+                          { "x": 724, "y": 782 }, { "x": 546, "y": 782 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "UP",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 494 }, { "x": 229, "y": 494 },
+                          { "x": 229, "y": 600 }, { "x": 52, "y": 600 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "DN UP",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 295, "y": 600 }, { "x": 473, "y": 600 },
+                          { "x": 473, "y": 855 }, { "x": 295, "y": 855 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "DN",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 363 }, { "x": 724, "y": 363 },
+                          { "x": 724, "y": 560 }, { "x": 546, "y": 560 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 394 }, { "x": 139, "y": 394 },
+                          { "x": 139, "y": 489 }, { "x": 52, "y": 489 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 645, "y": 320 }, { "x": 724, "y": 320 },
+                          { "x": 724, "y": 409 }, { "x": 645, "y": 409 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 295 }, { "x": 163, "y": 295 },
+                          { "x": 163, "y": 389 }, { "x": 52, "y": 389 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 184 }, { "x": 182, "y": 184 },
+                          { "x": 182, "y": 290 }, { "x": 52, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 187, "y": 184 }, { "x": 229, "y": 184 },
+                          { "x": 229, "y": 290 }, { "x": 187, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 604 }, { "x": 145, "y": 604 },
+                          { "x": 145, "y": 686 }, { "x": 52, "y": 686 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "下駄箱",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 167, "y": 295 }, { "x": 229, "y": 295 },
+                          { "x": 229, "y": 389 }, { "x": 167, "y": 389 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 281 }, { "x": 640, "y": 281 },
+                          { "x": 640, "y": 360 }, { "x": 546, "y": 360 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 563 }, { "x": 640, "y": 563 },
+                          { "x": 640, "y": 643 }, { "x": 546, "y": 643 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 785 }, { "x": 724, "y": 785 },
+                          { "x": 724, "y": 846 }, { "x": 546, "y": 846 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData8 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK 14.3帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 295, "y": 42 }, { "x": 473, "y": 42 },
+                          { "x": 473, "y": 597 }, { "x": 295, "y": 597 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.3帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 691 }, { "x": 229, "y": 691 },
+                          { "x": 229, "y": 855 }, { "x": 52, "y": 855 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5.5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 42 }, { "x": 724, "y": 42 },
+                          { "x": 724, "y": 278 }, { "x": 546, "y": 278 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室 5帖",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 646 }, { "x": 724, "y": 646 },
+                          { "x": 724, "y": 782 }, { "x": 546, "y": 782 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "UP",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 494 }, { "x": 229, "y": 494 },
+                          { "x": 229, "y": 600 }, { "x": 52, "y": 600 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "DN UP",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 295, "y": 600 }, { "x": 473, "y": 600 },
+                          { "x": 473, "y": 855 }, { "x": 295, "y": 855 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "DN",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 363 }, { "x": 724, "y": 363 },
+                          { "x": 724, "y": 560 }, { "x": 546, "y": 560 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 394 }, { "x": 139, "y": 394 },
+                          { "x": 139, "y": 489 }, { "x": 52, "y": 489 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "トイレ",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 645, "y": 320 }, { "x": 724, "y": 320 },
+                          { "x": 724, "y": 409 }, { "x": 645, "y": 409 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 295 }, { "x": 163, "y": 295 },
+                          { "x": 163, "y": 389 }, { "x": 52, "y": 389 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 184 }, { "x": 182, "y": 184 },
+                          { "x": 182, "y": 290 }, { "x": 52, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 187, "y": 184 }, { "x": 229, "y": 184 },
+                          { "x": 229, "y": 290 }, { "x": 187, "y": 290 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 52, "y": 604 }, { "x": 145, "y": 604 },
+                          { "x": 145, "y": 686 }, { "x": 52, "y": 686 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "下駄箱",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 167, "y": 295 }, { "x": 229, "y": 295 },
+                          { "x": 229, "y": 389 }, { "x": 167, "y": 389 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 281 }, { "x": 640, "y": 281 },
+                          { "x": 640, "y": 360 }, { "x": 546, "y": 360 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "クローゼット",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 563 }, { "x": 640, "y": 563 },
+                          { "x": 640, "y": 643 }, { "x": 546, "y": 643 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 546, "y": 785 }, { "x": 724, "y": 785 },
+                          { "x": 724, "y": 846 }, { "x": 546, "y": 846 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData9 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK(18.2帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 122, "y": 331 }, { "x": 500, "y": 331 },
+                          { "x": 500, "y": 432 }, { "x": 536, "y": 432 },
+                          { "x": 536, "y": 458 }, { "x": 562, "y": 458 },
+                          { "x": 562, "y": 591 }, { "x": 122, "y": 591 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(5.5帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 594, "y": 490 }, { "x": 716, "y": 490 },
+                          { "x": 716, "y": 608 }, { "x": 594, "y": 608 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(5.1帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 594, "y": 360 }, { "x": 716, "y": 360 },
+                          { "x": 716, "y": 480 }, { "x": 594, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(7.5帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 720, "y": 440 }, { "x": 865, "y": 440 },
+                          { "x": 865, "y": 608 }, { "x": 720, "y": 608 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 716, "y": 360 }, { "x": 780, "y": 360 },
+                          { "x": 780, "y": 480 }, { "x": 720, "y": 480 },
+                          { "x": 720, "y": 440 }, { "x": 716, "y": 440 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 720, "y": 405 }, { "x": 780, "y": 405 },
+                          { "x": 780, "y": 480 }, { "x": 720, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "WIC(3帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 790, "y": 380 }, { "x": 865, "y": 380 },
+                          { "x": 865, "y": 480 }, { "x": 790, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 122, "y": 140 }, { "x": 240, "y": 140 },
+                          { "x": 240, "y": 280 }, { "x": 122, "y": 280 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗面",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 302, "y": 140 }, { "x": 400, "y": 140 },
+                          { "x": 400, "y": 252 }, { "x": 302, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 400, "y": 140 }, { "x": 500, "y": 140 },
+                          { "x": 500, "y": 252 }, { "x": 400, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 248, "y": 140 }, { "x": 302, "y": 140 },
+                          { "x": 302, "y": 252 }, { "x": 248, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 240, "y": 280 }, { "x": 370, "y": 280 },
+                          { "x": 370, "y": 331 }, { "x": 240, "y": 331 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 80, "y": 140 }, { "x": 122, "y": 140 },
+                          { "x": 122, "y": 280 }, { "x": 80, "y": 280 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 80, "y": 591 }, { "x": 122, "y": 591 },
+                          { "x": 122, "y": 702 }, { "x": 80, "y": 702 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const exampleData10 = {
+                  "Blocks": [
+                    {
+                      "type": "LDK",
+                      "Text": "LDK(18.2帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 122, "y": 331 }, { "x": 500, "y": 331 },
+                          { "x": 500, "y": 432 }, { "x": 536, "y": 432 },
+                          { "x": 536, "y": 458 }, { "x": 562, "y": 458 },
+                          { "x": 562, "y": 591 }, { "x": 122, "y": 591 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(5.5帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 594, "y": 490 }, { "x": 716, "y": 490 },
+                          { "x": 716, "y": 608 }, { "x": 594, "y": 608 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(5.1帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 594, "y": 360 }, { "x": 716, "y": 360 },
+                          { "x": 716, "y": 480 }, { "x": 594, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "居室",
+                      "Text": "洋室(7.5帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 720, "y": 440 }, { "x": 865, "y": 440 },
+                          { "x": 865, "y": 608 }, { "x": 720, "y": 608 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 716, "y": 360 }, { "x": 780, "y": 360 },
+                          { "x": 780, "y": 480 }, { "x": 720, "y": 480 },
+                          { "x": 720, "y": 440 }, { "x": 716, "y": 440 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 720, "y": 405 }, { "x": 780, "y": 405 },
+                          { "x": 780, "y": 480 }, { "x": 720, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "収納",
+                      "Text": "WIC(3帖)",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 790, "y": 380 }, { "x": 865, "y": 380 },
+                          { "x": 865, "y": 480 }, { "x": 790, "y": 480 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "玄関",
+                      "Text": "玄関",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 122, "y": 140 }, { "x": 240, "y": 140 },
+                          { "x": 240, "y": 280 }, { "x": 122, "y": 280 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "洗面所",
+                      "Text": "洗面",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 302, "y": 140 }, { "x": 400, "y": 140 },
+                          { "x": 400, "y": 252 }, { "x": 302, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "浴室",
+                      "Text": "浴室",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 400, "y": 140 }, { "x": 500, "y": 140 },
+                          { "x": 500, "y": 252 }, { "x": 400, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "トイレ",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 248, "y": 140 }, { "x": 302, "y": 140 },
+                          { "x": 302, "y": 252 }, { "x": 248, "y": 252 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "廊下",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 240, "y": 280 }, { "x": 370, "y": 280 },
+                          { "x": 370, "y": 331 }, { "x": 240, "y": 331 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 80, "y": 140 }, { "x": 122, "y": 140 },
+                          { "x": 122, "y": 280 }, { "x": 80, "y": 280 }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "バルコニー",
+                      "Text": "バルコニー",
+                      "Geometry": {
+                        "Polygon": [
+                          { "x": 80, "y": 591 }, { "x": 122, "y": 591 },
+                          { "x": 122, "y": 702 }, { "x": 80, "y": 702 }
+                        ]
+                      }
+                    }
+                  ]
+                };
+                const finalPrompt = `あなたは、日本の建築図面をピクセル単位で正確に解析する、超高性能な間取り図解析AIです。
+ユーザーが提供する間取り図の画像から、各部屋の情報を抽出し、指定されたJSON形式で出力してください。
 
-                            // OCRデータのセット（既存の処理）
-                            const newOcrData = DUMMY_OCR_DATA;
-                            setHistoryState(prevState => ({
-                                past: [...prevState.past, prevState.present],
-                                present: { ocrData: newOcrData, svgElements: prevState.present.svgElements },
-                                future: []
-                            }));
-                        };
-                        img.src = imageUrl;
-                    };
-                    reader.readAsDataURL(file);
+【最重要タスク】
+あなたの最重要タスクは、画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力することです。各ブロックには、その空間の輪郭を示す正確なポリゴン、空間の種類を示すtype、そして空間内のテキストを含める必要があります。
+
+【思考プロセス】
+1. 構造把握: まず画像全体を俯瞰し、どの壁がどの空間を構成しているか、大まかなレイアウトを把握します。
+2. ラベルと空間の紐付け: 次に、「LDK」「洋室」といったテキストラベルを見つけ、そのラベルが含まれる壁で囲まれた空間を特定します。
+3. 輪郭の精密トレース: 特定した空間の「壁の内側の線」を忠実にたどり、凹凸を含めた全ての頂点を拾い上げてポリゴンを定義します。これは最も重要なステップです。
+4. 全空間の網羅: ラベルのない空間（廊下や小さな収納など）も見落とさず、同様にポリゴンとして定義します。
+
+【絶対厳守ルール】
+ルール1. 輪郭の完全な正確性: 部屋の形状を単純な四角形に絶対にしないでください。L字型や凹凸のある複雑な多角形であっても、その全ての頂点を完全に捉えてください。壁の厚みの内側のラインをピクセルレベルで正確にトレースすることが求められます。
+ルール2. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、"WIC"などは"収納"に分類します。"PS・MB"というテキストがあっても、そこが明らかにトイレの空間であれば'type'は"トイレ"と判断してください。
+ルール3. 全ての空間を網羅: 非常に小さな収納スペースも見逃さず、必ず個別のブロックとして抽出してください。
+ルール4. テキストの完全性: 'Text'には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
+ルール5. 自己検証: 全ての空間を抽出した後、壁で囲まれているにも関わらずどのブロックにも含まれていない「隙間」や「未定義領域」がないか、もう一度全体を見直してください。もし見つかった場合は、それを「廊下」や「収納」などの適切なブロックとして追加してください。
+
+
+---
+【完璧な出力例 1】
+## 思考: 画像を解析した結果、LDK、玄関、トイレ、浴室、洗面所、2つの洋室、バルコニーの計8つの区画を認識した。特にLDKと洋室(5帖)は単純な四角形ではなく、壁の凹凸を反映した多角形として定義する必要があると判断。LDKは8つの頂点、洋室(5帖)は6つの頂点を持つポリゴンとして座標を丁寧に出力する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData1)}
+---
+【完璧な出力例 2】
+## 思考: 画像から3つの洋室、LDK、水回り（浴室、洗面室、トイレ）、玄関、廊下、収納、バルコニーを認識した。各洋室に隣接する小さな区画を「収納」として正しく紐付ける。水回りと玄関をつなぐように存在する細長い空間を「廊下」として定義し、その境界を正確にトレースする。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData2)}
+---
+【完璧な出力例 3】
+## 思考: 画像下部の大半を占める空間をLDKとして認識。その上部に複数の洋室と水回りが配置されている構造を把握。特に中央の「廊下」が各部屋を繋ぐ重要な役割を果たしていると判断し、その複雑な形状を正確にトレースする。WICやCL、物入は全て「収納」タイプに分類する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData3)}
+---
+【完璧な出力例 4】
+## 思考: 2つの洋室とLDKにまたがる大きな「バルコニー」をまず特定する。各部屋は収納（WIC、Closet）によって複雑な形状になっているため、単純な四角形として捉えず、壁の凹凸を忠実にポリゴンに反映させる。中央の廊下と水回りの配置関係を正確に認識することが重要。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData4)}
+---
+【完璧な出力例 5】
+## 思考: 右側の大きなLDKと、左側に配置された2つの洋室という基本構造を理解する。中央上部に密集している玄関、シューズインクローク(収納)、トイレ、洗面室、浴室をそれぞれ独立した四角形の区画として正確に切り分ける。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData5)}
+---
+【完璧な出力例 6】
+## 思考: 画像が上下2つのフロア（1階と2階）で構成されていることを認識する。まず1階部分について、LDK、和室、玄関、廊下、水回りをそれぞれ個別のポリゴンとして抽出する。次に2階部分について、3つの洋室と収納、そしてバルコニーを抽出する。「吹抜」と書かれたテキストは認識するが、指定されたタイプにないためポリゴンは生成しない。階段部分は「廊下」として扱う。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData6)}
+---
+【完璧な出力例 7】
+## 思考: 画像が左右3つのフロア（1階、2階、3階）に分かれていることを特定する。各フロアごとに解析を実行。1階は洋室と縦に並んだ水回りを抽出。2階は壁がほとんどないため、全体を一つの巨大なLDKポリゴンとして認識する。3階は2つの洋室と廊下、バルコニーを抽出する。各階の階段は「廊下」として扱う。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData7)}
+---
+【完璧な出力例 8】
+## 思考: 画像が3つのエリア（1階、2階、屋根裏収納）に分かれていることを認識する。各エリアごとに解析。1階はLDKと、上部に連なる複雑な水回りと廊下、玄関を正確に切り分ける。2階は3つの洋室とWIC(収納)、そして2部屋にまたがるバルコニーを認識する。屋根裏収納は「収納」と「廊下」として単純に分割する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData8)}
+---
+【完璧な出力例 9】
+## 思考: 3つのエリア（1階、2階、屋根裏収納）を認識。1階はLDKと洋室、そして上部の水回りを繋ぐ廊下の形状を正確にトレースする。2階は3つの洋室と複数の収納、そしてバルコニーの位置関係を把握する。特に右側の洋室の上にある3つの独立した収納を個別に抽出することが重要。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData9)}
+---
+【完璧な出力例 10】
+## 思考: 3つのフロア（1階、2階、3階）を認識。1階は洋室と、その上に複雑に配置された収納、水回り、廊下、玄関を個別に抽出する。2階は広大なLDKを一つのポリゴンとして定義し、右上の階段(廊下)とトイレ、収納部分を切り抜いた形状として認識する。3階も同様に、中央の廊下を基準に各部屋を配置する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData10)}
+---
+
+上記の思考プロセスとルール、そして複数の出力例を厳密に参考にし、これから提供される新しい画像を解析して、JSONオブジェクトのみを出力してください。`;
+            
+                const payload = {
+                    contents: [{
+                        parts: [
+                            { text: finalPrompt },
+                            { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        // スキーマも最初から「type」を含む理想の形式に合わせます
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "Blocks": {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            "type": { "type": "STRING" }, // typeフィールドを追加
+                                            "Text": { "type": "STRING" },
+                                            "Geometry": {
+                                                type: "OBJECT",
+                                                properties: {
+                                                    "Polygon": {
+                                                        type: "ARRAY",
+                                                        items: {
+                                                            type: "OBJECT",
+                                                            properties: {
+                                                                "x": { "type": "NUMBER" },
+                                                                "y": { "type": "NUMBER" }
+                                                            },
+                                                            required: ["x", "y"]
+                                                        }
+                                                    }
+                                                },
+                                                required: ["Polygon"]
+                                            }
+                                        },
+                                        required: ["type", "Text", "Geometry"] // typeを必須項目に追加
+                                    }
+                                }
+                            },
+                            required: ["Blocks"]
+                        }
+                    }
+                };
+            
+                try {
+                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+            
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        throw new Error(`API Error: ${response.status} ${errorBody}`);
+                    }
+            
+                    const result = await response.json();
+            
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                        const jsonText = result.candidates[0].content.parts[0].text;
+                        console.log("AIからのレスポンス(生テキスト):", jsonText); 
+                        try {
+                            const parsedJson = JSON.parse(jsonText);
+                            console.log("AIからのレスポンス(パース後):", parsedJson); // パース後のオブジェクトも確認
+                            return parsedJson;
+                        } catch (e) {
+                            console.error("JSONのパースに失敗しました:", e);
+                            console.error("パースしようとしたテキスト:", jsonText);
+                            return null; // パース失敗時はnullを返す
+                        }
+                        //return JSON.parse(jsonText);
+                    } else {
+                        console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
+                        throw new Error("AIからの応答が予期した形式ではありません。");
+                    }
+                } catch (error) {
+                    console.error("AIの解析中にエラーが発生しました:", error);
+                    alert("AIの解析に失敗しました。時間をおいて再度お試しください。");
+                    return null;
                 }
             };
+
+            const straightenAndAlignPolygon = (points, threshold = 10) => {
+                if (points.length < 3) return points;
+            
+                // 座標の「揺れ」を吸収するためのクラスタリング関数
+                const clusterValues = (values, threshold) => {
+                    values.sort((a, b) => a - b);
+                    const clusters = [];
+                    if (values.length === 0) return {};
+            
+                    let currentCluster = [values[0]];
+                    for (let i = 1; i < values.length; i++) {
+                        if (values[i] - currentCluster[currentCluster.length - 1] <= threshold) {
+                            currentCluster.push(values[i]);
+                        } else {
+                            clusters.push(currentCluster);
+                            currentCluster = [values[i]];
+                        }
+                    }
+                    clusters.push(currentCluster);
+            
+                    const map = {};
+                    clusters.forEach(cluster => {
+                        const representative = cluster[Math.floor(cluster.length / 2)]; // 中央値を代表値とする
+                        cluster.forEach(val => {
+                            map[val] = representative;
+                        });
+                    });
+                    return map;
+                };
+            
+                const allX = [...new Set(points.map(p => p.x))];
+                const allY = [...new Set(points.map(p => p.y))];
+            
+                const xMap = clusterValues(allX, threshold);
+                const yMap = clusterValues(allY, threshold);
+                
+                let newPoints = points.map(p => ({
+                    x: xMap[p.x],
+                    y: yMap[p.y]
+                }));
+            
+                // 連続する重複頂点を削除
+                newPoints = newPoints.filter((point, i) => {
+                    const prev = newPoints[i === 0 ? newPoints.length - 1 : i - 1];
+                    return point.x !== prev.x || point.y !== prev.y;
+                });
+                
+                // 3点以上が直線上に並んでしまう中間点を削除
+                const finalPoints = [];
+                if (newPoints.length > 2) {
+                    for (let i = 0; i < newPoints.length; i++) {
+                        const p1 = newPoints[i];
+                        const p2 = newPoints[(i + 1) % newPoints.length];
+                        const p3 = newPoints[(i + 2) % newPoints.length];
+            
+                        // 3点が同じX座標またはY座標を持つ場合、中間点(p2)をスキップ
+                        const isCollinear = (p1.x === p2.x && p2.x === p3.x) || (p1.y === p2.y && p2.y === p3.y);
+                        if (!isCollinear) {
+                            finalPoints.push(p2);
+                        }
+                    }
+                } else {
+                    return newPoints;
+                }
+                
+                // フィルター処理で点が減りすぎた場合のフォールバック
+                if(finalPoints.length < 3) return newPoints;
+            
+                return finalPoints;
+            };
+
+            const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
+                if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
+            
+                const canvasWidth = dimensions.width;
+                const canvasHeight = dimensions.height;
+            
+                // 1. AIが返した全座標から、間取り図全体の大きさを推定する
+                let allPointsX = [];
+                let allPointsY = [];
+                aiData.Blocks.forEach(block => {
+                    if (block.Geometry.Polygon) {
+                        block.Geometry.Polygon.forEach(p => {
+                            allPointsX.push(p.x);
+                            allPointsY.push(p.y);
+                        });
+                    }
+                });
+            
+                if (allPointsX.length === 0) return [];
+            
+                const minX = Math.min(...allPointsX);
+                const minY = Math.min(...allPointsY);
+                const maxX = Math.max(...allPointsX);
+                const maxY = Math.max(...allPointsY);
+            
+                const aiDrawingWidth = maxX - minX;
+                const aiDrawingHeight = maxY - minY;
+            
+                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
+            
+                // --- ▼▼▼ ここを微調整します (0.95 → 0.9) ▼▼▼ ---
+                // 2. AIが認識した間取り図のサイズが、キャンバスにフィットするように縮尺を計算
+                const scaleX = canvasWidth / aiDrawingWidth;
+                const scaleY = canvasHeight / aiDrawingHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.9; // さらに余白を持たせるため、係数を0.9に変更
+                // --- ▲▲▲ ここまで ▲▲▲ ---
+            
+                // 3. 中央に配置するためのオフセットを計算
+                const displayedWidth = aiDrawingWidth * fitScale;
+                const displayedHeight = aiDrawingHeight * fitScale;
+                const offsetX = (canvasWidth - displayedWidth) / 2;
+                const offsetY = (canvasHeight - displayedHeight) / 2;
+            
+                const newElements = [];
+                aiData.Blocks.forEach((block, index) => {
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
+            
+                    // 4. 新しく計算したスケールとオフセットで座標を変換
+                    let points = block.Geometry.Polygon.map(p => ({
+                        x: ((p.x - minX) * fitScale) + offsetX,
+                        y: ((p.y - minY) * fitScale) + offsetY
+                    }));
+                    
+                    // 後処理の補正関数を呼び出す
+                    points = straightenAndAlignPolygon(points);
+            
+                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
+            
+                    // 部屋のタイプ名を変換
+                    let spaceType = block.type;
+                    const text = block.Text || "";
+                    if (spaceType === "Room") {
+                        if (text.includes("LDK")) spaceType = "LDK";
+                        else if (text.includes("洋室")) spaceType = "居室";
+                        else if (text.includes("和室")) spaceType = "和室";
+                        else if (text.includes("洗面")) spaceType = "洗面所";
+                        else if (text.includes("浴室")) spaceType = "浴室";
+                        else if (text.includes("トイレ")) spaceType = "トイレ";
+                        else if (text.includes("玄関")) spaceType = "玄関";
+                        else spaceType = "居室";
+                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
+                        spaceType = "収納";
+                    } else if (spaceType === "Balcony") {
+                        spaceType = "バルコニー";
+                    }
+            
+                    const spaceElement = {
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: spaceType,
+                        groupId: subGroupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
+                        backgroundPattern: 'none'
+                    };
+                    newElements.push(spaceElement);
+            
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
+                        newElements.push({
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
+                    }
+            
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    newElements.push(labelElement);
+                });
+            
+                return newElements;
+            }, [dimensions]);
+
+            const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
+                const img = new Image();
+                img.onload = async () => {
+                    const imageWidth = img.naturalWidth;
+                    const imageHeight = img.naturalHeight;
+
+                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+
+                    const canvasWidth = dimensions.width;
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+                    
+                    setImageUrl(imageDataUrl);
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
+                    
+                    if (useAi) {
+                        setIsLoading(true);
+                        try {
+                            setLoadingMessage('AIが間取り図を解析中...');
+                            // AI呼び出しを1回に統合
+                            const finalOcrData = await analyzeImageWithAI(imageDataUrl);
+
+                            if (finalOcrData && finalOcrData.Blocks) {
+                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        ...prev.present,
+                                        svgElements: [...prev.present.svgElements, ...newElements],
+                                        ocrData: finalOcrData // 最終的なデータを保存
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
+                    } else {
+                    setUploadModalOpen(false);
+                    }
+                };
+                img.src = imageDataUrl;
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -2611,6 +4624,33 @@
                 img.src = url;
             };
 
+            const handleExportJson = useCallback(() => {
+                if (!historyState.present || !historyState.present.svgElements) {
+                    alert("エクスポートするデータがありません。");
+                    return;
+                }
+    
+                // AIへのお手本として使いやすいように、svgElements部分だけを抽出
+                const exportData = {
+                    "Blocks": [
+                        // ここでデータを変換することも可能ですが、まずは生のデータをコピーします
+                    ],
+                    // svgElementsのデータをここに含める形が良いでしょう
+                    "svgElements": historyState.present.svgElements 
+                };
+                
+                // JSONデータを整形して文字列に変換
+                const jsonString = JSON.stringify(historyState.present, null, 2); // historyState.present全体をコピー
+    
+                // クリップボードにコピー
+                navigator.clipboard.writeText(jsonString).then(() => {
+                    alert("間取り図のJSONデータをクリップボードにコピーしました。");
+                }).catch(err => {
+                    console.error("コピーに失敗しました:", err);
+                    alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
+                });
+            }, [historyState.present]);
+
 
 
             useEffect(() => {
@@ -2829,71 +4869,97 @@
                 };
             }, []); // このuseEffectは初回レンダリング時のみ実行
 
+            // ▼▼▼ 自動保存用のuseEffect ▼▼▼
             useEffect(() => {
-                // データが変更されたら、まずステータスを「未保存」にする
-                // ただし、初回読み込み時や過去のデータがない場合は何もしない
-                if (historyState.past.length === 0) {
+                const params = new URLSearchParams(window.location.search);
+                const madorizuId = params.get('id');
+        
+                if (!madorizuId) {
+                    alert('編集する間取り図が指定されていません。トップページに戻ります。');
+                    window.location.href = 'index.html';
                     return;
                 }
-                setSaveStatus('未保存');
+        
+                const fetchMadorizuData = async () => {
+                    setSaveStatus('読み込み中...');
+                    const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
+        
+                    try {
+                        const response = await fetch(API_ENDPOINT);
+                        if (!response.ok) throw new Error('データの読み込みに失敗しました。');
+        
+                        const data = await response.json();
+        
+                        if (data && data.drawingData && data.drawingData.svgElements) {
+                            setMadorizuName(data.name || '無題の間取り図');
+                            setHistoryState(prevState => ({
+                                ...prevState,
+                                present: {
+                                    ocrData: data.drawingData.ocrData || null,
+                                    svgElements: data.drawingData.svgElements || []
+                                }
+                            }));
+                        } else {
+                            setMadorizuName(data.name || '無題の間取り図');
+                            setHistoryState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
+                        }
+                         setSaveStatus('保存済み');
+                    } catch (error) {
+                        console.error("読み込みエラー:", error);
+                        setSaveStatus('読み込みエラー');
+                        alert(error.message);
+                    }
+                };
+        
+                fetchMadorizuData();
+            }, []); // このuseEffectは初回のみ実行
+            
+            // ▼▼▼ 名前変更時の自動保存用useEffect ▼▼▼
+        useEffect(() => {
+            // 初回読み込み時は、名前がセットされても保存しない
+            if (isInitialNameLoad.current) {
+                isInitialNameLoad.current = false;
+                return;
+            }
 
-                // サーバーへデータを保存する非同期関数
-                const handleAutoSave = async (dataToSave) => {
+            // 名前が変更されたら「未保存」にする
+            setSaveStatus('未保存');
+
+            // 2秒後に保存処理を実行するタイマーを設定
+            const timerId = setTimeout(() => {
+                const saveData = async () => {
                     setSaveStatus('保存中...');
-
-                    // URLから編集中の図面IDを取得 (新規作成の場合はnull)
                     const params = new URLSearchParams(window.location.search);
                     const madorizuId = params.get('id');
-
+                    if (!madorizuId) {
+                        setSaveStatus('エラー');
+                        return;
+                    }
                     const API_ENDPOINT = `https://y5cg2tb2yc.execute-api.ap-northeast-1.amazonaws.com/v1/madorizu/${madorizuId}`;
 
                     try {
                         const response = await fetch(API_ENDPOINT, {
-                            method: 'POST', // or 'PUT'
-                            headers: {
-                                'Content-Type': 'application/json',
-                                // 必要であれば認証トークンなどを追加
-                            },
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                id: madorizuId, // 新規の場合はnull, 編集の場合はIDが入る
-                                drawingData: dataToSave, // 保存する描画データ
-                                // その他、ユーザー情報なども必要であれば追加
+                                name: madorizuName, // 更新された名前を使用
+                                drawingData: historyState.present // 描画データは現在の状態をそのまま使用
                             }),
                         });
-
-                        if (!response.ok) {
-                            throw new Error('サーバーへの保存に失敗しました。');
-                        }
-
-                        const result = await response.json();
-
-                        // 新規保存後、もしサーバーから新しいIDが返ってくる場合は、URLを書き換えておく
-                        // これにより、次回以降は上書き保存になる
-                        if (!madorizuId && result.id) {
-                            const newUrl = `${window.location.pathname}?id=${result.id}`;
-                            window.history.replaceState({}, '', newUrl);
-                        }
-
+                        if (!response.ok) throw new Error('サーバーへの保存に失敗しました。');
                         setSaveStatus('保存済み');
-
                     } catch (error) {
-                        console.error("自動保存エラー:", error);
+                        console.error("名前の自動保存エラー:", error);
                         setSaveStatus('エラー');
                     }
                 };
+                saveData();
+            }, 2000); // ユーザーの入力が終わるのを2秒待つ
 
-                // 2秒間操作がなかったら handleAutoSave を実行するタイマー
-                const timerId = setTimeout(() => {
-                    handleAutoSave(historyState.present);
-                }, 2000); // 2000ミリ秒 = 2秒
+            // ユーザーがさらに入力を続けた場合、前回のタイマーはキャンセルする
+            return () => clearTimeout(timerId);
 
-                // このuseEffectが再実行される前（つまりデータが再度変更された時）に
-                // 前のタイマーをクリアする（これがデバウンスのキモです）
-                return () => {
-                    clearTimeout(timerId);
-                };
-
-            }, [historyState.present]); // historyState.presentが変更されるたびにこのuseEffectが実行される
+        }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
@@ -3289,22 +5355,48 @@
                 );
             };
 
-            return (
+            return (                    
                 <div className="flex flex-col h-screen">
+                    <UploadModal
+                        isOpen={isUploadModalOpen}
+                        onClose={() => setUploadModalOpen(false)}
+                        onSubmit={handleModalSubmit}
+                        isLoading={isLoading}
+                        loadingMessage={loadingMessage}
+                    />
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
-                            <div className="flex items-center space-x-4"> {/* 左側の要素をまとめるdiv */}
-                                <span className="text-xl font-bold text-gray-800 ml-4">Auto間取り図</span>
-                                <div className={`text-sm transition-opacity duration-300 
-                                    ${saveStatus === '保存済み' ? 'text-gray-500' : 
-                                    saveStatus === '保存中...' ? 'text-blue-500 animate-pulse' : 
-                                    'text-gray-800 font-medium'
-                                    }`}>
-                                    {saveStatus}
-                                </div>
-                            </div>
                         <div className="flex items-center space-x-4">
+                            {isEditingName ? (
+                                <input
+                                    type="text"
+                                    value={madorizuName}
+                                    onChange={(e) => setMadorizuName(e.target.value)}
+                                    onBlur={() => setIsEditingName(false)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingName(false); }}
+                                    className="text-xl font-bold text-gray-800 ml-4 bg-gray-100 border-b-2 border-indigo-500 focus:outline-none"
+                                    autoFocus
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => setIsEditingName(true)}
+                                    className="text-xl font-bold text-gray-800 ml-4 cursor-pointer hover:bg-gray-100 p-1 rounded-md"
+                                    title="クリックして名前を編集"
+                                >
+                                    {madorizuName}
+                                </span>
+                            )}
+                            <div className={`text-sm transition-opacity duration-300 
+                                ${saveStatus === '保存済み' ? 'text-gray-500' : 
+                                saveStatus === '保存中...' ? 'text-blue-500 animate-pulse' : 
+                                'text-gray-800 font-medium'
+                                }`}>
+                                {saveStatus}
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
                             <button onClick={() => window.location.href = 'index.html'} className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">TOPに戻る</button>
                             <button onClick={handleSaveImage} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">PNGで保存</button>
+                            <button onClick={handleExportJson} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">JSONコピー</button>
                             <button onClick={handleUndo} disabled={historyState.past.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">戻る</button>
                             <button onClick={handleRedo} disabled={historyState.future.length === 0} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50">進む</button>
                             <div className="flex items-center space-x-2">
@@ -3915,9 +6007,12 @@
                                 <div className={`accordion-content ${isDisplaySettingsOpen ? 'accordion-content-open' : ''}`}>
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="cursor-pointer block w-full text-sm text-center text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold py-2 px-4 rounded-full">
-                                                下絵を選択<input type="file" onChange={handleFileChange} accept="image/*" className="hidden"/>
-                                            </label>
+                                            <button 
+                                                onClick={() => setUploadModalOpen(true)}
+                                                className="cursor-pointer block w-full text-sm text-center text-blue-700 bg-blue-50 hover:bg-blue-100 font-semibold py-2 px-4 rounded-full"
+                                            >
+                                                下絵をアップロード
+                                            </button>
                                         </div>
                                         {imageUrl && (
                                             <>
