@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1588.0.min.js"></script>
-    <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCvReady();"></script>
+    <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -1431,6 +1431,7 @@
         
         function Editor() {
             // --- ステート定義 ---
+            const [isCvReady, setIsCvReady] = useState(false);
             const [isSidebarOpen, setSidebarOpen] = useState(true);
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
@@ -3432,25 +3433,29 @@ ${JSON.stringify(wallLines)}
                     if (useAi) {
                         setIsLoading(true);
                         try {
-                            setLoadingMessage('AIが間取り図を解析中...');
-                            // AI呼び出しを1回に統合
-                            const finalOcrData = await analyzeImageWithAI(imageDataUrl);
-
-                            if (finalOcrData && finalOcrData.Blocks) {
-                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: {
-                                        ...prev.present,
-                                        svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData // 最終的なデータを保存
-                                    },
-                                    future: []
-                                }));
-                            } else {
-                                throw new Error("AIからの応答が不正、または空です。");
-                            }
-                        } catch (err) {
+                            setLoadingMessage('AIが間取り図を解析中...');
+                            
+                            // 🚨 ここからが重要！ 🚨
+                            // Step 1: 壁を抽出 (OpenCVが準備できてから実行)
+                            if (!isCvReady) {
+                                throw new Error("OpenCV is not ready yet.");
+                            }
+                            const wallLines = await extractWallsFromImage(imageDataUrl);
+                
+                            // Step 2: AIで意味を解析
+                            const aiAnalysis = await analyzeImageWithAI(imageDataUrl, wallLines);
+                
+                            if (aiAnalysis && aiAnalysis.rooms) {
+                                // ▼▼▼【修正点】関数名を変更 ▼▼▼
+                                const newElements = reconstructSvgFromAnalysis(aiAnalysis, wallLines, dimensions); 
+                                
+                                setHistoryState(prev => ({
+                                    // ...
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                        } catch (err) {
                             console.error("AI処理エラー:", err);
                             alert(`エラーが発生しました: ${err.message}`);
                         } finally {
@@ -3462,7 +3467,7 @@ ${JSON.stringify(wallLines)}
                     }
                 };
                 img.src = imageDataUrl;
-            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
+            }, [dimensions, isCvReady, reconstructSvgFromAnalysis]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -4897,6 +4902,19 @@ ${JSON.stringify(wallLines)}
             return () => clearTimeout(timerId);
 
         }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
+
+        useEffect(() => {
+            // OpenCV.jsがロードされるのを監視する
+            const checkCv = () => {
+                if (window.cv) {
+                    console.log("OpenCV.js is ready.");
+                    setIsCvReady(true);
+                } else {
+                    setTimeout(checkCv, 100); // 100ms後に再チェック
+                }
+            };
+            checkCv();
+        }, []);
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
