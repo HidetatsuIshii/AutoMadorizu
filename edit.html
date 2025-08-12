@@ -1431,6 +1431,7 @@
         
         function Editor() {
             // --- ステート定義 ---
+            const [isCvReady, setIsCvReady] = useState(false);
             const [isSidebarOpen, setSidebarOpen] = useState(true);
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
@@ -1589,7 +1590,7 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = async (imageDataUrl) => {
+            const analyzeImageWithAI = async (imageDataUrl, wallLines) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
                 const exampleData1 = {
                   "Blocks": [
@@ -3094,16 +3095,25 @@
                     }
                   ]
                 };
-                 // AIへの指示を「理想のJSON形式」での出力に特化させる
                 const newPrompt = `あなたは、建築図面のデジタル化を専門とするAIアシスタントです。
-            提供された間取り図の画像から、各部屋の形状（ポリゴン）、テキストラベル、部屋のタイプを正確に抽出し、指定されたJSON形式で出力してください。
+            あなたのタスクは、提供された2つの情報、「画像」と「画像から抽出された全ての壁線リスト」を元に、各部屋の正確なポリゴン形状を生成し、指定されたJSON形式で出力することです。
+            
+            【入力情報】
+            1.  **間取り図の画像**: 部屋の配置、テキストラベル（「LDK」「洋室」など）が含まれています。
+            2.  **壁線リスト (wallLines)**: 画像からプログラム(OpenCV)によって抽出された全ての壁線の座標リストです。このリストの線分だけを使って部屋を組み立ててください。
             
             【思考プロセス】
-            1.  画像から「LDK」「洋室」「浴室」などの各部屋を視覚的に特定します。
-            2.  それぞれの部屋の輪郭を構成する全ての角（頂点）の x, y 座標を正確に計測します。壁の厚みの中心線をトレースするように、できるだけ正確な座標を取得してください。
-            3.  各部屋のテキストラベル（例：「LDK 約13.5帖」）を完全に読み取ります。
-            4.  テキストの内容から部屋のタイプ（例：「LDK」「居室」「浴室」など）を判断します。
-            5.  これらの情報を、指定された厳密なJSONスキーマに従って出力します。
+            1.  まず、画像全体を見て、「LDK」「洋室」「浴室」などのテキストラベルの位置から、各部屋のおおよその位置と範囲を把握します。
+            2.  次に、把握した各部屋の輪郭に沿って、提供された「壁線リスト」の中から最も適合する線分を複数選び出します。
+            3.  選び出した線分たちの端点をつなぎ合わせ、閉じたポリゴン（部屋の輪郭）を形成します。このポリゴンは、「壁線リスト」に含まれる座標のみで構成されている必要があります。
+            4.  部屋のテキストラベルを正確に読み取ります。
+            5.  テキストの内容から部屋のタイプを判断します。
+            6.  これらの情報を、指定された厳密なJSONスキーマに従って出力します。絶対にオリジナルの座標を創作せず、提供された壁線リストの端点座標のみを使用してください。
+            
+            【提供された壁線リスト】
+            \`\`\`json
+            ${JSON.stringify(wallLines)}
+            \`\`\`
             
             【出力形式】
             必ず以下のJSON形式で出力してください。
@@ -3121,8 +3131,7 @@
                         }
                     ]
                 }
-            }
-            `;
+            }`;
             
                 const payload = {
                     contents: [{
@@ -3133,7 +3142,6 @@
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // AIの出力形式（スキーマ）を理想の形式に合わせる
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -3178,8 +3186,8 @@
                 };
             
                 try {
-                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU"; // ご自身のAPIキーに置き換えてください
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU"; // ご自身のAPIキー
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`;
                     
                     const response = await fetch(apiUrl, {
                         method: 'POST',
@@ -3373,42 +3381,41 @@
                 return newElements;
             };
 
-            const extractWallsFromImage = async (imageDataUrl) => {
+            const extractWallsFromImage = (imageDataUrl) => {
                 return new Promise((resolve, reject) => {
                     const img = new Image();
                     img.onload = () => {
-                        // 1. 画像をOpenCVで扱える形式に変換
-                        const mat = cv.imread(img);
-                        const gray = new cv.Mat();
-                        cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
+                        try {
+                            const src = cv.imread(img);
+                            const gray = new cv.Mat();
+                            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                            
+                            const blurred = new cv.Mat();
+                            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
             
-                        // 2. ノイズ除去と二値化（壁の線を明確にする）
-                        const blurred = new cv.Mat();
-                        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-                        const thresholded = new cv.Mat();
-                        cv.adaptiveThreshold(blurred, thresholded, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+                            const edges = new cv.Mat();
+                            cv.Canny(blurred, edges, 50, 150, 3);
+                            
+                            const lines = new cv.Mat();
+                            cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 80, 50, 10);
+                            
+                            const wallLines = [];
+                            for (let i = 0; i < lines.rows; ++i) {
+                                const line = lines.data32S;
+                                const x1 = line[i * 4];
+                                const y1 = line[i * 4 + 1];
+                                const x2 = line[i * 4 + 2];
+                                const y2 = line[i * 4 + 3];
+                                wallLines.push({ x1, y1, x2, y2 });
+                            }
+                            
+                            src.delete(); gray.delete(); blurred.delete(); edges.delete(); lines.delete();
+                            resolve(wallLines);
             
-                        // 3. ハフ変換で直線を検出
-                        const lines = new cv.Mat();
-                        cv.HoughLinesP(thresholded, lines, 1, Math.PI / 180, 50, 50, 10);
-                        
-                        // 4. 検出した線をJSの配列に変換
-                        const wallLines = [];
-                        for (let i = 0; i < lines.rows; ++i) {
-                            const l = lines.data32S;
-                            wallLines.push({ 
-                                x1: l[i * 4], y1: l[i * 4 + 1], 
-                                x2: l[i * 4 + 2], y2: l[i * 4 + 3] 
-                            });
+                        } catch (error) {
+                            console.error("OpenCV Error:", error);
+                            reject(error);
                         }
-                        
-                        // TODO: ここで線の補正（水平・垂直化）や結合処理を行う
-                        // このステップが精度を大きく左右します
-            
-                        // 5. 不要なMatオブジェクトを解放
-                        mat.delete(); gray.delete(); blurred.delete(); thresholded.delete(); lines.delete();
-                        
-                        resolve(wallLines);
                     };
                     img.onerror = reject;
                     img.src = imageDataUrl;
@@ -3420,16 +3427,20 @@
                 if (!imageDataUrl) return;
             
                 if (useAi) {
+                    if (!isCvReady) {
+                        alert("OpenCV.js の準備ができていません。少し待ってから再度お試しください。");
+                        return;
+                    }
+            
                     setIsLoading(true);
                     try {
-                        setLoadingMessage('AIが間取り図を解析中...');
+                        setLoadingMessage('壁の線を抽出中...');
+                        const wallLines = await extractWallsFromImage(imageDataUrl);
                         
-                        // OpenCVは不要になったので削除
-                        const aiAnalysis = await analyzeImageWithAI(imageDataUrl);
+                        setLoadingMessage('AIが部屋の構造を解析中...');
+                        const aiAnalysis = await analyzeImageWithAI(imageDataUrl, wallLines);
             
-                        // if (aiAnalysis && aiAnalysis.rooms) を、新しいJSON形式に合わせる
                         if (aiAnalysis && aiAnalysis.ocrData && aiAnalysis.ocrData.Blocks) {
-                            // ▼▼▼【修正点】関数名と引数を元に戻す ▼▼▼
                             const newElements = generateDrawingFromAi(aiAnalysis, dimensions);
                             
                             setHistoryState(prev => ({
@@ -3450,7 +3461,7 @@
                         setLoadingMessage('');
                     }
                 }
-            }, [dimensions]);
+            }, [dimensions, isCvReady]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -4885,6 +4896,19 @@
             return () => clearTimeout(timerId);
 
         }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
+
+        // OpenCV.jsのロードを監視するuseEffectを復活
+        useEffect(() => {
+            const checkCv = () => {
+                if (window.cv) {
+                    console.log("OpenCV.js is ready.");
+                    setIsCvReady(true);
+                } else {
+                    setTimeout(checkCv, 100);
+                }
+            };
+            checkCv();
+        }, []);
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
