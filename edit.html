@@ -1431,7 +1431,6 @@
         
         function Editor() {
             // --- ステート定義 ---
-            const [isCvReady, setIsCvReady] = useState(false);
             const [isSidebarOpen, setSidebarOpen] = useState(true);
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
@@ -1590,7 +1589,7 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = async (imageDataUrl) => { // wallLinesはもう不要
+            const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
                 const exampleData1 = {
                   "Blocks": [
@@ -3095,28 +3094,36 @@
                     }
                   ]
                 };
-                // AIへの指示を「テキストとその中心座標の特定」のみに絞る
-    const newPrompt = `あなたは、間取り図からテキスト情報を抽出する専門家です。
-提供された間取り図画像から、全ての「部屋」または「空間」を示すテキストを 빠짐なく抽出し、そのテキストが存在するおおよその中心座標を特定してください。
-
-【思考プロセス】
-1. 画像内の「LDK」「洋室」「浴室」などのテキストを全て見つけます。
-2. 各テキストのバウンディングボックス（テキストを囲む四角形）を計算します。
-3. そのバウンディングボックスの中心の x, y 座標を特定します。
-4. テキストの内容と中心座標をペアにして、JSON形式で出力します。
-
-【出力形式】
-以下のJSON形式で出力してください。
-{
-    "rooms": [
-        {
-            "type": "LDK",
-            "text": "LDK 13.5帖",
-            "center": { "x": 310, "y": 377 }
-        }
-    ]
-}`;
-
+                 // AIへの指示を「理想のJSON形式」での出力に特化させる
+                const newPrompt = `あなたは、建築図面のデジタル化を専門とするAIアシスタントです。
+            提供された間取り図の画像から、各部屋の形状（ポリゴン）、テキストラベル、部屋のタイプを正確に抽出し、指定されたJSON形式で出力してください。
+            
+            【思考プロセス】
+            1.  画像から「LDK」「洋室」「浴室」などの各部屋を視覚的に特定します。
+            2.  それぞれの部屋の輪郭を構成する全ての角（頂点）の x, y 座標を正確に計測します。壁の厚みの中心線をトレースするように、できるだけ正確な座標を取得してください。
+            3.  各部屋のテキストラベル（例：「LDK 約13.5帖」）を完全に読み取ります。
+            4.  テキストの内容から部屋のタイプ（例：「LDK」「居室」「浴室」など）を判断します。
+            5.  これらの情報を、指定された厳密なJSONスキーマに従って出力します。
+            
+            【出力形式】
+            必ず以下のJSON形式で出力してください。
+            {
+                "ocrData": {
+                    "Blocks": [
+                        {
+                            "Geometry": {
+                                "Polygon": [
+                                    { "x": number, "y": number }
+                                ]
+                            },
+                            "Text": "string",
+                            "type": "string"
+                        }
+                    ]
+                }
+            }
+            `;
+            
                 const payload = {
                     contents: [{
                         parts: [
@@ -3126,30 +3133,46 @@
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
+                        // AIの出力形式（スキーマ）を理想の形式に合わせる
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "rooms": {
-                                    type: "ARRAY",
-                                    items: {
-                                        type: "OBJECT",
-                                        properties: {
-                                            "type": { "type": "STRING" },
-                                            "text": { "type": "STRING" },
-                                            "center": {
+                                "ocrData": {
+                                    type: "OBJECT",
+                                    properties: {
+                                        "Blocks": {
+                                            type: "ARRAY",
+                                            items: {
                                                 type: "OBJECT",
                                                 properties: {
-                                                    "x": { "type": "NUMBER" },
-                                                    "y": { "type": "NUMBER" }
+                                                    "Geometry": {
+                                                        type: "OBJECT",
+                                                        properties: {
+                                                            "Polygon": {
+                                                                type: "ARRAY",
+                                                                items: {
+                                                                    type: "OBJECT",
+                                                                    properties: {
+                                                                        "x": { "type": "NUMBER" },
+                                                                        "y": { "type": "NUMBER" }
+                                                                    },
+                                                                    required: ["x", "y"]
+                                                                }
+                                                            }
+                                                        },
+                                                        required: ["Polygon"]
+                                                    },
+                                                    "Text": { "type": "STRING" },
+                                                    "type": { "type": "STRING" }
                                                 },
-                                                required: ["x", "y"]
+                                                required: ["Geometry", "Text", "type"]
                                             }
-                                        },
-                                        required: ["type", "text", "center"]
-                                    }
+                                        }
+                                    },
+                                    required: ["Blocks"]
                                 }
                             },
-                            required: ["rooms"]
+                            required: ["ocrData"]
                         }
                     }
                 };
@@ -3256,134 +3279,94 @@
                 return finalPoints;
             };
 
-            const reconstructSvgFromAnalysis = (aiAnalysis, wallLines, dimensions, originalImageDimensions) => {
-                if (!aiAnalysis || !aiAnalysis.rooms) return [];
-                
-                // --- スケーリング計算ロジック（変更なし） ---
-                let allPointsX = wallLines.flatMap(line => [line.x1, line.x2]);
-                let allPointsY = wallLines.flatMap(line => [line.y1, line.y2]);
+            const generateDrawingFromAi = (aiData, dimensions) => {
+                if (!aiData || !aiData.ocrData || !aiData.ocrData.Blocks) return [];
+            
+                const blocks = aiData.ocrData.Blocks;
+                const canvasWidth = dimensions.width;
+                const canvasHeight = dimensions.height;
+            
+                // 1. 全てのポリゴン座標から図全体のサイズを計算
+                let allPointsX = blocks.flatMap(block => block.Geometry.Polygon.map(p => p.x));
+                let allPointsY = blocks.flatMap(block => block.Geometry.Polygon.map(p => p.y));
+            
                 if (allPointsX.length === 0) return [];
+            
                 const minX = Math.min(...allPointsX);
                 const minY = Math.min(...allPointsY);
                 const maxX = Math.max(...allPointsX);
                 const maxY = Math.max(...allPointsY);
+            
                 const drawingWidth = maxX - minX;
                 const drawingHeight = maxY - minY;
+                
                 if (drawingWidth === 0 || drawingHeight === 0) return [];
-                const canvasWidth = dimensions.width;
-                const canvasHeight = dimensions.height;
+            
+                // 2. 図がキャンバスに収まるようにスケールとオフセットを計算
                 const scaleX = canvasWidth / drawingWidth;
                 const scaleY = canvasHeight / drawingHeight;
                 const fitScale = Math.min(scaleX, scaleY) * 0.9;
                 const displayedWidth = drawingWidth * fitScale;
                 const displayedHeight = drawingHeight * fitScale;
-                const offsetX = (canvasWidth - displayedWidth) / 2;
-                const offsetY = (canvasHeight - displayedHeight) / 2;
-                
-                // ▼▼▼ ここからロジックを大幅に変更 ▼▼▼
+                const offsetX = (canvasWidth - displayedWidth) / 2 - (minX * fitScale);
+                const offsetY = (canvasHeight - displayedHeight) / 2 - (minY * fitScale);
             
-                // 1. 壁の線から輪郭（部屋の候補）を抽出する
-                const wallCanvas = document.createElement('canvas');
-                const originalWidth = originalImageDimensions.width;
-                const originalHeight = originalImageDimensions.height;
-                wallCanvas.width = originalWidth;
-                wallCanvas.height = originalHeight;
-                const ctx = wallCanvas.getContext('2d');
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, originalWidth, originalHeight);
-                
-                // 壁を白い線で描画
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 3; // 壁の線を少し太くして繋がりやすくする
-                wallLines.forEach(line => {
-                    ctx.beginPath();
-                    ctx.moveTo(line.x1, line.y1);
-                    ctx.lineTo(line.x2, line.y2);
-                    ctx.stroke();
-                });
-            
-                const src = cv.imread(wallCanvas);
-                const gray = new cv.Mat();
-                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-                const contours = new cv.MatVector();
-                const hierarchy = new cv.Mat();
-                cv.findContours(gray, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
-            
-                const roomCandidates = [];
-                for (let i = 0; i < contours.size(); ++i) {
-                    // 穴ではない輪郭のみを抽出
-                    if (hierarchy.data32S[i * 4 + 3] === -1) {
-                        const cnt = contours.get(i);
-                        const area = cv.contourArea(cnt, false);
-                        // 小さすぎる領域はノイズとして除外
-                        if (area > 500) { // この閾値は調整が必要
-                             const points = [];
-                             for (let j = 0; j < cnt.data32S.length; j += 2) {
-                                 points.push({ x: cnt.data32S[j], y: cnt.data32S[j+1] });
-                             }
-                             roomCandidates.push({ id: i, points, area });
-                        }
-                        cnt.delete();
-                    }
-                }
-                src.delete(); gray.delete(); contours.delete(); hierarchy.delete();
-            
-                // 2. AIが返した部屋の中心点と、抽出した輪郭を紐付ける
                 const newElements = [];
-                aiAnalysis.rooms.forEach((room, roomIndex) => {
-                    const centerPoint = { x: room.center.x, y: room.center.y };
-                    let bestCandidate = null;
             
-                    for (const candidate of roomCandidates) {
-                        const mat = cv.matFromArray(candidate.points.length, 1, cv.CV_32SC2, candidate.points.flatMap(p => [p.x, p.y]));
-                        // 点が輪郭の内側にあるかチェック
-                        if (cv.pointPolygonTest(mat, centerPoint, false) > 0) {
-                            // 複数の候補がある場合、より小さい（内側の）領域を選ぶ
-                            if (!bestCandidate || candidate.area < bestCandidate.area) {
-                                bestCandidate = candidate;
-                            }
-                        }
-                        mat.delete();
+                // 3. AIのデータからSVG要素を生成
+                blocks.forEach((block, index) => {
+                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+                    const scaledPoints = block.Geometry.Polygon.map(p => ({
+                        x: p.x * fitScale + offsetX,
+                        y: p.y * fitScale + offsetY,
+                    }));
+            
+                    if (scaledPoints.length < 3) return;
+            
+                    // 空間（ポリゴン）要素
+                    const spaceElement = {
+                        id: groupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: block.type,
+                        groupId,
+                        points: scaledPoints.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[block.type] || '#ffffff',
+                        backgroundPattern: 'none'
+                    };
+                    newElements.push(spaceElement);
+            
+                    // 壁要素（ポリゴンの辺から生成）
+                    for (let i = 0; i < scaledPoints.length; i++) {
+                        const p1 = scaledPoints[i];
+                        const p2 = scaledPoints[(i + 1) % scaledPoints.length];
+                        newElements.push({
+                            id: `wall-${groupId}-${i}`,
+                            type: 'wall',
+                            groupId,
+                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
                     }
             
-                    if (bestCandidate) {
-                        const groupId = `space-group-ai-${Date.now()}-${roomIndex}`;
-                        const scaledPoints = bestCandidate.points.map(p => ({
-                            x: ((p.x - minX) * fitScale) + offsetX,
-                            y: ((p.y - minY) * fitScale) + offsetY
-                        }));
-            
-                        // 3. SVG要素を生成
-                        const spaceElement = {
-                            id: groupId, type: 'space', shape: 'polygon', spaceType: room.type, groupId,
-                            points: scaledPoints.map(p => `${p.x},${p.y}`).join(' '),
-                            fill: DEFAULT_FILL_COLORS[room.type] || '#ffffff',
-                            backgroundPattern: 'none'
-                        };
-                        newElements.push(spaceElement);
-                        
-                        // 壁も生成（輪郭の辺から）
-                        for (let i = 0; i < scaledPoints.length; i++) {
-                            const p1 = scaledPoints[i];
-                            const p2 = scaledPoints[(i + 1) % scaledPoints.length];
-                            newElements.push({
-                                id: `wall-${groupId}-${i}`, type: 'wall', groupId,
-                                x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-                                color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH, lineStyle: 'solid'
-                            });
-                        }
-            
-                        const centroid = getPolygonCentroid(scaledPoints);
-                        if (room.text) {
-                            const labelElement = {
-                                id: `text-ai-${Date.now()}-${roomIndex}`, type: 'text', groupId,
-                                x: (centroid.x / dimensions.width) * 100,
-                                y: (centroid.y / dimensions.height) * 100,
-                                text: room.text, color: '#000000', backgroundColor: 'none',
-                                fontSize: 16, fontFamily: 'sans-serif', textAlign: 'center',
-                            };
-                            newElements.push(labelElement);
-                        }
+                    // テキスト要素
+                    const centroid = getPolygonCentroid(scaledPoints);
+                    if (block.Text) {
+                        newElements.push({
+                            id: `text-ai-${Date.now()}-${index}`,
+                            type: 'text',
+                            groupId,
+                            x: (centroid.x / canvasWidth) * 100,
+                            y: (centroid.y / canvasHeight) * 100,
+                            text: block.Text,
+                            color: '#000000',
+                            backgroundColor: 'none',
+                            fontSize: 16,
+                            fontFamily: 'sans-serif',
+                            textAlign: 'center',
+                        });
                     }
                 });
             
@@ -3433,64 +3416,41 @@
             };
 
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
-                const img = new Image();
-                img.onload = async () => {
-                    const imageWidth = img.naturalWidth;
-                    const imageHeight = img.naturalHeight;
-
-                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
-
-                    const canvasWidth = dimensions.width;
-                    const canvasHeight = dimensions.height;
-                    const scaleX = canvasWidth / imageWidth;
-                    const scaleY = canvasHeight / imageHeight;
-                    const fitScale = Math.min(scaleX, scaleY);
-                    
-                    setImageUrl(imageDataUrl);
-                    setImageScale(fitScale);
-                    setImagePosition({ x: 0, y: 0 });
-                    
-                    if (useAi) {
-                        setIsLoading(true);
-                        try {
-                            setLoadingMessage('AIが間取り図を解析中...');
+                setUploadModalOpen(false);
+                if (!imageDataUrl) return;
+            
+                if (useAi) {
+                    setIsLoading(true);
+                    try {
+                        setLoadingMessage('AIが間取り図を解析中...');
+                        
+                        // OpenCVは不要になったので削除
+                        const aiAnalysis = await analyzeImageWithAI(imageDataUrl);
+            
+                        // if (aiAnalysis && aiAnalysis.rooms) を、新しいJSON形式に合わせる
+                        if (aiAnalysis && aiAnalysis.ocrData && aiAnalysis.ocrData.Blocks) {
+                            // ▼▼▼【修正点】関数名と引数を元に戻す ▼▼▼
+                            const newElements = generateDrawingFromAi(aiAnalysis, dimensions);
                             
-                            // 🚨 ここからが重要！ 🚨
-                            // Step 1: 壁を抽出 (OpenCVが準備できてから実行)
-                            if (!isCvReady) {
-                                throw new Error("OpenCV is not ready yet.");
-                            }
-                            const wallLines = await extractWallsFromImage(imageDataUrl);
-                
-                            // Step 2: AIで意味を解析
-                            const aiAnalysis = await analyzeImageWithAI(imageDataUrl);
-                
-                            if (aiAnalysis && aiAnalysis.rooms) {
-                                const newElements = reconstructSvgFromAnalysis(aiAnalysis, wallLines, dimensions, { width: imageWidth, height: imageHeight });
-                                
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: {
-                                        svgElements: [...prev.present.svgElements, ...newElements]
-                                    },
-                                    future: []
-                                }));
-                            } else {
-                                throw new Error("AIからの応答が不正、または空です。");
-                            }
-                        } catch (err) {
-                            console.error("AI処理エラー:", err);
-                            alert(`エラーが発生しました: ${err.message}`);
-                        } finally {
-                            setIsLoading(false);
-                            setUploadModalOpen(false);
-                        }
-                    } else {
-                    setUploadModalOpen(false);
+                            setHistoryState(prev => ({
+                                past: [...prev.past, prev.present],
+                                present: {
+                                    svgElements: [...prev.present.svgElements, ...newElements]
+                                },
+                                future: []
+                            }));
+                        } else {
+                            throw new Error("AIからの応答が不正、または空です。");
+                        }
+                    } catch (err) {
+                        console.error('AI処理エラー:', err);
+                        alert(`AI処理中にエラーが発生しました: ${err.message}`);
+                    } finally {
+                        setIsLoading(false);
+                        setLoadingMessage('');
                     }
-                };
-                img.src = imageDataUrl;
-            }, [dimensions, isCvReady, reconstructSvgFromAnalysis]);
+                }
+            }, [dimensions]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -4925,19 +4885,6 @@
             return () => clearTimeout(timerId);
 
         }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
-
-        useEffect(() => {
-            // OpenCV.jsがロードされるのを監視する
-            const checkCv = () => {
-                if (window.cv) {
-                    console.log("OpenCV.js is ready.");
-                    setIsCvReady(true);
-                } else {
-                    setTimeout(checkCv, 100); // 100ms後に再チェック
-                }
-            };
-            checkCv();
-        }, []);
 
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
