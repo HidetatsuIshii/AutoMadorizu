@@ -1436,8 +1436,8 @@
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
             const [imageUrl, setImageUrl] = useState('');
-            const [historyState, setHistoryState] = useState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
-            const { ocrData: currentOcrData, svgElements } = historyState.present;
+            const [historyState, setHistoryState] = useState({ past: [], present: { svgElements: [] }, future: [] });
+            const { svgElements } = historyState.present;
             const [editorMode, setEditorMode] = useState('continuous-create'); // 'continuous-create', 'create', 'edit'
             const [drawingMode, setDrawingMode] = useState(null);
             const [spaceShape, setSpaceShape] = useState('rect');
@@ -3449,11 +3449,14 @@ ${JSON.stringify(wallLines)}
                             const aiAnalysis = await analyzeImageWithAI(imageDataUrl, wallLines);
                 
                             if (aiAnalysis && aiAnalysis.rooms) {
-                                // ▼▼▼【修正点】関数名を変更 ▼▼▼
                                 const newElements = reconstructSvgFromAnalysis(aiAnalysis, wallLines, dimensions); 
                                 
                                 setHistoryState(prev => ({
-                                    // ...
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        svgElements: [...prev.present.svgElements, ...newElements]
+                                    },
+                                    future: []
                                 }));
                             } else {
                                 throw new Error("AIからの応答が不正、または空です。");
