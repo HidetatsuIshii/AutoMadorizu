@@ -3130,13 +3130,12 @@ ${JSON.stringify(wallLines)}
                 const payload = {
                     contents: [{
                         parts: [
-                            { text: newPrompt }, // 👈 ここが修正点です！ finalPromptからnewPromptに変更
+                            { text: newPrompt },
                             { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
                         ]
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // AIの出力形式（スキーマ）も新しい形式に合わせます
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -3163,7 +3162,9 @@ ${JSON.stringify(wallLines)}
             
                 try {
                     const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU";
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0520:generateContent?key=${apiKey}`;
+                    
+                    // ▼▼▼【修正点】モデル名を最新版に変更 ▼▼▼
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
                     
                     const response = await fetch(apiUrl, {
                         method: 'POST',
