@@ -3312,87 +3312,84 @@ ${JSON.stringify(exampleData10)}
                 return finalPoints;
             };
 
-            const generateDrawingFromAi = (aiData, dimensions) => {
-                if (!aiData || !aiData.ocrData || !aiData.ocrData.Blocks) return [];
+            const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
+                if (!aiData || !aiData.Blocks || aiData.Blocks.length === 0 || !originalImageDimensions) {
+                    console.error("generateDrawingFromAi: Invalid input data.");
+                    return [];
+                }
             
-                const blocks = aiData.ocrData.Blocks;
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
             
-                // 1. 全てのポリゴン座標から図全体のサイズを計算
-                let allPointsX = blocks.flatMap(block => block.Geometry.Polygon.map(p => p.x));
-                let allPointsY = blocks.flatMap(block => block.Geometry.Polygon.map(p => p.y));
+                // AIが認識した座標は、元の画像のピクセル座標系に基づいている
+                const imgWidth = originalImageDimensions.width;
+                const imgHeight = originalImageDimensions.height;
             
-                if (allPointsX.length === 0) return [];
+                // 画像全体がキャンバスにフィットするようにスケールとオフセットを計算
+                const scaleX = canvasWidth / imgWidth;
+                const scaleY = canvasHeight / imgHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.9; // 90%のサイズで余白を持たせる
             
-                const minX = Math.min(...allPointsX);
-                const minY = Math.min(...allPointsY);
-                const maxX = Math.max(...allPointsX);
-                const maxY = Math.max(...allPointsY);
-            
-                const drawingWidth = maxX - minX;
-                const drawingHeight = maxY - minY;
-                
-                if (drawingWidth === 0 || drawingHeight === 0) return [];
-            
-                // 2. 図がキャンバスに収まるようにスケールとオフセットを計算
-                const scaleX = canvasWidth / drawingWidth;
-                const scaleY = canvasHeight / drawingHeight;
-                const fitScale = Math.min(scaleX, scaleY) * 0.9;
-                const displayedWidth = drawingWidth * fitScale;
-                const displayedHeight = drawingHeight * fitScale;
-                const offsetX = (canvasWidth - displayedWidth) / 2 - (minX * fitScale);
-                const offsetY = (canvasHeight - displayedHeight) / 2 - (minY * fitScale);
+                const scaledWidth = imgWidth * fitScale;
+                const scaledHeight = imgHeight * fitScale;
+                const offsetX = (canvasWidth - scaledWidth) / 2;
+                const offsetY = (canvasHeight - scaledHeight) / 2;
             
                 const newElements = [];
+                aiData.Blocks.forEach((block, index) => {
+                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
             
-                // 3. AIのデータからSVG要素を生成
-                blocks.forEach((block, index) => {
-                    const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const scaledPoints = block.Geometry.Polygon.map(p => ({
-                        x: p.x * fitScale + offsetX,
-                        y: p.y * fitScale + offsetY,
+                    // 元の画像のピクセル座標を、画面のSVGキャンバス座標に変換
+                    let points = block.Geometry.Polygon.map(p => ({
+                        x: (p.x * fitScale) + offsetX,
+                        y: (p.y * fitScale) + offsetY
                     }));
             
-                    if (scaledPoints.length < 3) return;
+                    points = straightenAndAlignPolygon(points);
+                    if (points.length < 3) return; // 補正後、ポリゴンが成立しない場合はスキップ
             
-                    // 空間（ポリゴン）要素
+                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+                    const spaceType = block.type || "その他"; // AIがtypeを返さない場合への備え
+            
+                    // 1. 空間（space）要素の作成
                     const spaceElement = {
                         id: groupId,
                         type: 'space',
                         shape: 'polygon',
-                        spaceType: block.type,
-                        groupId,
-                        points: scaledPoints.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[block.type] || '#ffffff',
+                        spaceType: spaceType,
+                        groupId: groupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[spaceType] || DEFAULT_FILL_COLORS["その他"],
                         backgroundPattern: 'none'
                     };
                     newElements.push(spaceElement);
             
-                    // 壁要素（ポリゴンの辺から生成）
-                    for (let i = 0; i < scaledPoints.length; i++) {
-                        const p1 = scaledPoints[i];
-                        const p2 = scaledPoints[(i + 1) % scaledPoints.length];
+                    // 2. 空間を構成する壁（wall）要素の作成
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
                         newElements.push({
-                            id: `wall-${groupId}-${i}`,
+                            id: `wall-ai-${groupId}-${i}`,
                             type: 'wall',
-                            groupId,
-                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                            groupId: groupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
                             color: DEFAULT_STROKE_COLOR,
                             strokeWidth: DEFAULT_STROKE_WIDTH,
                             lineStyle: 'solid'
                         });
                     }
-            
-                    // テキスト要素
-                    const centroid = getPolygonCentroid(scaledPoints);
+                    
+                    // 3. テキスト（text）要素の作成
+                    const centroid = getPolygonCentroid(points);
                     if (block.Text) {
                         newElements.push({
-                            id: `text-ai-${Date.now()}-${index}`,
+                            id: `text-ai-${groupId}`,
                             type: 'text',
-                            groupId,
-                            x: (centroid.x / canvasWidth) * 100,
-                            y: (centroid.y / canvasHeight) * 100,
+                            groupId: groupId,
+                            x: (centroid.x / dimensions.width) * 100,
+                            y: (centroid.y / dimensions.height) * 100,
                             text: block.Text,
                             color: '#000000',
                             backgroundColor: 'none',
@@ -3402,9 +3399,10 @@ ${JSON.stringify(exampleData10)}
                         });
                     }
                 });
-                console.log("generateDrawingFromAiが生成したデータ:", newElements);
+            
+                console.log("generateDrawingFromAiが生成したSVG要素:", newElements);
                 return newElements;
-            };
+            }, [dimensions]);
 
             const extractWallsFromImage = (imageDataUrl) => {
                 return new Promise((resolve, reject) => {
