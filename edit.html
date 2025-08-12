@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1588.0.min.js"></script>
-    <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
+    <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencv-js"></script>
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -3095,48 +3095,73 @@
                     }
                   ]
                 };
-                const newPrompt = `あなたは、建築図面のデジタル化を専門とするAIアシスタントです。
-            あなたのタスクは、提供された2つの情報、「画像」と「画像から抽出された全ての壁線リスト」を元に、各部屋の正確なポリゴン形状を生成し、指定されたJSON形式で出力することです。
-            
-            【入力情報】
-            1.  **間取り図の画像**: 部屋の配置、テキストラベル（「LDK」「洋室」など）が含まれています。
-            2.  **壁線リスト (wallLines)**: 画像からプログラム(OpenCV)によって抽出された全ての壁線の座標リストです。このリストの線分だけを使って部屋を組み立ててください。
-            
-            【思考プロセス】
-            1.  まず、画像全体を見て、「LDK」「洋室」「浴室」などのテキストラベルの位置から、各部屋のおおよその位置と範囲を把握します。
-            2.  次に、把握した各部屋の輪郭に沿って、提供された「壁線リスト」の中から最も適合する線分を複数選び出します。
-            3.  選び出した線分たちの端点をつなぎ合わせ、閉じたポリゴン（部屋の輪郭）を形成します。このポリゴンは、「壁線リスト」に含まれる座標のみで構成されている必要があります。
-            4.  部屋のテキストラベルを正確に読み取ります。
-            5.  テキストの内容から部屋のタイプを判断します。
-            6.  これらの情報を、指定された厳密なJSONスキーマに従って出力します。絶対にオリジナルの座標を創作せず、提供された壁線リストの端点座標のみを使用してください。
-            
-            【提供された壁線リスト】
-            \`\`\`json
-            ${JSON.stringify(wallLines)}
-            \`\`\`
-            
-            【出力形式】
-            必ず以下のJSON形式で出力してください。
-            {
-                "ocrData": {
-                    "Blocks": [
-                        {
-                            "Geometry": {
-                                "Polygon": [
-                                    { "x": number, "y": number }
-                                ]
-                            },
-                            "Text": "string",
-                            "type": "string"
-                        }
-                    ]
-                }
-            }`;
+                const newPrompt = `あなたは、建築図面の構造を理解する専門家AIです。
+提供された間取り図の画像と、OpenCVによって事前に抽出された壁線の座標リスト（JSON形式）を元に、各部屋の領域（ポリゴン）を特定してください。
+
+【あなたのタスク】
+1.  提供された「壁線データ」の線分を論理的に連結し、閉じた領域（部屋）を形成します。
+2.  元の「画像」を参照して、形成した各領域内に書かれているテキスト（例: "LDK 12.5帖", "洋室"）を読み取ります。
+3.  読み取ったテキストに基づいて、各領域のタイプを決定します。
+4.  最終的に、各部屋の正確な輪郭（ポリゴン座標）とテキスト情報を含むJSONを出力してください。
+
+---
+【完璧な出力例 1】
+## 思考: 画像を解析した結果、LDK、玄関、トイレ、浴室、洗面所、2つの洋室、バルコニーの計8つの区画を認識した。特にLDKと洋室(5帖)は単純な四角形ではなく、壁の凹凸を反映した多角形として定義する必要があると判断。LDKは8つの頂点、洋室(5帖)は6つの頂点を持つポリゴンとして座標を丁寧に出力する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData1)}
+---
+【完璧な出力例 2】
+## 思考: 画像から3つの洋室、LDK、水回り（浴室、洗面室、トイレ）、玄関、廊下、収納、バルコニーを認識した。各洋室に隣接する小さな区画を「収納」として正しく紐付ける。水回りと玄関をつなぐように存在する細長い空間を「廊下」として定義し、その境界を正確にトレースする。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData2)}
+---
+【完璧な出力例 3】
+## 思考: 画像下部の大半を占める空間をLDKとして認識。その上部に複数の洋室と水回りが配置されている構造を把握。特に中央の「廊下」が各部屋を繋ぐ重要な役割を果たしていると判断し、その複雑な形状を正確にトレースする。WICやCL、物入は全て「収納」タイプに分類する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData3)}
+---
+【完璧な出力例 4】
+## 思考: 2つの洋室とLDKにまたがる大きな「バルコニー」をまず特定する。各部屋は収納（WIC、Closet）によって複雑な形状になっているため、単純な四角形として捉えず、壁の凹凸を忠実にポリゴンに反映させる。中央の廊下と水回りの配置関係を正確に認識することが重要。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData4)}
+---
+【完璧な出力例 5】
+## 思考: 右側の大きなLDKと、左側に配置された2つの洋室という基本構造を理解する。中央上部に密集している玄関、シューズインクローク(収納)、トイレ、洗面室、浴室をそれぞれ独立した四角形の区画として正確に切り分ける。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData5)}
+---
+【完璧な出力例 6】
+## 思考: 画像が上下2つのフロア（1階と2階）で構成されていることを認識する。まず1階部分について、LDK、和室、玄関、廊下、水回りをそれぞれ個別のポリゴンとして抽出する。次に2階部分について、3つの洋室と収納、そしてバルコニーを抽出する。「吹抜」と書かれたテキストは認識するが、指定されたタイプにないためポリゴンは生成しない。階段部分は「廊下」として扱う。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData6)}
+---
+【完璧な出力例 7】
+## 思考: 画像が左右3つのフロア（1階、2階、3階）に分かれていることを特定する。各フロアごとに解析を実行。1階は洋室と縦に並んだ水回りを抽出。2階は壁がほとんどないため、全体を一つの巨大なLDKポリゴンとして認識する。3階は2つの洋室と廊下、バルコニーを抽出する。各階の階段は「廊下」として扱う。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData7)}
+---
+【完璧な出力例 8】
+## 思考: 画像が3つのエリア（1階、2階、屋根裏収納）に分かれていることを認識する。各エリアごとに解析。1階はLDKと、上部に連なる複雑な水回りと廊下、玄関を正確に切り分ける。2階は3つの洋室とWIC(収納)、そして2部屋にまたがるバルコニーを認識する。屋根裏収納は「収納」と「廊下」として単純に分割する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData8)}
+---
+【完璧な出力例 9】
+## 思考: 3つのエリア（1階、2階、屋根裏収納）を認識。1階はLDKと洋室、そして上部の水回りを繋ぐ廊下の形状を正確にトレースする。2階は3つの洋室と複数の収納、そしてバルコニーの位置関係を把握する。特に右側の洋室の上にある3つの独立した収納を個別に抽出することが重要。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData9)}
+---
+【完璧な出力例 10】
+## 思考: 3つのフロア（1階、2階、3階）を認識。1階は洋室と、その上に複雑に配置された収納、水回り、廊下、玄関を個別に抽出する。2階は広大なLDKを一つのポリゴンとして定義し、右上の階段(廊下)とトイレ、収納部分を切り抜いた形状として認識する。3階も同様に、中央の廊下を基準に各部屋を配置する。
+## 理想的なJSON出力:
+${JSON.stringify(exampleData10)}
+---
+
+上記の思考プロセスとルール、そして複数の出力例を厳密に参考にし、これから提供される新しい画像を解析して、JSONオブジェクトのみを出力してください。`;
             
                 const payload = {
                     contents: [{
                         parts: [
-                            { text: newPrompt },
+                            { text: newPrompt }, // ここを変更
                             { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
                         ]
                     }],
@@ -3422,47 +3447,132 @@
                 });
             };
 
-            const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
-                setUploadModalOpen(false);
-            
-                if (!imageDataUrl) return;
-            
-                if (useAi) {
-                    if (!isCvReady) {
-                        alert("OpenCV.js の準備ができていません。少し待ってから再度お試しください。");
-                        return;
+            const detectWallsWithOpenCvJs = (imageDataUrl) => {
+                return new Promise((resolve, reject) => {
+                    // opencv.jsがロードされているか確認
+                    if (typeof cv === 'undefined' || !cv.imread) {
+                        return reject(new Error('OpenCV.js is not ready.'));
                     }
             
-                    setIsLoading(true);
-                    try {
-                        setLoadingMessage('壁の線を抽出中...');
-                        const wallLines = await extractWallsFromImage(imageDataUrl);
-                        
-                        setLoadingMessage('AIが部屋の構造を解析中...');
-                        const aiAnalysis = await analyzeImageWithAI(imageDataUrl, wallLines);
-            
-                        if (aiAnalysis && aiAnalysis.ocrData && aiAnalysis.ocrData.Blocks) {
-                            const newElements = generateDrawingFromAi(aiAnalysis, dimensions);
+                    const img = new Image();
+                    img.crossOrigin = "anonymous"; // CORSエラーを回避
+                    img.onload = () => {
+                        try {
+                            // 画像をOpenCV.jsで扱えるMatオブジェクトに変換
+                            const mat = cv.imread(img);
                             
-                            setHistoryState(prev => ({
-                                past: [...prev.past, prev.present],
-                                present: {
-                                    svgElements: [...prev.present.svgElements, ...newElements]
-                                },
-                                future: []
-                            }));
-                        } else {
-                            throw new Error("AIからの応答が不正、または空です。");
+                            // 1. 画像の前処理
+                            const gray = new cv.Mat();
+                            cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
+                            const edges = new cv.Mat();
+                            // Cannyエッジ検出 (閾値は間取り図に合わせて調整が必要)
+                            cv.Canny(gray, 50, 150, edges, 3);
+            
+                            // 2. Hough変換による直線検出
+                            const lines = new cv.Mat();
+                            // パラメータ(threshold, minLineLength, maxLineGap)の調整が精度向上の鍵
+                            cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 80, 30, 10);
+            
+                            // 3. 検出した線の座標をリストに格納
+                            const wall_lines = [];
+                            for (let i = 0; i < lines.rows; ++i) {
+                                let line = lines.data32S; // int32型のデータとしてアクセス
+                                wall_lines.push({
+                                    'x1': line[i * 4], 'y1': line[i * 4 + 1],
+                                    'x2': line[i * 4 + 2], 'y2': line[i * 4 + 3]
+                                });
+                            }
+                            
+                            // 4. メモリを解放 (非常に重要)
+                            mat.delete();
+                            gray.delete();
+                            edges.delete();
+                            lines.delete();
+                            
+                            resolve({ walls: wall_lines });
+            
+                        } catch (error) {
+                            console.error("OpenCV.js processing error:", error);
+                            reject(error);
                         }
-                    } catch (err) {
-                        console.error('AI処理エラー:', err);
-                        alert(`AI処理中にエラーが発生しました: ${err.message}`);
-                    } finally {
-                        setIsLoading(false);
-                        setLoadingMessage('');
+                    };
+                    img.onerror = (err) => {
+                        reject(new Error("Image could not be loaded for OpenCV."));
+                    };
+                    img.src = imageDataUrl;
+                });
+            };
+
+            const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
+                const img = new Image();
+                img.onload = async () => {
+                    const imageWidth = img.naturalWidth;
+                    const imageHeight = img.naturalHeight;
+            
+                    setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+                    setImageUrl(imageDataUrl);
+                    // ... (setImageScale, setImagePosition の処理はそのまま)
+            
+                    if (useAi) {
+                        setIsLoading(true);
+                        try {
+                            // --- ▼▼▼ ここを書き換えます ▼▼▼ ---
+            
+                            // Step 1: OpenCV.jsで壁線を検出
+                            setLoadingMessage('OpenCVで壁線を検出中...');
+                            
+                            // opencv.jsの準備が完了するまで少し待つ処理
+                            await new Promise(resolve => {
+                                const checkCv = () => {
+                                    if (typeof cv !== 'undefined' && cv.imread) {
+                                        resolve();
+                                    } else {
+                                        setTimeout(checkCv, 100); // 100ms後に再確認
+                                    }
+                                };
+                                checkCv();
+                            });
+                            
+                            const wallData = await detectWallsWithOpenCvJs(imageDataUrl);
+            
+                            if (!wallData || !wallData.walls) {
+                                 throw new Error('OpenCVでの壁線検出に失敗、または壁が見つかりませんでした。');
+                            }
+                            
+                            // Step 2: 検出した壁線データと元の画像をAIに渡してポリゴンを生成
+                            setLoadingMessage('AIが部屋の構造を解析中...');
+                            const finalOcrData = await analyzeImageWithAI(imageDataUrl, wallData); 
+            
+                            // Step 3: AIからのレスポンスを元に描画 (ここは変更なし)
+                            if (finalOcrData && finalOcrData.Blocks) {
+                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        ...prev.present,
+                                        svgElements: [...prev.present.svgElements, ...newElements],
+                                        ocrData: finalOcrData
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                            // --- ▲▲▲ ここまで書き換え ▲▲▲ ---
+            
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
+                    } else {
+                        setUploadModalOpen(false);
                     }
-                }
-            }, [dimensions, isCvReady]);
+                };
+                img.src = imageDataUrl;
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
