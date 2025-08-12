@@ -3327,42 +3327,37 @@ ${JSON.stringify(wallLines)}
             const reconstructSvgFromAnalysis = (aiAnalysis, wallLines, dimensions) => {
                 if (!aiAnalysis || !aiAnalysis.rooms || aiAnalysis.rooms.length === 0) return [];
             
+                // --- スケーリング計算ロジック（ここは変更なし） ---
                 let allPointsX = [];
                 let allPointsY = [];
                 wallLines.forEach(line => {
                     allPointsX.push(line.x1, line.x2);
                     allPointsY.push(line.y1, line.y2);
                 });
-            
                 if (allPointsX.length === 0) return [];
-            
                 const minX = Math.min(...allPointsX);
                 const minY = Math.min(...allPointsY);
                 const maxX = Math.max(...allPointsX);
                 const maxY = Math.max(...allPointsY);
-            
                 const drawingWidth = maxX - minX;
                 const drawingHeight = maxY - minY;
-            
                 if (drawingWidth === 0 || drawingHeight === 0) return [];
-            
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
                 const scaleX = canvasWidth / drawingWidth;
                 const scaleY = canvasHeight / drawingHeight;
                 const fitScale = Math.min(scaleX, scaleY) * 0.9;
-            
                 const displayedWidth = drawingWidth * fitScale;
                 const displayedHeight = drawingHeight * fitScale;
                 const offsetX = (canvasWidth - displayedWidth) / 2;
                 const offsetY = (canvasHeight - displayedHeight) / 2;
-                
                 const scaledWallLines = wallLines.map(line => ({
                     x1: ((line.x1 - minX) * fitScale) + offsetX,
                     y1: ((line.y1 - minY) * fitScale) + offsetY,
                     x2: ((line.x2 - minX) * fitScale) + offsetX,
                     y2: ((line.y2 - minY) * fitScale) + offsetY,
                 }));
+                // --- スケーリング計算ここまで ---
             
                 const newElements = [];
                 const createdWalls = new Map();
@@ -3383,37 +3378,27 @@ ${JSON.stringify(wallLines)}
                     const roomWallIndices = room.wallIndices || [];
                     const roomWalls = roomWallIndices.map(i => createdWalls.get(i)).filter(Boolean);
                     
-                    // ▼▼▼【ここが修正点】▼▼▼
-                    // バラバラの壁リストから、一筆書きの頂点リストを生成
+                    // ▼▼▼【デバッグログを追加】▼▼▼
+                    console.log(`--- 部屋 ${room.type} (${roomIndex}) の処理開始 ---`);
+                    console.log("入力された壁データ:", roomWalls);
+            
                     const points = buildPolygonFromWalls(roomWalls);
-                    // ▲▲▲【ここまで修正】▲▲▲
-            
-                    if (points.length < 3) return; // ポリゴンが作れない場合はスキップ
-            
-                    const spaceElement = {
-                        id: groupId, type: 'space', shape: 'polygon', spaceType: room.type, groupId,
-                        points: points.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[room.type] || '#ffffff',
-                        backgroundPattern: 'none'
-                    };
-                    newElements.push(spaceElement);
                     
-                    roomWallIndices.forEach(wallIndex => {
-                        const wall = newElements.find(el => el.id === `wall-ai-${wallIndex}`);
-                        if(wall) wall.groupId = groupId;
-                    });
+                    console.log("生成されたポリゴンの頂点:", points);
+                    console.log(`頂点の数: ${points.length}`);
+                    // ▲▲▲【デバッグログここまで】▲▲▲
             
-                    const centroid = getPolygonCentroid(points);
-                    if (room.text) {
-                        const labelElement = {
-                            id: `text-ai-${Date.now()}-${roomIndex}`, type: 'text', groupId,
-                            x: (centroid.x / dimensions.width) * 100,
-                            y: (centroid.y / dimensions.height) * 100,
-                            text: room.text, color: '#000000', backgroundColor: 'none',
-                            fontSize: 16, fontFamily: 'sans-serif', textAlign: 'center',
-                        };
-                        newElements.push(labelElement);
+                    if (points.length < 3) {
+                        console.error(`ポリゴン生成失敗！ 部屋 ${room.type} (${roomIndex}) は描画をスキップします。`);
+                        return;
                     }
+            
+                    // ... (以降の処理は変更なし)
+                    const spaceElement = { /* ... */ };
+                    newElements.push(spaceElement);
+                    roomWallIndices.forEach(wallIndex => { /* ... */ });
+                    const centroid = getPolygonCentroid(points);
+                    if (room.text) { /* ... */ }
                 });
             
                 return newElements;
