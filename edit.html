@@ -3449,12 +3449,24 @@ ${JSON.stringify(exampleData10)}
 
             const detectWallsWithOpenCvJs = (imageDataUrl) => {
                 return new Promise((resolve, reject) => {
-                    if (typeof cv === 'undefined' || !cv.imread) {
-                        // opencv.jsがまだ準備できていない場合は少し待つ
+                    // opencv.jsがロードされているか、またはロードを待機する
+                    if (typeof cv === 'undefined' || typeof cv.imread === 'undefined') {
+                        console.log("OpenCV.js is not ready yet, waiting...");
                         const script = document.getElementById('opencv-js');
-                        script.onload = () => resolve(detectWallsWithOpenCvJs(imageDataUrl));
-                        script.onerror = () => reject(new Error('Failed to load OpenCV.js'));
-                        return;
+                        if (script) {
+                            // onloadイベントに再試行を登録
+                            script.onload = () => {
+                                console.log("OpenCV.js has now loaded, retrying detection...");
+                                // ロードが完了したら、自身を再度呼び出して処理を継続
+                                resolve(detectWallsWithOpenCvJs(imageDataUrl));
+                            };
+                            script.onerror = () => {
+                                reject(new Error('Failed to load OpenCV.js script.'));
+                            };
+                        } else {
+                            reject(new Error('OpenCV.js script tag not found.'));
+                        }
+                        return; // 一旦処理を終了し、onloadが発火するのを待つ
                     }
             
                     const img = new Image();
@@ -3462,12 +3474,10 @@ ${JSON.stringify(exampleData10)}
                     img.onload = () => {
                         try {
                             const mat = cv.imread(img);
-                            
                             const gray = new cv.Mat();
                             cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
                             const edges = new cv.Mat();
-                            
-                            // ▼▼▼ この行を修正しました ▼▼▼
+                            // Cannyエッジ検出 (引数の順番を修正済み)
                             cv.Canny(gray, edges, 50, 150, 3);
             
                             const lines = new cv.Mat();
@@ -3502,7 +3512,7 @@ ${JSON.stringify(exampleData10)}
                     img.src = imageDataUrl;
                 });
             };
-
+            
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
                 const img = new Image();
                 img.onload = async () => {
@@ -3510,26 +3520,21 @@ ${JSON.stringify(exampleData10)}
                     const imageHeight = img.naturalHeight;
             
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
+            
+                    const canvasWidth = dimensions.width;
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+                    
                     setImageUrl(imageDataUrl);
                     setImageScale(fitScale);
-                    setImagePosition({ x: 0, y: 0 });
-            
+                    setImagePosition({ x: 0, y: 0 });
+                    
                     if (useAi) {
                         setIsLoading(true);
                         try {
                             setLoadingMessage('OpenCVで壁線を検出中...');
-                            
-                            await new Promise(resolve => {
-                                const checkCv = () => {
-                                    if (typeof cv !== 'undefined' && cv.imread) {
-                                        resolve();
-                                    } else {
-                                        setTimeout(checkCv, 100);
-                                    }
-                                };
-                                checkCv();
-                            });
-                            
                             const wallData = await detectWallsWithOpenCvJs(imageDataUrl);
             
                             if (!wallData || !wallData.walls) {
@@ -3539,13 +3544,10 @@ ${JSON.stringify(exampleData10)}
                             setLoadingMessage('AIが部屋の構造を解析中...');
                             const finalOcrData = await analyzeImageWithAI(imageDataUrl, wallData);
             
-                            // AIのレスポンス形式の揺れを吸収する処理
                             let dataForDrawing = null;
                             if (finalOcrData && finalOcrData.Blocks) {
-                                // 期待通りの形式: { "Blocks": [...] }
                                 dataForDrawing = finalOcrData;
                             } else if (finalOcrData && finalOcrData.ocrData && finalOcrData.ocrData.Blocks) {
-                                // ネストされた形式: { "ocrData": { "Blocks": [...] } } にも対応
                                 dataForDrawing = finalOcrData.ocrData;
                             }
             
@@ -3556,16 +3558,14 @@ ${JSON.stringify(exampleData10)}
                                     present: {
                                         ...prev.present,
                                         svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData // 元のレスポンス全体を保存
+                                        ocrData: finalOcrData
                                     },
                                     future: []
                                 }));
                             } else {
-                                // デバッグ用に実際のレスポンスをコンソールに出力
                                 console.error("AI Response (for debugging):", finalOcrData);
                                 throw new Error("AIからの応答が不正、またはBlocksデータが見つかりませんでした。");
                             }
-            
                         } catch (err) {
                             console.error("AI処理エラー:", err);
                             alert(`エラーが発生しました: ${err.message}`);
