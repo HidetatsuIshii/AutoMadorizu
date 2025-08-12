@@ -1592,31 +1592,6 @@
 
             const analyzeImageWithAI = async (imageDataUrl, wallLines) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
-                
-                const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
-提供された間取り図画像から、以下の要素を抽出してください。
-
-【抽出対象】
-1. 壁: 画像内の黒い線として認識される壁の線分。
-2. 区画: 壁によって囲まれた全ての閉じた領域。複雑な形状であっても、その輪郭を忠実にトレースしてください。
-3. テキスト: 区画内に存在する全てのテキストラベル。
-
-【出力形式】
-以下のJSON形式で、抽出した全ての情報を 빠짐なく出力してください。部屋のタイプの推測など、意味的な解釈は不要です。テキストをそのまま出力してください。
-
-{
-  "Blocks": [
-    {
-      "Text": "抽出したテキスト",
-      "Geometry": {
-        "Polygon": [
-          { "x": 0, "y": 0 },
-        ]
-      }
-    }
-  ]
-}
-`;
                 const exampleData1 = {
                   "Blocks": [
                     {
@@ -3141,9 +3116,8 @@
         {
             "type": "LDK",
             "text": "LDK 13.5帖",
-            "wallIndices": [0, 5, 12, 23, ...] 
-        },
-        ...
+            "wallIndices": [0, 5, 12, 23] 
+        }
     ]
 }
 
@@ -3152,86 +3126,63 @@
 ${JSON.stringify(wallLines)}
 \`\`\`
 `;
-            
+
                 const payload = {
                     contents: [{
                         parts: [
-                            { text: finalPrompt },
+                            { text: newPrompt }, // 👈 ここが修正点です！ finalPromptからnewPromptに変更
                             { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
                         ]
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // スキーマも最初から「type」を含む理想の形式に合わせます
+                        // AIの出力形式（スキーマ）も新しい形式に合わせます
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "Blocks": {
+                                "rooms": {
                                     type: "ARRAY",
                                     items: {
                                         type: "OBJECT",
                                         properties: {
-                                            "type": { "type": "STRING" }, // typeフィールドを追加
-                                            "Text": { "type": "STRING" },
-                                            "Geometry": {
-                                                type: "OBJECT",
-                                                properties: {
-                                                    "Polygon": {
-                                                        type: "ARRAY",
-                                                        items: {
-                                                            type: "OBJECT",
-                                                            properties: {
-                                                                "x": { "type": "NUMBER" },
-                                                                "y": { "type": "NUMBER" }
-                                                            },
-                                                            required: ["x", "y"]
-                                                        }
-                                                    }
-                                                },
-                                                required: ["Polygon"]
+                                            "type": { "type": "STRING" },
+                                            "text": { "type": "STRING" },
+                                            "wallIndices": {
+                                                type: "ARRAY",
+                                                items: { "type": "NUMBER" }
                                             }
                                         },
-                                        required: ["type", "Text", "Geometry"] // typeを必須項目に追加
+                                        required: ["type", "text", "wallIndices"]
                                     }
                                 }
                             },
-                            required: ["Blocks"]
+                            required: ["rooms"]
                         }
                     }
                 };
             
                 try {
                     const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU";
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0520:generateContent?key=${apiKey}`;
+                    
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-            
+                    
                     if (!response.ok) {
                         const errorBody = await response.text();
                         throw new Error(`API Error: ${response.status} ${errorBody}`);
                     }
-            
+                    
                     const result = await response.json();
-            
+                    
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
-                        console.log("AIからのレスポンス(生テキスト):", jsonText); 
-                        try {
-                            const parsedJson = JSON.parse(jsonText);
-                            console.log("AIからのレスポンス(パース後):", parsedJson); // パース後のオブジェクトも確認
-                            return parsedJson;
-                        } catch (e) {
-                            console.error("JSONのパースに失敗しました:", e);
-                            console.error("パースしようとしたテキスト:", jsonText);
-                            return null; // パース失敗時はnullを返す
-                        }
-                        //return JSON.parse(jsonText);
+                        console.log("AIからのレスポンス(パース後):", JSON.parse(jsonText));
+                        return JSON.parse(jsonText);
                     } else {
-                        console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
                         throw new Error("AIからの応答が予期した形式ではありません。");
                     }
                 } catch (error) {
