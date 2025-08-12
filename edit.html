@@ -1065,12 +1065,13 @@
         const buildPolygonFromWalls = (roomWalls) => {
             if (!roomWalls || roomWalls.length < 2) return [];
         
-            const tolerance = 0.1; // 座標の誤差を許容する閾値
+            // ▼▼▼【修正点】許容誤差を 0.1 から 1.0 に変更 ▼▼▼
+            const tolerance = 1.0; 
             const pointToString = (p) => `${Math.round(p.x / tolerance)},${Math.round(p.y / tolerance)}`;
         
             const connections = new Map();
         
-            // 1. 各頂点がどの頂点と繋がっているかの接続マップを作成
+            // ... (以降の処理は変更なし)
             roomWalls.forEach(wall => {
                 const p1 = { x: wall.x1, y: wall.y1 };
                 const p2 = { x: wall.x2, y: wall.y2 };
@@ -1083,18 +1084,17 @@
                 connections.get(p2Str).push(p1);
             });
         
-            // 2. 最初の壁を基準に、一筆書きを開始
             const firstWall = roomWalls[0];
             const startPoint = { x: firstWall.x1, y: firstWall.y1 };
             let prevPoint = startPoint;
             let currentPoint = { x: firstWall.x2, y: firstWall.y2 };
             
             const orderedPoints = [startPoint];
-            const maxIterations = roomWalls.length + 1; // 無限ループ防止
+            const maxIterations = roomWalls.length + 1;
         
             for (let i = 0; i < maxIterations; i++) {
                 if (pointToString(currentPoint) === pointToString(startPoint)) {
-                    break; // スタート地点に戻ってきたら終了
+                    break;
                 }
                 orderedPoints.push(currentPoint);
         
@@ -1104,10 +1104,8 @@
                     return orderedPoints; 
                 }
         
-                // 次の点は「今来た道」ではない方の点を選択
                 let nextPoint = candidates.find(p => pointToString(p) !== pointToString(prevPoint));
                 if (!nextPoint) {
-                     // 行き止まりの場合、他の候補を試す (複雑な交差に対応)
                      nextPoint = candidates.length > 0 ? candidates[0] : null;
                      if (!nextPoint) {
                         console.warn("次の頂点が見つかりません:", currentPoint);
