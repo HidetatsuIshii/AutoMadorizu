@@ -3449,41 +3449,41 @@ ${JSON.stringify(exampleData10)}
 
             const detectWallsWithOpenCvJs = (imageDataUrl) => {
                 return new Promise((resolve, reject) => {
-                    // opencv.jsがロードされているか確認
                     if (typeof cv === 'undefined' || !cv.imread) {
-                        return reject(new Error('OpenCV.js is not ready.'));
+                        // opencv.jsがまだ準備できていない場合は少し待つ
+                        const script = document.getElementById('opencv-js');
+                        script.onload = () => resolve(detectWallsWithOpenCvJs(imageDataUrl));
+                        script.onerror = () => reject(new Error('Failed to load OpenCV.js'));
+                        return;
                     }
             
                     const img = new Image();
-                    img.crossOrigin = "anonymous"; // CORSエラーを回避
+                    img.crossOrigin = "anonymous";
                     img.onload = () => {
                         try {
-                            // 画像をOpenCV.jsで扱えるMatオブジェクトに変換
                             const mat = cv.imread(img);
                             
-                            // 1. 画像の前処理
                             const gray = new cv.Mat();
                             cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
                             const edges = new cv.Mat();
-                            // Cannyエッジ検出 (閾値は間取り図に合わせて調整が必要)
-                            cv.Canny(gray, 50, 150, edges, 3);
+                            
+                            // ▼▼▼ この行を修正しました ▼▼▼
+                            cv.Canny(gray, edges, 50, 150, 3);
             
-                            // 2. Hough変換による直線検出
                             const lines = new cv.Mat();
-                            // パラメータ(threshold, minLineLength, maxLineGap)の調整が精度向上の鍵
                             cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 80, 30, 10);
             
-                            // 3. 検出した線の座標をリストに格納
                             const wall_lines = [];
-                            for (let i = 0; i < lines.rows; ++i) {
-                                let line = lines.data32S; // int32型のデータとしてアクセス
-                                wall_lines.push({
-                                    'x1': line[i * 4], 'y1': line[i * 4 + 1],
-                                    'x2': line[i * 4 + 2], 'y2': line[i * 4 + 3]
-                                });
+                            if (lines.rows > 0) {
+                                for (let i = 0; i < lines.rows; ++i) {
+                                    let line = lines.data32S;
+                                    wall_lines.push({
+                                        'x1': line[i * 4], 'y1': line[i * 4 + 1],
+                                        'x2': line[i * 4 + 2], 'y2': line[i * 4 + 3]
+                                    });
+                                }
                             }
                             
-                            // 4. メモリを解放 (非常に重要)
                             mat.delete();
                             gray.delete();
                             edges.delete();
