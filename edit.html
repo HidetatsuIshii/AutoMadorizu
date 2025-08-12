@@ -1062,64 +1062,6 @@
             return { x: x / f, y: y / f };
         };
 
-        const buildPolygonFromWalls = (roomWalls) => {
-            if (!roomWalls || roomWalls.length < 2) return [];
-        
-            // ▼▼▼【修正点】許容誤差を 0.1 から 1.0 に変更 ▼▼▼
-            const tolerance = 1.0; 
-            const pointToString = (p) => `${Math.round(p.x / tolerance)},${Math.round(p.y / tolerance)}`;
-        
-            const connections = new Map();
-        
-            // ... (以降の処理は変更なし)
-            roomWalls.forEach(wall => {
-                const p1 = { x: wall.x1, y: wall.y1 };
-                const p2 = { x: wall.x2, y: wall.y2 };
-                const p1Str = pointToString(p1);
-                const p2Str = pointToString(p2);
-        
-                if (!connections.has(p1Str)) connections.set(p1Str, []);
-                if (!connections.has(p2Str)) connections.set(p2Str, []);
-                connections.get(p1Str).push(p2);
-                connections.get(p2Str).push(p1);
-            });
-        
-            const firstWall = roomWalls[0];
-            const startPoint = { x: firstWall.x1, y: firstWall.y1 };
-            let prevPoint = startPoint;
-            let currentPoint = { x: firstWall.x2, y: firstWall.y2 };
-            
-            const orderedPoints = [startPoint];
-            const maxIterations = roomWalls.length + 1;
-        
-            for (let i = 0; i < maxIterations; i++) {
-                if (pointToString(currentPoint) === pointToString(startPoint)) {
-                    break;
-                }
-                orderedPoints.push(currentPoint);
-        
-                const candidates = connections.get(pointToString(currentPoint));
-                if (!candidates) {
-                    console.warn("ポリゴンの連鎖が途切れました:", currentPoint);
-                    return orderedPoints; 
-                }
-        
-                let nextPoint = candidates.find(p => pointToString(p) !== pointToString(prevPoint));
-                if (!nextPoint) {
-                     nextPoint = candidates.length > 0 ? candidates[0] : null;
-                     if (!nextPoint) {
-                        console.warn("次の頂点が見つかりません:", currentPoint);
-                        return orderedPoints;
-                     }
-                }
-                
-                prevPoint = currentPoint;
-                currentPoint = nextPoint;
-            }
-        
-            return orderedPoints;
-        };
-
         const createSpaceLabel = (spaceType, centroid, dimensions) => {
             if (["柱", "その他"].includes(spaceType)) {
                 return null;
@@ -1648,7 +1590,7 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = async (imageDataUrl, wallLines) => {
+            const analyzeImageWithAI = async (imageDataUrl) => { // wallLinesはもう不要
                 const base64ImageData = imageDataUrl.split(',')[1];
                 const exampleData1 = {
                   "Blocks": [
@@ -3153,37 +3095,27 @@
                     }
                   ]
                 };
-                const newPrompt = `あなたは、間取り図の構造とテキストを関連付ける専門家です。
-以下の2つの情報が提供されます。
-1. 画像から検出された壁の線分リスト (wallLines)
-2. テキストラベルを含む元の間取り図画像
-
-あなたのタスクは、これらの情報から各「部屋」を定義し、JSON形式で出力することです。
+                // AIへの指示を「テキストとその中心座標の特定」のみに絞る
+    const newPrompt = `あなたは、間取り図からテキスト情報を抽出する専門家です。
+提供された間取り図画像から、全ての「部屋」または「空間」を示すテキストを 빠짐なく抽出し、そのテキストが存在するおおよその中心座標を特定してください。
 
 【思考プロセス】
-1. まず、画像全体を見て「LDK」「洋室」などのテキストラベルの位置を確認します。
-2. 次に、そのテキストラベルの周囲にある壁の線分 (wallLines) を見つけます。
-3. テキストを囲んでいる壁の線分を特定し、それらが閉じた空間（部屋）を形成しているか判断します。
-4. 形成された部屋の輪郭を構成する線分のインデックス番号を "wallIndices" としてリストアップします。
-5. 部屋のタイプをテキストから判断し、"type" と "Text" を決定します。
+1. 画像内の「LDK」「洋室」「浴室」などのテキストを全て見つけます。
+2. 各テキストのバウンディングボックス（テキストを囲む四角形）を計算します。
+3. そのバウンディングボックスの中心の x, y 座標を特定します。
+4. テキストの内容と中心座標をペアにして、JSON形式で出力します。
 
 【出力形式】
-以下のJSON形式で出力してください。ポリゴン座標は不要です。
+以下のJSON形式で出力してください。
 {
     "rooms": [
         {
             "type": "LDK",
             "text": "LDK 13.5帖",
-            "wallIndices": [0, 5, 12, 23] 
+            "center": { "x": 310, "y": 377 }
         }
     ]
-}
-
-提供された壁の線分リストは以下の通りです。
-\`\`\`json
-${JSON.stringify(wallLines)}
-\`\`\`
-`;
+}`;
 
                 const payload = {
                     contents: [{
@@ -3204,12 +3136,16 @@ ${JSON.stringify(wallLines)}
                                         properties: {
                                             "type": { "type": "STRING" },
                                             "text": { "type": "STRING" },
-                                            "wallIndices": {
-                                                type: "ARRAY",
-                                                items: { "type": "NUMBER" }
+                                            "center": {
+                                                type: "OBJECT",
+                                                properties: {
+                                                    "x": { "type": "NUMBER" },
+                                                    "y": { "type": "NUMBER" }
+                                                },
+                                                required: ["x", "y"]
                                             }
                                         },
-                                        required: ["type", "text", "wallIndices"]
+                                        required: ["type", "text", "center"]
                                     }
                                 }
                             },
@@ -3219,9 +3155,7 @@ ${JSON.stringify(wallLines)}
                 };
             
                 try {
-                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU";
-                    
-                    // ▼▼▼【修正点】モデル名を最新版に変更 ▼▼▼
+                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU"; // ご自身のAPIキーに置き換えてください
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
                     
                     const response = await fetch(apiUrl, {
@@ -3322,16 +3256,12 @@ ${JSON.stringify(wallLines)}
                 return finalPoints;
             };
 
-            const reconstructSvgFromAnalysis = (aiAnalysis, wallLines, dimensions) => {
-                if (!aiAnalysis || !aiAnalysis.rooms || aiAnalysis.rooms.length === 0) return [];
-            
-                // --- スケーリング計算ロジック（ここは変更なし） ---
-                let allPointsX = [];
-                let allPointsY = [];
-                wallLines.forEach(line => {
-                    allPointsX.push(line.x1, line.x2);
-                    allPointsY.push(line.y1, line.y2);
-                });
+            const reconstructSvgFromAnalysis = (aiAnalysis, wallLines, dimensions, originalImageDimensions) => {
+                if (!aiAnalysis || !aiAnalysis.rooms) return [];
+                
+                // --- スケーリング計算ロジック（変更なし） ---
+                let allPointsX = wallLines.flatMap(line => [line.x1, line.x2]);
+                let allPointsY = wallLines.flatMap(line => [line.y1, line.y2]);
                 if (allPointsX.length === 0) return [];
                 const minX = Math.min(...allPointsX);
                 const minY = Math.min(...allPointsY);
@@ -3349,54 +3279,112 @@ ${JSON.stringify(wallLines)}
                 const displayedHeight = drawingHeight * fitScale;
                 const offsetX = (canvasWidth - displayedWidth) / 2;
                 const offsetY = (canvasHeight - displayedHeight) / 2;
-                const scaledWallLines = wallLines.map(line => ({
-                    x1: ((line.x1 - minX) * fitScale) + offsetX,
-                    y1: ((line.y1 - minY) * fitScale) + offsetY,
-                    x2: ((line.x2 - minX) * fitScale) + offsetX,
-                    y2: ((line.y2 - minY) * fitScale) + offsetY,
-                }));
-                // --- スケーリング計算ここまで ---
+                
+                // ▼▼▼ ここからロジックを大幅に変更 ▼▼▼
             
-                const newElements = [];
-                const createdWalls = new Map();
-            
-                scaledWallLines.forEach((line, index) => {
-                    const wallId = `wall-ai-${index}`;
-                    const wallElement = {
-                        id: wallId, type: 'wall', 
-                        x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2,
-                        color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH, lineStyle: 'solid'
-                    };
-                    newElements.push(wallElement);
-                    createdWalls.set(index, wallElement);
+                // 1. 壁の線から輪郭（部屋の候補）を抽出する
+                const wallCanvas = document.createElement('canvas');
+                const originalWidth = originalImageDimensions.width;
+                const originalHeight = originalImageDimensions.height;
+                wallCanvas.width = originalWidth;
+                wallCanvas.height = originalHeight;
+                const ctx = wallCanvas.getContext('2d');
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, originalWidth, originalHeight);
+                
+                // 壁を白い線で描画
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3; // 壁の線を少し太くして繋がりやすくする
+                wallLines.forEach(line => {
+                    ctx.beginPath();
+                    ctx.moveTo(line.x1, line.y1);
+                    ctx.lineTo(line.x2, line.y2);
+                    ctx.stroke();
                 });
             
+                const src = cv.imread(wallCanvas);
+                const gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                const contours = new cv.MatVector();
+                const hierarchy = new cv.Mat();
+                cv.findContours(gray, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+            
+                const roomCandidates = [];
+                for (let i = 0; i < contours.size(); ++i) {
+                    // 穴ではない輪郭のみを抽出
+                    if (hierarchy.data32S[i * 4 + 3] === -1) {
+                        const cnt = contours.get(i);
+                        const area = cv.contourArea(cnt, false);
+                        // 小さすぎる領域はノイズとして除外
+                        if (area > 500) { // この閾値は調整が必要
+                             const points = [];
+                             for (let j = 0; j < cnt.data32S.length; j += 2) {
+                                 points.push({ x: cnt.data32S[j], y: cnt.data32S[j+1] });
+                             }
+                             roomCandidates.push({ id: i, points, area });
+                        }
+                        cnt.delete();
+                    }
+                }
+                src.delete(); gray.delete(); contours.delete(); hierarchy.delete();
+            
+                // 2. AIが返した部屋の中心点と、抽出した輪郭を紐付ける
+                const newElements = [];
                 aiAnalysis.rooms.forEach((room, roomIndex) => {
-                    const groupId = `space-group-ai-${Date.now()}-${roomIndex}`;
-                    const roomWallIndices = room.wallIndices || [];
-                    const roomWalls = roomWallIndices.map(i => createdWalls.get(i)).filter(Boolean);
-                    
-                    // ▼▼▼【デバッグログを追加】▼▼▼
-                    console.log(`--- 部屋 ${room.type} (${roomIndex}) の処理開始 ---`);
-                    console.log("入力された壁データ:", roomWalls);
+                    const centerPoint = { x: room.center.x, y: room.center.y };
+                    let bestCandidate = null;
             
-                    const points = buildPolygonFromWalls(roomWalls);
-                    
-                    console.log("生成されたポリゴンの頂点:", points);
-                    console.log(`頂点の数: ${points.length}`);
-                    // ▲▲▲【デバッグログここまで】▲▲▲
-            
-                    if (points.length < 3) {
-                        console.error(`ポリゴン生成失敗！ 部屋 ${room.type} (${roomIndex}) は描画をスキップします。`);
-                        return;
+                    for (const candidate of roomCandidates) {
+                        const mat = cv.matFromArray(candidate.points.length, 1, cv.CV_32SC2, candidate.points.flatMap(p => [p.x, p.y]));
+                        // 点が輪郭の内側にあるかチェック
+                        if (cv.pointPolygonTest(mat, centerPoint, false) > 0) {
+                            // 複数の候補がある場合、より小さい（内側の）領域を選ぶ
+                            if (!bestCandidate || candidate.area < bestCandidate.area) {
+                                bestCandidate = candidate;
+                            }
+                        }
+                        mat.delete();
                     }
             
-                    // ... (以降の処理は変更なし)
-                    const spaceElement = { /* ... */ };
-                    newElements.push(spaceElement);
-                    roomWallIndices.forEach(wallIndex => { /* ... */ });
-                    const centroid = getPolygonCentroid(points);
-                    if (room.text) { /* ... */ }
+                    if (bestCandidate) {
+                        const groupId = `space-group-ai-${Date.now()}-${roomIndex}`;
+                        const scaledPoints = bestCandidate.points.map(p => ({
+                            x: ((p.x - minX) * fitScale) + offsetX,
+                            y: ((p.y - minY) * fitScale) + offsetY
+                        }));
+            
+                        // 3. SVG要素を生成
+                        const spaceElement = {
+                            id: groupId, type: 'space', shape: 'polygon', spaceType: room.type, groupId,
+                            points: scaledPoints.map(p => `${p.x},${p.y}`).join(' '),
+                            fill: DEFAULT_FILL_COLORS[room.type] || '#ffffff',
+                            backgroundPattern: 'none'
+                        };
+                        newElements.push(spaceElement);
+                        
+                        // 壁も生成（輪郭の辺から）
+                        for (let i = 0; i < scaledPoints.length; i++) {
+                            const p1 = scaledPoints[i];
+                            const p2 = scaledPoints[(i + 1) % scaledPoints.length];
+                            newElements.push({
+                                id: `wall-${groupId}-${i}`, type: 'wall', groupId,
+                                x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                                color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH, lineStyle: 'solid'
+                            });
+                        }
+            
+                        const centroid = getPolygonCentroid(scaledPoints);
+                        if (room.text) {
+                            const labelElement = {
+                                id: `text-ai-${Date.now()}-${roomIndex}`, type: 'text', groupId,
+                                x: (centroid.x / dimensions.width) * 100,
+                                y: (centroid.y / dimensions.height) * 100,
+                                text: room.text, color: '#000000', backgroundColor: 'none',
+                                fontSize: 16, fontFamily: 'sans-serif', textAlign: 'center',
+                            };
+                            newElements.push(labelElement);
+                        }
+                    }
                 });
             
                 return newElements;
@@ -3475,10 +3463,10 @@ ${JSON.stringify(wallLines)}
                             const wallLines = await extractWallsFromImage(imageDataUrl);
                 
                             // Step 2: AIで意味を解析
-                            const aiAnalysis = await analyzeImageWithAI(imageDataUrl, wallLines);
+                            const aiAnalysis = await analyzeImageWithAI(imageDataUrl);
                 
                             if (aiAnalysis && aiAnalysis.rooms) {
-                                const newElements = reconstructSvgFromAnalysis(aiAnalysis, wallLines, dimensions); 
+                                const newElements = reconstructSvgFromAnalysis(aiAnalysis, wallLines, dimensions, { width: imageWidth, height: imageHeight });
                                 
                                 setHistoryState(prev => ({
                                     past: [...prev.past, prev.present],
