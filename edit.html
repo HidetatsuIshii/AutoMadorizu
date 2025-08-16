@@ -4343,8 +4343,8 @@ ${JSON.stringify(exampleData10)}
                     const initialElementCenterY = dragInfo.current.initialElementCenterY;
                     const startMouseCanvasX = dragInfo.current.startMouseX;
                     const startMouseCanvasY = dragInfo.current.startMouseY;
-                    const mouseMoveDx = currentCanvasX - startMouseCanvasX;
-                    const mouseMoveDy = currentCanvasY - startMouseCanvasY;
+                    const mouseMoveDx = currentMousePos.x - startMouseCanvasX;
+                    const mouseMoveDy = currentMousePos.y - startMouseCanvasY;
                     let proposedFinalCenterX = initialElementCenterX + mouseMoveDx;
                     let proposedFinalCenterY = initialElementCenterY + mouseMoveDy;
                     if (isGridVisible) {
