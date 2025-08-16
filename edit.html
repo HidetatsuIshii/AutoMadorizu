@@ -4073,6 +4073,7 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleMouseDown = useCallback((e) => {
+                if (e.button !== 0) return;
                 if (!drawingMode && !imageUrl && editorMode !== 'edit') {
                     const clickPos = getCanvasCoords(e);
 
@@ -4634,57 +4635,48 @@ ${JSON.stringify(exampleData10)}
             };
             
             const handleLayerChange = useCallback((action, targetId) => {
-                const elements = [...svgElements];
-                const targetElement = elements.find(el => el.id === targetId);
-                if (!targetElement) return;
+                const targetElement = svgElements.find(el => el.id === targetId);
+                // 空間または壁でなければ何もしない
+                if (!targetElement || (targetElement.type !== 'space' && targetElement.type !== 'wall')) return;
             
-                // クリックされた要素のグループIDを取得
-                const groupId = targetElement.groupId || (['space', 'stairs'].includes(targetElement.type) ? targetElement.id : null);
+                // グループIDを取得
+                const groupId = targetElement.groupId || (targetElement.type === 'space' ? targetElement.id : null);
+                if (!groupId) return; // グループに属さない独立した壁はレイヤー変更不可
             
-                // グループに属さない独立した要素か、グループ全体かを判断
-                const isStandalone = !groupId;
-                const elementsToMove = isStandalone ? [targetElement] : elements.filter(el => el.groupId === groupId);
-                const otherElements = isStandalone ? elements.filter(el => el.id !== targetId) : elements.filter(el => el.groupId !== groupId);
-                
-                let newElements;
+                setHistoryState(prevState => {
+                    const past = [...prevState.past, prevState.present];
+                    const currentElements = [...prevState.present.svgElements];
+                    
+                    // 空間/壁グループと、それ以外のグループに分離
+                    const spaceAndWallElements = currentElements.filter(el => el.type === 'space' || el.type === 'wall');
+                    const otherElements = currentElements.filter(el => el.type !== 'space' && el.type !== 'wall');
             
-                switch (action) {
-                    case 'toFront':
-                        newElements = [...otherElements, ...elementsToMove];
-                        break;
-                    case 'toBack':
-                        newElements = [...elementsToMove, ...otherElements];
-                        break;
-                    case 'forward': {
-                        const highestIndexInOthers = otherElements.findLastIndex(el => 
-                            elements.findIndex(orig => orig.id === el.id) < elements.findLastIndex(orig => orig.id === elementsToMove[elementsToMove.length-1].id)
-                        );
-                        otherElements.splice(highestIndexInOthers + 1, 0, ...elementsToMove);
-                        newElements = otherElements;
-                        break;
+                    // 移動対象のグループ（空間、壁、関連テキストなど）を抜き出す
+                    const groupToMove = currentElements.filter(el => el.groupId === groupId);
+                    // 移動対象ではない壁・空間要素
+                    const otherSpaceAndWalls = spaceAndWallElements.filter(el => el.groupId !== groupId);
+            
+                    let reorderedSpaceAndWalls;
+            
+                    switch (action) {
+                        case 'toFront':
+                            reorderedSpaceAndWalls = [...otherSpaceAndWalls, ...groupToMove.filter(el => el.type === 'space' || el.type === 'wall')];
+                            break;
+                        case 'toBack':
+                            reorderedSpaceAndWalls = [...groupToMove.filter(el => el.type === 'space' || el.type === 'wall'), ...otherSpaceAndWalls];
+                            break;
+                        // forwardとbackwardは複雑になるため、一旦主要なtoFront/toBackのみとします
+                        // もし必要であれば、より詳細なロジックを追加することも可能です。
+                        default:
+                            reorderedSpaceAndWalls = spaceAndWallElements;
+                            break;
                     }
-                    case 'backward': {
-                        const lowestIndexInOthers = otherElements.findIndex(el => 
-                            elements.findIndex(orig => orig.id === el.id) > elements.findIndex(orig => orig.id === elementsToMove[0].id)
-                        );
-                        if (lowestIndexInOthers === -1) { // 最後尾へ
-                             otherElements.push(...elementsToMove);
-                        } else {
-                             otherElements.splice(lowestIndexInOthers, 0, ...elementsToMove);
-                        }
-                        newElements = otherElements;
-                        break;
-                    }
-                    default:
-                        newElements = elements; // 変更なし
-                        break;
-                }
             
-                setHistoryState(prevState => ({
-                    past: [...prevState.past, prevState.present],
-                    present: { ...prevState.present, svgElements: newElements },
-                    future: []
-                }));
+                    // 2つのグループを再結合
+                    const newSvgElements = [...reorderedSpaceAndWalls, ...otherElements];
+            
+                    return { past, present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
+                });
             }, [svgElements]);
 
             const handleClipboardAction = useCallback((action) => {
@@ -5039,6 +5031,25 @@ ${JSON.stringify(exampleData10)}
                     alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
                 });
             }, [historyState.present]);
+
+            const elementsForRender = useMemo(() => {
+                // 空間と壁を下のレイヤーグループにまとめる
+                const spaceAndWallElements = svgElements.filter(el => el.type === 'space' || el.type === 'wall');
+                
+                // それ以外の要素を上のレイヤーグループにまとめる
+                const otherElements = svgElements.filter(el => el.type !== 'space' && el.type !== 'wall');
+                
+                // 上のレイヤーグループ内での描画順を定義
+                const typeOrder = { 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
+                otherElements.sort((a, b) => {
+                    const orderA = typeOrder[a.type] ?? 99;
+                    const orderB = typeOrder[b.type] ?? 99;
+                    return orderA - orderB;
+                });
+            
+                // 2つのグループを結合して最終的な描画順とする
+                return [...spaceAndWallElements, ...otherElements];
+            }, [svgElements]);
 
 
 
@@ -5851,7 +5862,7 @@ ${JSON.stringify(exampleData10)}
                                                 <polygon points="0 0, 10 3.5, 0 7" />
                                             </marker>
                                         </defs>
-                                        {svgElements.map(el => {
+                                        {elementsForRender.map(el => {
                                             const isDirectlySelected = el.id === selectedId;
                                             const isPartOfSelectedSpace = selectedElement?.type === 'space' && el.groupId === selectedId;
                                             const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
