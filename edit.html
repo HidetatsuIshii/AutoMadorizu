@@ -1544,6 +1544,7 @@
             const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
 
             // --- Ref定義 ---
+            const mainContainerRef = useRef(null);
             const imageRef = useRef(null);
             const tooltipTimers = useRef([]);
             const sidebarRef = useRef(null);
@@ -4047,8 +4048,6 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleMouseDown = useCallback((e) => {
-                e.stopPropagation();
-
                 if (!drawingMode && !imageUrl && editorMode !== 'edit') {
                     const clickPos = getCanvasCoords(e);
 
@@ -4583,14 +4582,18 @@ ${JSON.stringify(exampleData10)}
 
             const handleContextMenu = (e) => {
                 e.preventDefault();
+                const mainContainer = mainContainerRef.current;
+                if (!mainContainer) return; // コンテナが見つからない場合は何もしない
+            
                 const targetId = e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
             
                 if (targetElement) {
+                    const rect = mainContainer.getBoundingClientRect();
                     setContextMenu({
                         visible: true,
-                        x: e.clientX,
-                        y: e.clientY,
+                        x: e.clientX - rect.left, // X座標をコンテナの左端からの相対位置に修正
+                        y: e.clientY - rect.top,  // Y座標をコンテナの上端からの相対位置に修正
                         targetId: targetId,
                         targetType: targetElement.type
                     });
@@ -5619,7 +5622,7 @@ ${JSON.stringify(exampleData10)}
                         </div>
                     </header>
 
-                    <div className="flex-1 relative overflow-hidden">
+                    <div className="flex-1 relative overflow-hidden" ref={mainContainerRef}> {
                         <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
                                 <div ref={editorContainerRef} className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
