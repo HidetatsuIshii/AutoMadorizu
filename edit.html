@@ -5622,7 +5622,7 @@ ${JSON.stringify(exampleData10)}
                         </div>
                     </header>
 
-                    <div className="flex-1 relative overflow-hidden" ref={mainContainerRef}> {
+                    <div ref={mainContainerRef} className="flex-1 relative overflow-hidden">
                         <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
                                 <div ref={editorContainerRef} className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
@@ -5650,7 +5650,7 @@ ${JSON.stringify(exampleData10)}
                                             const isDirectlySelected = el.id === selectedId;
                                             const isPartOfSelectedSpace = selectedElement?.type === 'space' && el.groupId === selectedId;
                                             const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
-
+            
                                             const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR); 
                                             const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
@@ -6209,7 +6209,7 @@ ${JSON.stringify(exampleData10)}
                             </div>
                         </main>
 
-                        {contextMenu.visible && (
+                        {contextMenu.visible ? (
                             <ContextMenu
                                 x={contextMenu.x}
                                 y={contextMenu.y}
@@ -6223,11 +6223,11 @@ ${JSON.stringify(exampleData10)}
                                 }}
                                 onClose={closeContextMenu}
                             />
-                        )}
+                        ) : null}
 
                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}> {isSidebarOpen ? '<' : '>'}
                         </button>
-
+            
                         <aside ref={sidebarRef} className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
                             <div ref={displaySettingsRef}>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDisplaySettingsOpen(!isDisplaySettingsOpen)}>
