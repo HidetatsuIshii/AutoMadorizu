@@ -5084,9 +5084,37 @@ ${JSON.stringify(exampleData10)}
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
-                    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
-                    else if (e.key === 'Delete') { 
+                    // テキスト入力中はショートカットを無効化
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                        return;
+                    }
+                    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+                    // コピー (Ctrl+C)
+                    if (isCtrlOrCmd && e.key.toLowerCase() === 'c') {
+                        e.preventDefault();
+                        handleClipboardAction('copy');
+                    }
+                    // 切り取り (Ctrl+X)
+                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'x') {
+                        e.preventDefault();
+                        handleClipboardAction('cut');
+                    }
+                    // 貼り付け (Ctrl+V)
+                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
+                        e.preventDefault();
+                        // 現在のマウスカーソル位置に貼り付け
+                        handlePaste(mousePos.x, mousePos.y);
+                    }            
+                    // 以降は既存のショートカット処理
+                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'z') { 
+                        e.preventDefault(); 
+                        handleUndo(); 
+                    }
+                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'y') { 
+                        e.preventDefault(); 
+                        handleRedo(); 
+                    }
+                    else if (e.key === 'Delete' || e.key === 'Backspace') { // Backspaceも追加 
                         if (selectedId) {
                             e.preventDefault(); 
                             deleteSelectedElement();
@@ -5104,7 +5132,7 @@ ${JSON.stringify(exampleData10)}
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [handleUndo, handleRedo, deleteSelectedElement, selectedId]);
+            }, [handleUndo, handleRedo, deleteSelectedElement, selectedId, handleClipboardAction, handlePaste, mousePos]);
 
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
