@@ -4697,14 +4697,10 @@ ${JSON.stringify(exampleData10)}
             
             }, [selectedId, svgElements]);
             
-            const handlePaste = useCallback((pasteX, pasteY) => {
+            const handlePaste = useCallback(({ pasteX, pasteY } = {}) => {
                 if (!clipboard.data) return;
             
-                const newElements = [];
-                const idMap = new Map();
-                const newGroupId = `group-${Date.now()}`;
-            
-                // 貼り付け対象のバウンディングボックスの中心点を計算
+                // --- 1. 貼り付け対象の元の位置とサイズを正確に計算 ---
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 clipboard.data.forEach(el => {
                     if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
@@ -4713,29 +4709,43 @@ ${JSON.stringify(exampleData10)}
                         minY = Math.min(minY, el.y1, el.y2);
                         maxY = Math.max(maxY, el.y1, el.y2);
                     } else if (el.type === 'space' || el.type === 'stairs') {
-                        const points = el.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        const points = el.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
                         points.forEach(p => {
-                            minX = Math.min(minX, p.x);
-                            maxX = Math.max(maxX, p.x);
-                            minY = Math.min(minY, p.y);
-                            maxY = Math.max(maxY, p.y);
+                            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
                         });
                     } else { // text, fixture, compass
                         const cx = el.x / 100 * dimensions.width;
                         const cy = el.y / 100 * dimensions.height;
-                        minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
-                        minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+                        const width = el.width || el.size || el.fontSize * 2; // サイズ情報がない場合はフォントサイズから推測
+                        const height = el.height || el.size || el.fontSize * 2;
+                        minX = Math.min(minX, cx - width / 2); maxX = Math.max(maxX, cx + width / 2);
+                        minY = Math.min(minY, cy - height / 2); maxY = Math.max(maxY, cy + height / 2);
                     }
                 });
+            
                 const originalCenterX = (minX + maxX) / 2;
                 const originalCenterY = (minY + maxY) / 2;
-                const deltaX = pasteX - originalCenterX;
-                const deltaY = pasteY - originalCenterY;
+                
+                // --- 2. 貼り付け先の座標を決定 ---
+                let deltaX, deltaY;
+                if (pasteX !== undefined && pasteY !== undefined) {
+                    // 右クリックメニューからの場合：カーソル位置を基準
+                    deltaX = pasteX - originalCenterX;
+                    deltaY = pasteY - originalCenterY;
+                } else {
+                    // ショートカットからの場合：20pxずらす
+                    deltaX = 20;
+                    deltaY = 20;
+                }
             
-                // 新しいIDを生成
+                // --- 3. 新しい要素を作成 ---
+                const idMap = new Map();
+                const newGroupId = clipboard.data.some(el => el.groupId) ? `group-${Date.now()}` : null;
+            
                 clipboard.data.forEach(el => idMap.set(el.id, `${el.type}-${Date.now()}-${Math.random()}`));
             
-                clipboard.data.forEach(originalEl => {
+                const newElements = clipboard.data.map(originalEl => {
                     let newEl = { ...originalEl, id: idMap.get(originalEl.id) };
                     if (newEl.groupId) {
                         newEl.groupId = newGroupId;
@@ -4744,30 +4754,32 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
-                    // 位置をオフセット
                     if (newEl.type === 'wall' || newEl.type === 'door' || newEl.type === 'window') {
                         newEl.x1 += deltaX; newEl.y1 += deltaY;
                         newEl.x2 += deltaX; newEl.y2 += deltaY;
                     } else if (newEl.type === 'space' || newEl.type === 'stairs') {
-                        const points = newEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        const points = newEl.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
                         newEl.points = points.map(p => `${p.x + deltaX},${p.y + deltaY}`).join(' ');
                     } else {
-                        const newCX = (newEl.x / 100 * dimensions.width) + deltaX;
-                        const newCY = (newEl.y / 100 * dimensions.height) + deltaY;
-                        newEl.x = (newCX / dimensions.width) * 100;
-                        newEl.y = (newCY / dimensions.height) * 100;
+                        const originalPxX = (newEl.x / 100 * dimensions.width);
+                        const originalPxY = (newEl.y / 100 * dimensions.height);
+                        newEl.x = (originalPxX + deltaX) / dimensions.width * 100;
+                        newEl.y = (originalPxY + deltaY) / dimensions.height * 100;
                     }
-                    newElements.push(newEl);
+                    return newEl;
                 });
             
+                // --- 4. stateを更新 ---
                 setHistoryState(prevState => {
-                    let finalElements = [...prevState.present.svgElements, ...newElements];
+                    let finalElements = [...prevState.present.svgElements];
                     if (clipboard.isCut) {
                         const originalIds = clipboard.data.map(el => el.id);
                         finalElements = finalElements.filter(el => !originalIds.includes(el.id));
                     }
+                    finalElements.push(...newElements);
                     return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: finalElements }, future: [] };
                 });
+            
                 setClipboard(prev => ({ ...prev, isCut: false })); // Cutフラグをリセット
             }, [clipboard, svgElements, dimensions]);
             
@@ -5116,8 +5128,6 @@ ${JSON.stringify(exampleData10)}
                     // 貼り付け (Ctrl+V)
                     else if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
                         e.preventDefault();
-                        // 現在のマウスカーソル位置に貼り付け
-                        handlePaste(mousePos.x, mousePos.y);
                     }            
                     // 以降は既存のショートカット処理
                     else if (isCtrlOrCmd && e.key.toLowerCase() === 'z') { 
@@ -6443,7 +6453,7 @@ ${JSON.stringify(exampleData10)}
                                             handleClipboardAction(action);
                                             break;
                                         case 'paste':
-                                            handlePaste(x / zoom, y / zoom); // ズーム率を考慮した座標を渡す
+                                            handlePaste({ pasteX: x / zoom, pasteY: y / zoom }); 
                                             break;
                                         case 'flipHorizontal':
                                         case 'flipVertical':
