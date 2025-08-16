@@ -1447,7 +1447,7 @@
                 onClose();
             };
         
-            const canChangeLayer = targetType === 'space';
+            const canChangeLayer = targetType === 'space' || targetType === 'wall';
             const canManipulate = targetType === 'space' || targetType === 'fixture' || targetType === 'stairs'; // 反転などが可能なタイプ
         
             return (
@@ -4634,54 +4634,57 @@ ${JSON.stringify(exampleData10)}
             };
             
             const handleLayerChange = useCallback((action, targetId) => {
-                const targetElement = svgElements.find(el => el.id === targetId);
-                // 空間タイプでなければ何もしない
-                if (!targetElement || targetElement.type !== 'space') return;
+                const elements = [...svgElements];
+                const targetElement = elements.find(el => el.id === targetId);
+                if (!targetElement) return;
             
-                setHistoryState(prevState => {
-                    const past = [...prevState.past, prevState.present];
-                    const currentElements = [...prevState.present.svgElements];
-                    
-                    // 空間要素とそれ以外の要素に分離
-                    const spaceElements = currentElements.filter(el => el.type === 'space');
-                    const otherElements = currentElements.filter(el => el.type !== 'space');
+                // クリックされた要素のグループIDを取得
+                const groupId = targetElement.groupId || (['space', 'stairs'].includes(targetElement.type) ? targetElement.id : null);
             
-                    const targetIndex = spaceElements.findIndex(el => el.id === targetId);
-                    if (targetIndex === -1) return prevState; // 見つからなければ変更しない
+                // グループに属さない独立した要素か、グループ全体かを判断
+                const isStandalone = !groupId;
+                const elementsToMove = isStandalone ? [targetElement] : elements.filter(el => el.groupId === groupId);
+                const otherElements = isStandalone ? elements.filter(el => el.id !== targetId) : elements.filter(el => el.groupId !== groupId);
+                
+                let newElements;
             
-                    const [elementToMove] = spaceElements.splice(targetIndex, 1);
-            
-                    switch (action) {
-                        case 'toFront':
-                            spaceElements.push(elementToMove);
-                            break;
-                        case 'toBack':
-                            spaceElements.unshift(elementToMove);
-                            break;
-                        case 'forward':
-                            if (targetIndex < spaceElements.length) {
-                                spaceElements.splice(targetIndex + 1, 0, elementToMove);
-                            } else {
-                                spaceElements.push(elementToMove); // すでに最前面の場合
-                            }
-                            break;
-                        case 'backward':
-                            if (targetIndex > 0) {
-                                spaceElements.splice(targetIndex - 1, 0, elementToMove);
-                            } else {
-                                spaceElements.unshift(elementToMove); // すでに最背後にある場合
-                            }
-                            break;
-                        default:
-                            spaceElements.splice(targetIndex, 0, elementToMove); // 元の位置に戻す
-                            break;
+                switch (action) {
+                    case 'toFront':
+                        newElements = [...otherElements, ...elementsToMove];
+                        break;
+                    case 'toBack':
+                        newElements = [...elementsToMove, ...otherElements];
+                        break;
+                    case 'forward': {
+                        const highestIndexInOthers = otherElements.findLastIndex(el => 
+                            elements.findIndex(orig => orig.id === el.id) < elements.findLastIndex(orig => orig.id === elementsToMove[elementsToMove.length-1].id)
+                        );
+                        otherElements.splice(highestIndexInOthers + 1, 0, ...elementsToMove);
+                        newElements = otherElements;
+                        break;
                     }
+                    case 'backward': {
+                        const lowestIndexInOthers = otherElements.findIndex(el => 
+                            elements.findIndex(orig => orig.id === el.id) > elements.findIndex(orig => orig.id === elementsToMove[0].id)
+                        );
+                        if (lowestIndexInOthers === -1) { // 最後尾へ
+                             otherElements.push(...elementsToMove);
+                        } else {
+                             otherElements.splice(lowestIndexInOthers, 0, ...elementsToMove);
+                        }
+                        newElements = otherElements;
+                        break;
+                    }
+                    default:
+                        newElements = elements; // 変更なし
+                        break;
+                }
             
-                    // 空間要素とその他要素を再結合（その他が常に上になる）
-                    const newSvgElements = [...spaceElements, ...otherElements];
-            
-                    return { past, present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
-                });
+                setHistoryState(prevState => ({
+                    past: [...prevState.past, prevState.present],
+                    present: { ...prevState.present, svgElements: newElements },
+                    future: []
+                }));
             }, [svgElements]);
 
             const handleClipboardAction = useCallback((action) => {
@@ -5440,21 +5443,6 @@ ${JSON.stringify(exampleData10)}
                 }
                 return 'move';
             }
-            
-            const elementsForRender = useMemo(() => {
-                const spaceElements = svgElements.filter(el => el.type === 'space');
-                const otherElements = svgElements.filter(el => el.type !== 'space');
-                
-                // 壁やテキストなどの描画順を定義
-                const typeOrder = { 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
-                otherElements.sort((a, b) => {
-                    const orderA = typeOrder[a.type] ?? 99;
-                    const orderB = typeOrder[b.type] ?? 99;
-                    return orderA - orderB;
-                });
-            
-                return [...spaceElements, ...otherElements];
-            }, [svgElements]);
 
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
@@ -5863,7 +5851,7 @@ ${JSON.stringify(exampleData10)}
                                                 <polygon points="0 0, 10 3.5, 0 7" />
                                             </marker>
                                         </defs>
-                                        {elementsForRender.map(el => {
+                                        {svgElements.map(el => {
                                             const isDirectlySelected = el.id === selectedId;
                                             const isPartOfSelectedSpace = selectedElement?.type === 'space' && el.groupId === selectedId;
                                             const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
