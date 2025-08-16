@@ -1429,7 +1429,7 @@
             );
         };
 
-        const ContextMenu = ({ x, y, onAction, onClose, targetType }) => {
+        const ContextMenu = ({ x, y, onAction, onClose, targetId, targetType, isClipboardEmpty }) => {
             const menuRef = useRef(null);
         
             useEffect(() => {
@@ -1446,9 +1446,9 @@
                 onAction(action);
                 onClose();
             };
-            
-            // 空間タイプの場合のみレイヤー編集メニューを表示
+        
             const canChangeLayer = targetType === 'space';
+            const canManipulate = targetType === 'space' || targetType === 'fixture' || targetType === 'stairs'; // 反転などが可能なタイプ
         
             return (
                 <div
@@ -1457,16 +1457,40 @@
                     style={{ top: y, left: x }}
                 >
                     <ul className="space-y-1">
-                        {canChangeLayer && (
+                        {/* ターゲットがある場合のみ表示されるメニュー */}
+                        {targetId && (
                             <>
-                                <li onClick={() => handleActionClick('toFront')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最前面へ移動</li>
-                                <li onClick={() => handleActionClick('forward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">前面へ移動</li>
-                                <li onClick={() => handleActionClick('backward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">背面へ移動</li>
-                                <li onClick={() => handleActionClick('toBack')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最背面へ移動</li>
-                                <hr className="my-1"/>
+                                {canChangeLayer && (
+                                    <>
+                                        <li onClick={() => handleActionClick('toFront')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最前面へ移動</li>
+                                        <li onClick={() => handleActionClick('forward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">前面へ移動</li>
+                                        <li onClick={() => handleActionClick('backward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">背面へ移動</li>
+                                        <li onClick={() => handleActionClick('toBack')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最背面へ移動</li>
+                                        <hr className="my-1"/>
+                                    </>
+                                )}
+                                {canManipulate && (
+                                     <>
+                                        <li onClick={() => handleActionClick('flipHorizontal')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">左右反転</li>
+                                        <li onClick={() => handleActionClick('flipVertical')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">上下反転</li>
+                                        <hr className="my-1"/>
+                                    </>
+                                )}
+                                <li onClick={() => handleActionClick('copy')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">コピー</li>
+                                <li onClick={() => handleActionClick('cut')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">切り取り</li>
                             </>
                         )}
-                        <li onClick={() => handleActionClick('delete')} className="px-3 py-1 hover:bg-red-100 text-red-700 rounded cursor-pointer">削除</li>
+                        
+                        {/* 貼り付けは常に表示（ただし無効状態あり） */}
+                        <li 
+                            onClick={() => !isClipboardEmpty && handleActionClick('paste')} 
+                            className={`px-3 py-1 rounded ${isClipboardEmpty ? 'text-gray-400' : 'hover:bg-gray-100 cursor-pointer'}`}
+                        >
+                            貼り付け
+                        </li>
+                        
+                        {targetId && <hr className="my-1"/>}
+                        {targetId && <li onClick={() => handleActionClick('delete')} className="px-3 py-1 hover:bg-red-100 text-red-700 rounded cursor-pointer">削除</li>}
                     </ul>
                 </div>
             );
@@ -1542,6 +1566,7 @@
             const [loadingMessage, setLoadingMessage] = useState('');
             const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
             const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
+            const [clipboard, setClipboard] = useState({ data: null, isCut: false });
 
             // --- Ref定義 ---
             const mainContainerRef = useRef(null);
@@ -4583,21 +4608,24 @@ ${JSON.stringify(exampleData10)}
             const handleContextMenu = (e) => {
                 e.preventDefault();
                 const mainContainer = mainContainerRef.current;
-                if (!mainContainer) return; // コンテナが見つからない場合は何もしない
+                if (!mainContainer) return;
             
                 const targetId = e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
+                const rect = mainContainer.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
             
+                setContextMenu({
+                    visible: true,
+                    x: clickX,
+                    y: clickY,
+                    targetId: targetElement ? targetElement.id : null,
+                    targetType: targetElement ? targetElement.type : null,
+                });
+                
                 if (targetElement) {
-                    const rect = mainContainer.getBoundingClientRect();
-                    setContextMenu({
-                        visible: true,
-                        x: e.clientX - rect.left, // X座標をコンテナの左端からの相対位置に修正
-                        y: e.clientY - rect.top,  // Y座標をコンテナの上端からの相対位置に修正
-                        targetId: targetId,
-                        targetType: targetElement.type
-                    });
-                    setSelectedId(targetId); // 右クリックされた要素を選択状態にする
+                    setSelectedId(targetElement.id);
                 }
             };
             
@@ -4655,6 +4683,167 @@ ${JSON.stringify(exampleData10)}
                     return { past, present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
                 });
             }, [svgElements]);
+
+            const handleClipboardAction = useCallback((action) => {
+                if (!selectedId) return;
+                const element = svgElements.find(el => el.id === selectedId);
+                if (!element) return;
+            
+                const groupId = element.groupId || (['space', 'stairs'].includes(element.type) ? element.id : null);
+                
+                const elementsToProcess = groupId 
+                    ? svgElements.filter(el => el.groupId === groupId)
+                    : [element];
+            
+                // 参照を断ち切るためにディープコピー
+                const copiedData = JSON.parse(JSON.stringify(elementsToProcess));
+            
+                setClipboard({ data: copiedData, isCut: action === 'cut' });
+            
+            }, [selectedId, svgElements]);
+            
+            const handlePaste = useCallback((pasteX, pasteY) => {
+                if (!clipboard.data) return;
+            
+                const newElements = [];
+                const idMap = new Map();
+                const newGroupId = `group-${Date.now()}`;
+            
+                // 貼り付け対象のバウンディングボックスの中心点を計算
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                clipboard.data.forEach(el => {
+                    if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
+                        minX = Math.min(minX, el.x1, el.x2);
+                        maxX = Math.max(maxX, el.x1, el.x2);
+                        minY = Math.min(minY, el.y1, el.y2);
+                        maxY = Math.max(maxY, el.y1, el.y2);
+                    } else if (el.type === 'space' || el.type === 'stairs') {
+                        const points = el.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        points.forEach(p => {
+                            minX = Math.min(minX, p.x);
+                            maxX = Math.max(maxX, p.x);
+                            minY = Math.min(minY, p.y);
+                            maxY = Math.max(maxY, p.y);
+                        });
+                    } else { // text, fixture, compass
+                        const cx = el.x / 100 * dimensions.width;
+                        const cy = el.y / 100 * dimensions.height;
+                        minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+                        minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+                    }
+                });
+                const originalCenterX = (minX + maxX) / 2;
+                const originalCenterY = (minY + maxY) / 2;
+                const deltaX = pasteX - originalCenterX;
+                const deltaY = pasteY - originalCenterY;
+            
+                // 新しいIDを生成
+                clipboard.data.forEach(el => idMap.set(el.id, `${el.type}-${Date.now()}-${Math.random()}`));
+            
+                clipboard.data.forEach(originalEl => {
+                    let newEl = { ...originalEl, id: idMap.get(originalEl.id) };
+                    if (newEl.groupId) {
+                        newEl.groupId = newGroupId;
+                        if (newEl.type === 'space' || newEl.type === 'stairs') {
+                            newEl.id = newGroupId;
+                        }
+                    }
+                    
+                    // 位置をオフセット
+                    if (newEl.type === 'wall' || newEl.type === 'door' || newEl.type === 'window') {
+                        newEl.x1 += deltaX; newEl.y1 += deltaY;
+                        newEl.x2 += deltaX; newEl.y2 += deltaY;
+                    } else if (newEl.type === 'space' || newEl.type === 'stairs') {
+                        const points = newEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        newEl.points = points.map(p => `${p.x + deltaX},${p.y + deltaY}`).join(' ');
+                    } else {
+                        const newCX = (newEl.x / 100 * dimensions.width) + deltaX;
+                        const newCY = (newEl.y / 100 * dimensions.height) + deltaY;
+                        newEl.x = (newCX / dimensions.width) * 100;
+                        newEl.y = (newCY / dimensions.height) * 100;
+                    }
+                    newElements.push(newEl);
+                });
+            
+                setHistoryState(prevState => {
+                    let finalElements = [...prevState.present.svgElements, ...newElements];
+                    if (clipboard.isCut) {
+                        const originalIds = clipboard.data.map(el => el.id);
+                        finalElements = finalElements.filter(el => !originalIds.includes(el.id));
+                    }
+                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: finalElements }, future: [] };
+                });
+                setClipboard(prev => ({ ...prev, isCut: false })); // Cutフラグをリセット
+            }, [clipboard, svgElements, dimensions]);
+            
+            const handleFlip = useCallback((direction) => {
+                if (!selectedId) return;
+                const element = svgElements.find(el => el.id === selectedId);
+                if (!element || !['space', 'fixture', 'stairs'].includes(element.type)) return;
+            
+                const groupId = element.groupId || (['space', 'stairs'].includes(element.type) ? element.id : null);
+                
+                setHistoryState(prevState => {
+                    const currentElements = [...prevState.present.svgElements];
+                    const elementsToFlip = groupId ? currentElements.filter(el => el.groupId === groupId) : [element];
+                    const otherElements = groupId ? currentElements.filter(el => el.groupId !== groupId) : currentElements.filter(el => el.id !== selectedId);
+            
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    elementsToFlip.forEach(el => {
+                        if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
+                            minX = Math.min(minX, el.x1, el.x2); maxX = Math.max(maxX, el.x1, el.x2);
+                            minY = Math.min(minY, el.y1, el.y2); maxY = Math.max(maxY, el.y1, el.y2);
+                        } else if (el.type === 'space' || el.type === 'stairs') {
+                            el.points.split(' ').forEach(p_str => {
+                                const [x, y] = p_str.split(',').map(parseFloat);
+                                minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                                minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                            });
+                        } else if (el.type === 'fixture') {
+                            const cx = el.x / 100 * dimensions.width;
+                            const cy = el.y / 100 * dimensions.height;
+                            minX = Math.min(minX, cx - el.width/2); maxX = Math.max(maxX, cx + el.width/2);
+                            minY = Math.min(minY, cy - el.height/2); maxY = Math.max(maxY, cy + el.height/2);
+                        }
+                    });
+                    const centerX = (minX + maxX) / 2;
+                    const centerY = (minY + maxY) / 2;
+            
+                    const flippedElements = elementsToFlip.map(el => {
+                        let newEl = { ...el };
+                        const flipPoint = (p) => {
+                            if (direction === 'horizontal') return { x: 2 * centerX - p.x, y: p.y };
+                            if (direction === 'vertical') return { x: p.x, y: 2 * centerY - p.y };
+                            return p;
+                        };
+            
+                        if (newEl.type === 'wall' || newEl.type === 'door' || newEl.type === 'window') {
+                            const p1 = flipPoint({x: newEl.x1, y: newEl.y1});
+                            const p2 = flipPoint({x: newEl.x2, y: newEl.y2});
+                            newEl.x1 = p1.x; newEl.y1 = p1.y;
+                            newEl.x2 = p2.x; newEl.y2 = p2.y;
+                            // 角度も反転
+                            newEl.baseAngle = (newEl.baseAngle || 0) + 180;
+                        } else if (newEl.type === 'space' || newEl.type === 'stairs') {
+                            const points = newEl.points.split(' ').map(p_str => {
+                                const [x, y] = p_str.split(',').map(parseFloat);
+                                const flipped = flipPoint({x, y});
+                                return `${flipped.x},${flipped.y}`;
+                            });
+                            newEl.points = points.join(' ');
+                        } else if (newEl.type === 'fixture') {
+                            const centerPx = flipPoint({x: (newEl.x / 100 * dimensions.width), y: (newEl.y / 100 * dimensions.height)});
+                            newEl.x = (centerPx.x / dimensions.width) * 100;
+                            newEl.y = (centerPx.y / dimensions.height) * 100;
+                            newEl.rotation = 180 - (newEl.rotation || 0); // 回転も反転させる
+                        }
+                        return newEl;
+                    });
+            
+                    const newSvgElements = [...otherElements, ...flippedElements];
+                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
+                });
+            }, [selectedId, svgElements, dimensions]);
 
             const handleStairDirectionChange = (newDirection) => {
                 if (!selectedElement) return;
@@ -5801,7 +5990,7 @@ ${JSON.stringify(exampleData10)}
                                                 }
 
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0}) ${el.isFlipped ? 'scale(-1, 1)' : ''}`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
+                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
                                                         {fixtureElement}
                                                         {handles}
                                                     </g>
@@ -6213,12 +6402,29 @@ ${JSON.stringify(exampleData10)}
                             <ContextMenu
                                 x={contextMenu.x}
                                 y={contextMenu.y}
+                                targetId={contextMenu.targetId}
                                 targetType={contextMenu.targetType}
+                                isClipboardEmpty={!clipboard.data} // クリップボードが空かどうかの情報を渡す
                                 onAction={(action) => {
-                                    if (action === 'delete') {
-                                        deleteSelectedElement();
-                                    } else {
-                                        handleLayerChange(action, contextMenu.targetId);
+                                    const { x, y, targetId } = contextMenu;
+                                    switch (action) {
+                                        case 'delete':
+                                            deleteSelectedElement();
+                                            break;
+                                        case 'copy':
+                                        case 'cut':
+                                            handleClipboardAction(action);
+                                            break;
+                                        case 'paste':
+                                            handlePaste(x / zoom, y / zoom); // ズーム率を考慮した座標を渡す
+                                            break;
+                                        case 'flipHorizontal':
+                                        case 'flipVertical':
+                                            handleFlip(action === 'flipHorizontal' ? 'horizontal' : 'vertical');
+                                            break;
+                                        default: // レイヤー変更
+                                            handleLayerChange(action, targetId);
+                                            break;
                                     }
                                 }}
                                 onClose={closeContextMenu}
