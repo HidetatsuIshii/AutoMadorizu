@@ -1428,6 +1428,51 @@
                 </div>
             );
         };
+
+        const ContextMenu = ({ x, y, onAction, onClose, targetType }) => {
+            const menuRef = useRef(null);
+        
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (menuRef.current && !menuRef.current.contains(event.target)) {
+                        onClose();
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, [onClose]);
+        
+            const handleActionClick = (action) => {
+                onAction(action);
+                onClose();
+            };
+            
+            // 空間タイプの場合のみレイヤー編集メニューを表示
+            const canChangeLayer = targetType === 'space';
+        
+            return (
+                <div
+                    ref={menuRef}
+                    className="absolute z-50 bg-white rounded-md shadow-lg p-2 text-sm w-48"
+                    style={{ top: y, left: x }}
+                >
+                    <ul className="space-y-1">
+                        {canChangeLayer && (
+                            <>
+                                <li onClick={() => handleActionClick('toFront')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最前面へ移動</li>
+                                <li onClick={() => handleActionClick('forward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">前面へ移動</li>
+                                <li onClick={() => handleActionClick('backward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">背面へ移動</li>
+                                <li onClick={() => handleActionClick('toBack')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最背面へ移動</li>
+                                <hr className="my-1"/>
+                            </>
+                        )}
+                        <li onClick={() => handleActionClick('delete')} className="px-3 py-1 hover:bg-red-100 text-red-700 rounded cursor-pointer">削除</li>
+                    </ul>
+                </div>
+            );
+        };
+
+        
         
         function Editor() {
             // --- ステート定義 ---
@@ -1496,6 +1541,7 @@
             const [isLoading, setIsLoading] = useState(false);
             const [loadingMessage, setLoadingMessage] = useState('');
             const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
+            const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -4535,6 +4581,78 @@ ${JSON.stringify(exampleData10)}
                 setSelectedId(null);
             }, [selectedId, svgElements]);
 
+            const handleContextMenu = (e) => {
+                e.preventDefault();
+                const targetId = e.target.closest('[data-id]')?.getAttribute('data-id');
+                const targetElement = svgElements.find(el => el.id === targetId);
+            
+                if (targetElement) {
+                    setContextMenu({
+                        visible: true,
+                        x: e.clientX,
+                        y: e.clientY,
+                        targetId: targetId,
+                        targetType: targetElement.type
+                    });
+                    setSelectedId(targetId); // 右クリックされた要素を選択状態にする
+                }
+            };
+            
+            const closeContextMenu = () => {
+                setContextMenu({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
+            };
+            
+            const handleLayerChange = useCallback((action, targetId) => {
+                const targetElement = svgElements.find(el => el.id === targetId);
+                // 空間タイプでなければ何もしない
+                if (!targetElement || targetElement.type !== 'space') return;
+            
+                setHistoryState(prevState => {
+                    const past = [...prevState.past, prevState.present];
+                    const currentElements = [...prevState.present.svgElements];
+                    
+                    // 空間要素とそれ以外の要素に分離
+                    const spaceElements = currentElements.filter(el => el.type === 'space');
+                    const otherElements = currentElements.filter(el => el.type !== 'space');
+            
+                    const targetIndex = spaceElements.findIndex(el => el.id === targetId);
+                    if (targetIndex === -1) return prevState; // 見つからなければ変更しない
+            
+                    const [elementToMove] = spaceElements.splice(targetIndex, 1);
+            
+                    switch (action) {
+                        case 'toFront':
+                            spaceElements.push(elementToMove);
+                            break;
+                        case 'toBack':
+                            spaceElements.unshift(elementToMove);
+                            break;
+                        case 'forward':
+                            if (targetIndex < spaceElements.length) {
+                                spaceElements.splice(targetIndex + 1, 0, elementToMove);
+                            } else {
+                                spaceElements.push(elementToMove); // すでに最前面の場合
+                            }
+                            break;
+                        case 'backward':
+                            if (targetIndex > 0) {
+                                spaceElements.splice(targetIndex - 1, 0, elementToMove);
+                            } else {
+                                spaceElements.unshift(elementToMove); // すでに最背後にある場合
+                            }
+                            break;
+                        default:
+                            spaceElements.splice(targetIndex, 0, elementToMove); // 元の位置に戻す
+                            break;
+                    }
+            
+                    // 空間要素とその他要素を再結合（その他が常に上になる）
+                    const newSvgElements = [...spaceElements, ...otherElements];
+            
+                    return { past, present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
+                });
+            }, [svgElements]);
+
             const handleStairDirectionChange = (newDirection) => {
                 if (!selectedElement) return;
                 const groupId = selectedElement.groupId || selectedElement.id;
@@ -5103,15 +5221,20 @@ ${JSON.stringify(exampleData10)}
                 return 'move';
             }
             
-            const sortedElements = [...svgElements].sort((a, b) => {
-                const typeOrder = { 'space': 0, 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
-                const orderA = typeOrder[a.type] ?? 99;
-                const orderB = typeOrder[b.type] ?? 99;
-                if (orderA !== orderB) return orderA - orderB;
-                if (a.type === 'space' && b.type === 'wall' && a.groupId === b.groupId) return -1;
-                if (b.type === 'space' && a.type === 'wall' && b.groupId === a.groupId) return 1;
-                return 0;
-            });
+            const elementsForRender = useMemo(() => {
+                const spaceElements = svgElements.filter(el => el.type === 'space');
+                const otherElements = svgElements.filter(el => el.type !== 'space');
+                
+                // 壁やテキストなどの描画順を定義
+                const typeOrder = { 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
+                otherElements.sort((a, b) => {
+                    const orderA = typeOrder[a.type] ?? 99;
+                    const orderB = typeOrder[b.type] ?? 99;
+                    return orderA - orderB;
+                });
+            
+                return [...spaceElements, ...otherElements];
+            }, [svgElements]);
 
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
@@ -5514,13 +5637,13 @@ ${JSON.stringify(exampleData10)}
                                         crossOrigin="anonymous"
                                     />}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
-                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown}>
+                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown} onContextMenu={handleContextMenu}>
                                         <defs>
                                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
                                                 <polygon points="0 0, 10 3.5, 0 7" />
                                             </marker>
                                         </defs>
-                                        {sortedElements.map(el => {
+                                        {elementsForRender.map(el => {
                                             const isDirectlySelected = el.id === selectedId;
                                             const isPartOfSelectedSpace = selectedElement?.type === 'space' && el.groupId === selectedId;
                                             const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
@@ -6082,6 +6205,22 @@ ${JSON.stringify(exampleData10)}
                                 </div>
                             </div>
                         </main>
+
+                        {contextMenu.visible && (
+                            <ContextMenu
+                                x={contextMenu.x}
+                                y={contextMenu.y}
+                                targetType={contextMenu.targetType}
+                                onAction={(action) => {
+                                    if (action === 'delete') {
+                                        deleteSelectedElement();
+                                    } else {
+                                        handleLayerChange(action, contextMenu.targetId);
+                                    }
+                                }}
+                                onClose={closeContextMenu}
+                            />
+                        )}
 
                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}> {isSidebarOpen ? '<' : '>'}
                         </button>
