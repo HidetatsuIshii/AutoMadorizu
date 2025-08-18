@@ -5873,12 +5873,12 @@ ${JSON.stringify(exampleData10)}
                                             </g>
                                         )}
                                         {linePoints.length > 0 && (
-                                            <g style={{pointerEvents: 'none'}}>
-                                                {linePoints.map((p, i) => {
-                                                    if (i === 0) return null;
-                                                    const p1 = linePoints[i-1];
-                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
-                                                })}
+                                            <g style={{ pointerEvents: 'none' }}>
+                                            {linePoints.map((p, i) => {
+                                                if (i === 0) return null;
+                                                const p1 = linePoints[i-1];
+                                                return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
+                                            })}
                                                 <line
                                                     x1={linePoints[linePoints.length - 1].x}
                                                     y1={linePoints[linePoints.length - 1].y}
