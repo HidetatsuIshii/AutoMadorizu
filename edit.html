@@ -1590,28 +1590,27 @@
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
             const previewStyle = useMemo(() => {
-                // 空間または壁を描画している場合のみ、現在の設定を反映したスタイルを計算
-                if (drawingMode === 'space' || drawingMode === 'wall') {
-                    // 「サブ」タブで選択された空間タイプ固有のスタイルを適用
-                    const specialProps = (drawingMode === 'space') ? SUB_TYPE_PROPERTIES[spaceType] : null;
-                    const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
-                    const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
-                    const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
-                    
-                    return {
-                        stroke: SELECTED_ELEMENT_COLOR, // プレビューの色は常に選択色（青）
-                        strokeWidth: finalStrokeWidth,
-                        strokeDasharray: finalLineStyle.dashArray || 'none',
-                    };
-                }
-        
-                // それ以外の描画モード（ドア、窓など）は、シンプルな青い点線プレビューを維持
-                return {
-                    stroke: SELECTED_ELEMENT_COLOR,
-                    strokeWidth: DEFAULT_STROKE_WIDTH,
-                    strokeDasharray: '5,5',
-                };
-            }, [drawingMode, spaceType, strokeWidth, lineStyle]); // 依存配列に現在の描画設定stateを指定
+                // 空間または壁を描画している場合は、サイドバーの設定をプレビューに反映
+                if (drawingMode === 'space' || drawingMode === 'wall') {
+                    const specialProps = (drawingMode === 'space') ? SUB_TYPE_PROPERTIES[spaceType] : null;
+                    const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
+                    const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
+                    const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
+                    
+                    return {
+                        stroke: '#3b82f6', // 青色に統一
+                        strokeWidth: finalStrokeWidth, // サイドバーで設定した太さを反映
+                        strokeDasharray: finalLineStyle.dashArray || 'none',
+                    };
+                }
+        
+                // それ以外の描画モードは、見やすい太さ・色の固定スタイルを適用
+                return {
+                    stroke: '#3b82f6', // 青色に統一
+                    strokeWidth: 2, // 描画される線よりは見やすく、デフォルトよりは細い固定値
+                    strokeDasharray: '5,5',
+                };
+            }, [drawingMode, spaceType, strokeWidth, lineStyle]);
 
             const handleSelectedElementUpdate = useCallback((updates) => {
                 if (!selectedId) return;
@@ -4521,7 +4520,7 @@ ${JSON.stringify(exampleData10)}
                 mouseDownInfo.current = null;
             };
 
-            const StairsPreviewRenderer = ({ points, width, color }) => {
+            const StairsPreviewRenderer = ({ points, width, color, strokeWidth }) => { // strokeWidth を props で受け取る
                 if (points.length < 2) return null;
 
                 // StairsRendererから、プレビューに必要な計算ロジックのみを抜粋
@@ -4567,8 +4566,8 @@ ${JSON.stringify(exampleData10)}
 
                 return (
                     <g style={{pointerEvents: 'none', opacity: 0.7}}>
-                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
-                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
+                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray="5,5" />
+                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray="5,5" />
                         <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} strokeDasharray="5,5"/>
                     </g>
                 );
@@ -6271,15 +6270,14 @@ ${JSON.stringify(exampleData10)}
                                                 />;
                                             }
                                             if (drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') {
-                                                const style = (drawingMode === 'wall') ? previewStyle : { stroke: SELECTED_ELEMENT_COLOR, strokeWidth: strokeWidth, strokeDasharray: "5,5" };
                                                 return <line
                                                     x1={drawingStartPoint.x}
                                                     y1={drawingStartPoint.y}
                                                     x2={previewEndPoint.x}
                                                     y2={previewEndPoint.y}
-                                                    stroke={style.stroke}
-                                                    strokeWidth={style.strokeWidth}
-                                                    strokeDasharray={style.strokeDasharray}
+                                                    stroke={previewStyle.stroke}
+                                                    strokeWidth={previewStyle.strokeWidth}
+                                                    strokeDasharray={previewStyle.strokeDasharray}
                                                     style={{ pointerEvents: 'none' }}
                                                 />;
                                             }
@@ -6346,11 +6344,11 @@ ${JSON.stringify(exampleData10)}
                                             </g>
                                         )}
                                         {linePoints.length > 0 && drawingMode === 'stairs' && (
-                                            // 階段作成時は、新しいプレビューコンポーネントを呼び出す
                                             <StairsPreviewRenderer 
                                                 points={[...linePoints, isGridVisible ? getGridSnappedPoint(mousePos) : mousePos]}
                                                 width={stairWidth}
-                                                color={strokeColor}
+                                                color={previewStyle.stroke}
+                                                strokeWidth={previewStyle.strokeWidth}
                                             />
                                         )}
                                         {pendingWindow && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
