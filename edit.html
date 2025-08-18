@@ -4157,7 +4157,7 @@ ${JSON.stringify(exampleData10)}
             const handleMouseMove = useCallback((e) => {
                 const currentMousePos = getCanvasCoords(e);
                 setMousePos(currentMousePos);
-
+    
                 if (imageDragInfo.current) {
                     const dx = e.clientX - imageDragInfo.current.startMouseX;
                     const dy = e.clientY - imageDragInfo.current.startMouseY;
@@ -4167,18 +4167,16 @@ ${JSON.stringify(exampleData10)}
                     });
                     return;
                 }
-
-                // ▼▼▼【修正点】ここからスナップ処理全体を修正 ▼▼▼
-                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space') && isSnapToWall && !isModifierKeyDown;
-
-                // 毎回のマウス移動でガイドラインを初期化
+    
+                // ▼▼▼【重要】変数を関数のトップレベルで宣言します ▼▼▼
+                let closestSnap = null; 
                 let newGuideLines = [];
-                let snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : { ...currentMousePos };
-
+                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space') && isSnapToWall && !isModifierKeyDown;
+    
                 if (isSnappingEnabled) {
                     let minDistance = SNAP_THRESHOLD / zoom;
     
-                    // 1.【最優先】他の図形の頂点へのスナップを探す (生のカーソル位置を基準にする)
+                    // 1.【最優先】他の図形の頂点へのスナップを探す
                     for (const wall of svgElements.filter(el => el.type === 'wall')) {
                         const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
                         for (const vertex of vertices) {
@@ -4211,16 +4209,14 @@ ${JSON.stringify(exampleData10)}
                 // 3. 図形にスナップしなかった場合、グリッドへのスナップを試みる
                 if (!closestSnap && isGridVisible) {
                     const gridSnappedPoint = getGridSnappedPoint(currentMousePos);
-                    // 元のカーソル位置とグリッドスナップ位置が十分に近い場合のみスナップ情報として採用
                     const gridSnapDistance = Math.sqrt(Math.pow(currentMousePos.x - gridSnappedPoint.x, 2) + Math.pow(currentMousePos.y - gridSnappedPoint.y, 2));
-                    if (gridSnapDistance < gridSize / 2) { // グリッドサイズの半分以内ならスナップ
+                    if (gridSnapDistance < gridSize / 2) {
                          closestSnap = { point: gridSnappedPoint, type: 'grid' };
                     }
                 }
     
                 // 4. 最終的なスナップ情報をstateにセット
                 setSnappedInfo(closestSnap);
-    
                 setGuideLines(newGuideLines);
 
                 // 始点へのスナップ処理
