@@ -6397,21 +6397,21 @@ ${JSON.stringify(exampleData10)}
 
                                             // 決定した方向でプレビュー用の窓を描画
                                             return (
-                                                <g 
-                                                    transform={`translate(${center.x}, ${center.y}) rotate(${totalRotation}) translate(${-length / 2}, 0)`}
-                                                    style={{ pointerEvents: 'none', opacity: 0.7 }}
-                                                >
-                                                    {paths.map((part, index) => (
-                                                        <path
-                                                            key={index}
-                                                            d={part.d}
-                                                            fill={part.fill === 'currentColor' ? strokeColor : part.fill || 'none'}
-                                                            stroke={part.stroke === 'currentColor' ? strokeColor : part.stroke || 'none'}
-                                                            strokeWidth={part.strokeWidth || 1}
-                                                            strokeDasharray="5,5" // プレビューなので点線にする
-                                                        />
-                                                    ))}
-                                                </g>
+                                              <g 
+                                                transform={`translate(${center.x}, ${center.y}) rotate(${totalRotation}) translate(${-length / 2}, 0)`}
+                                                style={{ pointerEvents: 'none', opacity: 0.7 }}
+                                              >
+                                                {paths.map((part, index) => (
+                                                  <path
+                                                    key={index}
+                                                    d={part.d}
+                                                    fill={part.fill === 'currentColor' ? SELECTED_ELEMENT_COLOR : part.fill || 'none'}
+                                                    stroke={part.stroke === 'currentColor' ? SELECTED_ELEMENT_COLOR : part.stroke || 'none'}
+                                                    strokeWidth={part.strokeWidth || 1}
+                                                    strokeDasharray="5,5"
+                                                  />
+                                                ))}
+                                              </g>
                                             );
                                         })()}
                                         {tooltip.visible && (
