@@ -9,7 +9,6 @@
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1588.0.min.js"></script>
-    <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencv-js"></script>
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -116,7 +115,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } = React;
+        const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 
         // --- 定数とダミーデータ ---
         const DUMMY_OCR_DATA = {
@@ -1327,7 +1326,7 @@
             if (!isOpen) return null;
         
             const [localPreview, setLocalPreview] = useState(null);
-            const [localUseAi, setLocalUseAi] = useState(false);
+            const [localUseAi, setLocalUseAi] = useState(true);
             const fileInputRef = useRef(null);
         
             const handleFileChange = (event) => {
@@ -1391,17 +1390,16 @@
                                         )}
                                     </div>
         
-                                    <div className="flex items-center opacity-50">
+                                    <div className="flex items-center">
                                         <input
                                             id="ai-checkbox"
                                             type="checkbox"
                                             checked={localUseAi}
                                             onChange={(e) => setLocalUseAi(e.target.checked)}
                                             className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                            disabled
                                         />
                                         <label htmlFor="ai-checkbox" className="ml-2 block text-sm text-gray-900">
-                                            AIで読み取る (開発中)
+                                            AIで読み取る (Amazon Textract)
                                         </label>
                                     </div>
                                 </div>
@@ -1429,85 +1427,15 @@
                 </div>
             );
         };
-
-        const ContextMenu = ({ x, y, onAction, onClose, targetId, targetType, isClipboardEmpty }) => {
-            const menuRef = useRef(null);
-        
-            useEffect(() => {
-                const handleClickOutside = (event) => {
-                    if (menuRef.current && !menuRef.current.contains(event.target)) {
-                        onClose();
-                    }
-                };
-                document.addEventListener("mousedown", handleClickOutside);
-                return () => document.removeEventListener("mousedown", handleClickOutside);
-            }, [onClose]);
-        
-            const handleActionClick = (action) => {
-                onAction(action);
-                onClose();
-            };
-        
-            const canChangeLayer = targetType === 'space' || targetType === 'wall';
-            const canManipulate = targetType === 'space' || targetType === 'fixture' || targetType === 'stairs'; // 反転などが可能なタイプ
-        
-            return (
-                <div
-                    ref={menuRef}
-                    className="absolute z-50 bg-white rounded-md shadow-lg p-2 text-sm w-48"
-                    style={{ top: y, left: x }}
-                >
-                    <ul className="space-y-1">
-                        {/* ターゲットがある場合のみ表示されるメニュー */}
-                        {targetId && (
-                            <>
-                                {canChangeLayer && (
-                                    <>
-                                        <li onClick={() => handleActionClick('toFront')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最前面へ移動</li>
-                                        <li onClick={() => handleActionClick('forward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">前面へ移動</li>
-                                        <li onClick={() => handleActionClick('backward')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">背面へ移動</li>
-                                        <li onClick={() => handleActionClick('toBack')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">最背面へ移動</li>
-                                        <hr className="my-1"/>
-                                    </>
-                                )}
-                                {canManipulate && (
-                                     <>
-                                        <li onClick={() => handleActionClick('flipHorizontal')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">左右反転</li>
-                                        <li onClick={() => handleActionClick('flipVertical')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">上下反転</li>
-                                        <hr className="my-1"/>
-                                    </>
-                                )}
-                                <li onClick={() => handleActionClick('copy')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">コピー</li>
-                                <li onClick={() => handleActionClick('cut')} className="px-3 py-1 hover:bg-gray-100 rounded cursor-pointer">切り取り</li>
-                            </>
-                        )}
-                        
-                        {/* 貼り付けは常に表示（ただし無効状態あり） */}
-                        <li 
-                            onClick={() => !isClipboardEmpty && handleActionClick('paste')} 
-                            className={`px-3 py-1 rounded ${isClipboardEmpty ? 'text-gray-400' : 'hover:bg-gray-100 cursor-pointer'}`}
-                        >
-                            貼り付け
-                        </li>
-                        
-                        {targetId && <hr className="my-1"/>}
-                        {targetId && <li onClick={() => handleActionClick('delete')} className="px-3 py-1 hover:bg-red-100 text-red-700 rounded cursor-pointer">削除</li>}
-                    </ul>
-                </div>
-            );
-        };
-
-        
         
         function Editor() {
             // --- ステート定義 ---
-            const [isCvReady, setIsCvReady] = useState(false);
             const [isSidebarOpen, setSidebarOpen] = useState(true);
             const [isDisplaySettingsOpen, setDisplaySettingsOpen] = useState(true);
             const [isDrawingToolsOpen, setDrawingToolsOpen] = useState(true);
             const [imageUrl, setImageUrl] = useState('');
-            const [historyState, setHistoryState] = useState({ past: [], present: { svgElements: [] }, future: [] });
-            const { svgElements } = historyState.present;
+            const [historyState, setHistoryState] = useState({ past: [], present: { ocrData: null, svgElements: [] }, future: [] });
+            const { ocrData: currentOcrData, svgElements } = historyState.present;
             const [editorMode, setEditorMode] = useState('continuous-create'); // 'continuous-create', 'create', 'edit'
             const [drawingMode, setDrawingMode] = useState(null);
             const [spaceShape, setSpaceShape] = useState('rect');
@@ -1566,11 +1494,8 @@
             const [isLoading, setIsLoading] = useState(false);
             const [loadingMessage, setLoadingMessage] = useState('');
             const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
-            const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
-            const [clipboard, setClipboard] = useState({ data: null, isCut: false });
 
             // --- Ref定義 ---
-            const mainContainerRef = useRef(null);
             const imageRef = useRef(null);
             const tooltipTimers = useRef([]);
             const sidebarRef = useRef(null);
@@ -1588,29 +1513,6 @@
             const prevSelectedIdRef = useRef(null);
 
             const selectedElement = svgElements.find(el => el.id === selectedId);
-
-            const previewStyle = useMemo(() => {
-                // 空間または壁を描画している場合は、サイドバーの設定をプレビューに反映
-                if (drawingMode === 'space' || drawingMode === 'wall') {
-                    const specialProps = (drawingMode === 'space') ? SUB_TYPE_PROPERTIES[spaceType] : null;
-                    const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
-                    const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
-                    const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
-                    
-                    return {
-                        stroke: '#3b82f6', // 青色に統一
-                        strokeWidth: finalStrokeWidth, // サイドバーで設定した太さを反映
-                        strokeDasharray: finalLineStyle.dashArray || 'none',
-                    };
-                }
-        
-                // それ以外の描画モードは、見やすい太さ・色の固定スタイルを適用
-                return {
-                    stroke: '#3b82f6', // 青色に統一
-                    strokeWidth: 2, // 描画される線よりは見やすく、デフォルトよりは細い固定値
-                    strokeDasharray: '5,5',
-                };
-            }, [drawingMode, spaceType, strokeWidth, lineStyle]);
 
             const handleSelectedElementUpdate = useCallback((updates) => {
                 if (!selectedId) return;
@@ -1686,8 +1588,32 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = async (imageDataUrl, wallLines) => {
+            const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
+                const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
+提供された間取り図画像から、以下の要素を抽出してください。
+
+【抽出対象】
+1. 壁: 画像内の黒い線として認識される壁の線分。
+2. 区画: 壁によって囲まれた全ての閉じた領域。複雑な形状であっても、その輪郭を忠実にトレースしてください。
+3. テキスト: 区画内に存在する全てのテキストラベル。
+
+【出力形式】
+以下のJSON形式で、抽出した全ての情報を 빠짐なく出力してください。部屋のタイプの推測など、意味的な解釈は不要です。テキストをそのまま出力してください。
+
+{
+  "Blocks": [
+    {
+      "Text": "抽出したテキスト",
+      "Geometry": {
+        "Polygon": [
+          { "x": 0, "y": 0 },
+        ]
+      }
+    }
+  ]
+}
+`;
                 const exampleData1 = {
                   "Blocks": [
                     {
@@ -3191,156 +3117,159 @@
                     }
                   ]
                 };
-                const newPrompt = `あなたは、日本の建築図面をピクセル単位で正確に解析する、超高性能な間取り図解析AIです。
-ユーザーが提供する間取り図の「画像」と、事前にOpenCVで抽出された「全ての線分データ」を元に、各部屋の情報を抽出し、指定されたJSON形式で出力してください。
+                const finalPrompt = `あなたは、日本の建築図面をピクセル単位で正確に解析する、超高性能な間取り図解析AIです。
+ユーザーが提供する間取り図の画像から、各部屋の情報を抽出し、指定されたJSON形式で出力してください。
 
 【最重要タスク】
-あなたのタスクは、まず画像全体から「1階」「2階」のような独立した建物の輪郭を特定し、次にその輪郭の内部を、提供された「線分データ」を境界線として隙間なく領域分割し、部屋のポリゴンを生成することです。
+あなたの最重要タスクは、画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力することです。各ブロックには、その空間の輪郭を示す正確なポリゴン、空間の種類を示すtype、そして空間内のテキストを含める必要があります。
 
 【思考プロセス】
-1. 建物の輪郭把握: まず、提供された全ての線データを俯瞰し、互いに接続されていない独立した線のグループを探します。これにより、「1階部分の図」「2階部分の図」といった、個別の建物の輪郭を特定します。
-2. 輪郭ごとの個別処理: 特定した建物の輪郭それぞれについて、以下の処理を独立して行います。
-3. 内部の領域分割: ある一つの輪郭の内側で、提供された線データによって形成される全ての閉じた領域（部屋）を一つずつ特定します。
-4. 頂点の共有: 同じ輪郭内で隣接する部屋は、必ず境界線の頂点を共有するようにポリゴンを定義します。これにより、輪郭の内部が隙間なく部屋で埋め尽くされます。
-5. 形状の忠実な再現: L字型や凹凸のある複雑な形状も、線データに忠実に従ってポリゴンを形成します。単純な四角形にしないでください。
-6. ラベルのマッチング: 形成した各ポリゴン領域内に、元の「画像」からどのテキストラベル（「LDK」「洋室」など）が対応するかを判断し、「Text」と「type」フィールドに設定します。
+1. 構造把握: まず画像全体を俯瞰し、どの壁がどの空間を構成しているか、大まかなレイアウトを把握します。
+2. ラベルと空間の紐付け: 次に、「LDK」「洋室」といったテキストラベルを見つけ、そのラベルが含まれる壁で囲まれた空間を特定します。
+3. 輪郭の精密トレース: 特定した空間の「壁の内側の線」を忠実にたどり、凹凸を含めた全ての頂点を拾い上げてポリゴンを定義します。これは最も重要なステップです。
+4. 全空間の網羅: ラベルのない空間（廊下や小さな収納など）も見落とさず、同様にポリゴンとして定義します。
 
 【絶対厳守ルール】
-ルール1. 複数フロアの分離: これが最も重要なルールです。間取り図に「1階」と「2階」のように複数の独立した区画がある場合、それらを別の建物として扱い、それぞれの区画内で処理を完結させてください。フロア同士を無理に接続しようとしないでください。
-ルール2. 輪郭内部の整合性: ある一つの建物の輪郭の「内部」は、部屋や廊下などのポリゴンで隙間なく埋め尽くされるべきです。隣接する部屋同士は必ず頂点を共有し、座標の矛盾や重なりがないようにしてください。
-ルール3. 座標の忠実性: 出力するポリゴンの頂点は、入力された「線分データ」の端点座標を元に生成してください。勝手に単純化することは固く禁じます。
-ルール4. タイプの決定: 「type」は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、「WIC」などは「収納」に分類します。
-ルール5. テキストの完全性: 「Text」には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
-ルール6. 全空間の網羅: ラベルのない空間（廊下や小さな収納など）も見落とさず、同様にポリゴンとして定義してください。
+ルール1. 輪郭の完全な正確性: 部屋の形状を単純な四角形に絶対にしないでください。L字型や凹凸のある複雑な多角形であっても、その全ての頂点を完全に捉えてください。壁の厚みの内側のラインをピクセルレベルで正確にトレースすることが求められます。
+ルール2. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、"WIC"などは"収納"に分類します。"PS・MB"というテキストがあっても、そこが明らかにトイレの空間であれば'type'は"トイレ"と判断してください。
+ルール3. 全ての空間を網羅: 非常に小さな収納スペースも見逃さず、必ず個別のブロックとして抽出してください。
+ルール4. テキストの完全性: 'Text'には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
+ルール5. 自己検証: 全ての空間を抽出した後、壁で囲まれているにも関わらずどのブロックにも含まれていない「隙間」や「未定義領域」がないか、もう一度全体を見直してください。もし見つかった場合は、それを「廊下」や「収納」などの適切なブロックとして追加してください。
+
 
 ---
-【完璧な出力例 1】(基本的な隣接と頂点共有)
-思考: 最も基本的な1LDKの構成。まず中央のLDKを定義し、次に隣接する洋室を定義する。この時、LDKと洋室を隔てる壁の上下の頂点座標は、両方のポリゴンで完全に一致させる。同様に、水回りも隙間なく配置し、間取り図全体で座標の矛盾がないように組み立てる。
-理想的なJSON出力:
+【完璧な出力例 1】
+## 思考: 画像を解析した結果、LDK、玄関、トイレ、浴室、洗面所、2つの洋室、バルコニーの計8つの区画を認識した。特にLDKと洋室(5帖)は単純な四角形ではなく、壁の凹凸を反映した多角形として定義する必要があると判断。LDKは8つの頂点、洋室(5帖)は6つの頂点を持つポリゴンとして座標を丁寧に出力する。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData1)}
 ---
-【完璧な出力例 2】(中央廊下タイプ)
-思考: 玄関から奥に伸びる「廊下」が特徴的なレイアウト。まずこの中央の廊下を基準として特定し、その左右にぶら下がる形で各洋室、LDK、水回りを配置していく。廊下のようなラベルのない細長い空間も、重要な構成要素として正確にポリゴン化する。
-理想的なJSON出力:
+【完璧な出力例 2】
+## 思考: 画像から3つの洋室、LDK、水回り（浴室、洗面室、トイレ）、玄関、廊下、収納、バルコニーを認識した。各洋室に隣接する小さな区画を「収納」として正しく紐付ける。水回りと玄関をつなぐように存在する細長い空間を「廊下」として定義し、その境界を正確にトレースする。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData2)}
 ---
-【完璧な出力例 3】(L字型の部屋と凹凸)
-思考: LDKの角に和室が食い込んでいるため、LDKがL字型の複雑な形状になっている。単純な四角形として認識せず、線データを忠実にたどり、LDKを6つの頂点を持つポリゴンとして正確に定義する。和室はLDKの内側にぴったりはまる形で配置する。
-理想的なJSON出力:
+【完璧な出力例 3】
+## 思考: 画像下部の大半を占める空間をLDKとして認識。その上部に複数の洋室と水回りが配置されている構造を把握。特に中央の「廊下」が各部屋を繋ぐ重要な役割を果たしていると判断し、その複雑な形状を正確にトレースする。WICやCL、物入は全て「収納」タイプに分類する。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData3)}
 ---
-【完璧な出力例 4】(複数の収納とWIC)
-思考: 主寝室にウォークインクローゼット(WIC)と、さらに別の収納が隣接している。これらをまとめて一つの大きな収納としてしまわず、「WIC」と書かれた領域と、もう一方の領域を、それぞれ独立した「収納」タイプのポリゴンとして正確に分離して定義する。
-理想的なJSON出力:
+【完璧な出力例 4】
+## 思考: 2つの洋室とLDKにまたがる大きな「バルコニー」をまず特定する。各部屋は収納（WIC、Closet）によって複雑な形状になっているため、単純な四角形として捉えず、壁の凹凸を忠実にポリゴンに反映させる。中央の廊下と水回りの配置関係を正確に認識することが重要。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData4)}
 ---
-【完璧な出力例 5】(複数フロアの認識)
-思考: 画像が1階と2階の2つのエリアに分かれていることを認識する。まず1階部分の線データのみを使い、LDKと水回りを生成する。次に2階部分の線データに切り替え、3つの洋室を生成する。各フロアをつなぐ「階段」部分は「廊下」タイプとして扱う。
-理想的なJSON出力:
+【完璧な出力例 5】
+## 思考: 右側の大きなLDKと、左側に配置された2つの洋室という基本構造を理解する。中央上部に密集している玄関、シューズインクローク(収納)、トイレ、洗面室、浴室をそれぞれ独立した四角形の区画として正確に切り分ける。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData5)}
 ---
-【完璧な出力例 6】(複数部屋にまたがるバルコニー)
-思考: LDKと隣の洋室の両方に面して、細長い「バルコニー」が続いている。これを2つの別々のバルコニーとして分割せず、一つの長いポリゴンとして定義する。このポリゴンの内側の辺は、LDKと洋室の外壁の頂点とそれぞれ共有させる。
-理想的なJSON出力:
+【完璧な出力例 6】
+## 思考: 画像が上下2つのフロア（1階と2階）で構成されていることを認識する。まず1階部分について、LDK、和室、玄関、廊下、水回りをそれぞれ個別のポリゴンとして抽出する。次に2階部分について、3つの洋室と収納、そしてバルコニーを抽出する。「吹抜」と書かれたテキストは認識するが、指定されたタイプにないためポリゴンは生成しない。階段部分は「廊下」として扱う。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData6)}
 ---
-【完璧な出力例 7】(角度のある壁)
-思考: デザイン性の高い物件で、壁の一部が45度の角度を持っている。これを無理に水平・垂直な線に補正しようとせず、OpenCVから提供された線データの座標をそのまま使用し、斜めの辺を持つポリゴンを忠実に再現する。
-理想的なJSON出力:
+【完璧な出力例 7】
+## 思考: 画像が左右3つのフロア（1階、2階、3階）に分かれていることを特定する。各フロアごとに解析を実行。1階は洋室と縦に並んだ水回りを抽出。2階は壁がほとんどないため、全体を一つの巨大なLDKポリゴンとして認識する。3階は2つの洋室と廊下、バルコニーを抽出する。各階の階段は「廊下」として扱う。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData7)}
 ---
-【完璧な出力例 8】(PS・MBなどの細かい要素)
-思考: 浴室と洗面所の間に、非常に小さな「PS」（パイプスペース）の区画が存在する。このようなテキストラベルが書かれた微小な区画も見逃さず、個別のブロックとして抽出する。タイプは指定リストの中から最も近い「PS」を選択する。
-理想的なJSON出力:
+【完璧な出力例 8】
+## 思考: 画像が3つのエリア（1階、2階、屋根裏収納）に分かれていることを認識する。各エリアごとに解析。1階はLDKと、上部に連なる複雑な水回りと廊下、玄関を正確に切り分ける。2階は3つの洋室とWIC(収納)、そして2部屋にまたがるバルコニーを認識する。屋根裏収納は「収納」と「廊下」として単純に分割する。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData8)}
 ---
-【完璧な出力例 9】(吹き抜けのあるリビング)
-思考: LDKの中央に大きな「吹抜」が存在する。この場合、「吹抜」は床がない空間を示すため、部屋のポリゴンとしては生成しない。ただし、吹抜の周囲を示す点線などは壁線データに含まれる可能性があるため、それらをLDKのポリゴンを形成する線とは区別し、無視する必要がある。LDKは吹抜部分を含んだ大きな一つのポリゴンとして定義する。
-理想的なJSON出力:
+【完璧な出力例 9】
+## 思考: 3つのエリア（1階、2階、屋根裏収納）を認識。1階はLDKと洋室、そして上部の水回りを繋ぐ廊下の形状を正確にトレースする。2階は3つの洋室と複数の収納、そしてバルコニーの位置関係を把握する。特に右側の洋室の上にある3つの独立した収納を個別に抽出することが重要。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData9)}
 ---
-【完璧な出力例 10】(全体を俯瞰した領域分割)
-思考: 複雑な形状の戸建て住宅。まず外壁を特定して全体の輪郭を把握する。次に、主要な内壁で家全体をLDKゾーン、居室ゾーン、水回りゾーンに大きく分割する。その後、各ゾーンをさらに細かく部屋単位に分割していく。最後に、どの部屋にも属さない残りの領域を「廊下」として定義し、全ての空間が隙間なく埋まるように調整する。
-理想的なJSON出力:
+【完璧な出力例 10】
+## 思考: 3つのフロア（1階、2階、3階）を認識。1階は洋室と、その上に複雑に配置された収納、水回り、廊下、玄関を個別に抽出する。2階は広大なLDKを一つのポリゴンとして定義し、右上の階段(廊下)とトイレ、収納部分を切り抜いた形状として認識する。3階も同様に、中央の廊下を基準に各部屋を配置する。
+## 理想的なJSON出力:
 ${JSON.stringify(exampleData10)}
 ---
 
-上記の思考プロセスとルール、そして複数の出力例を厳密に参考にし、これから提供される新しい画像と線分データを解析して、JSONオブジェクトのみを出力してください。`;
+上記の思考プロセスとルール、そして複数の出力例を厳密に参考にし、これから提供される新しい画像を解析して、JSONオブジェクトのみを出力してください。`;
             
                 const payload = {
                     contents: [{
                         parts: [
-                            { text: newPrompt }, // ここを変更
+                            { text: finalPrompt },
                             { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
                         ]
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
+                        // スキーマも最初から「type」を含む理想の形式に合わせます
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
-                                "ocrData": {
-                                    type: "OBJECT",
-                                    properties: {
-                                        "Blocks": {
-                                            type: "ARRAY",
-                                            items: {
+                                "Blocks": {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            "type": { "type": "STRING" }, // typeフィールドを追加
+                                            "Text": { "type": "STRING" },
+                                            "Geometry": {
                                                 type: "OBJECT",
                                                 properties: {
-                                                    "Geometry": {
-                                                        type: "OBJECT",
-                                                        properties: {
-                                                            "Polygon": {
-                                                                type: "ARRAY",
-                                                                items: {
-                                                                    type: "OBJECT",
-                                                                    properties: {
-                                                                        "x": { "type": "NUMBER" },
-                                                                        "y": { "type": "NUMBER" }
-                                                                    },
-                                                                    required: ["x", "y"]
-                                                                }
-                                                            }
-                                                        },
-                                                        required: ["Polygon"]
-                                                    },
-                                                    "Text": { "type": "STRING" },
-                                                    "type": { "type": "STRING" }
+                                                    "Polygon": {
+                                                        type: "ARRAY",
+                                                        items: {
+                                                            type: "OBJECT",
+                                                            properties: {
+                                                                "x": { "type": "NUMBER" },
+                                                                "y": { "type": "NUMBER" }
+                                                            },
+                                                            required: ["x", "y"]
+                                                        }
+                                                    }
                                                 },
-                                                required: ["Geometry", "Text", "type"]
+                                                required: ["Polygon"]
                                             }
-                                        }
-                                    },
-                                    required: ["Blocks"]
+                                        },
+                                        required: ["type", "Text", "Geometry"] // typeを必須項目に追加
+                                    }
                                 }
                             },
-                            required: ["ocrData"]
+                            required: ["Blocks"]
                         }
                     }
                 };
             
                 try {
-                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU"; // ご自身のAPIキー
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
-                    
+                    const apiKey = "AIzaSyDtgMoGwCRePrz7kHss6iAa9Q_Pj2QeaaU";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    
+            
                     if (!response.ok) {
                         const errorBody = await response.text();
                         throw new Error(`API Error: ${response.status} ${errorBody}`);
                     }
-                    
+            
                     const result = await response.json();
-                    
+            
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
-                        console.log("AIからのレスポンス(パース後):", JSON.parse(jsonText));
-                        return JSON.parse(jsonText);
+                        console.log("AIからのレスポンス(生テキスト):", jsonText); 
+                        try {
+                            const parsedJson = JSON.parse(jsonText);
+                            console.log("AIからのレスポンス(パース後):", parsedJson); // パース後のオブジェクトも確認
+                            return parsedJson;
+                        } catch (e) {
+                            console.error("JSONのパースに失敗しました:", e);
+                            console.error("パースしようとしたテキスト:", jsonText);
+                            return null; // パース失敗時はnullを返す
+                        }
+                        //return JSON.parse(jsonText);
                     } else {
+                        console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
                         throw new Error("AIからの応答が予期した形式ではありません。");
                     }
                 } catch (error) {
@@ -3422,282 +3351,181 @@ ${JSON.stringify(exampleData10)}
             };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
-                // 入力データの検証
-                if (!aiData || !aiData.Blocks || aiData.Blocks.length === 0 || !originalImageDimensions) {
-                    console.error("generateDrawingFromAi: 入力データが不正か、空です。");
-                    return [];
-                }
+                if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
             
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
-                
-                // 基準となる元の画像のサイズを取得
-                const imageWidth = originalImageDimensions.width;
-                const imageHeight = originalImageDimensions.height;
             
-                if (imageWidth === 0 || imageHeight === 0) {
-                    console.error("generateDrawingFromAi: 元の画像のサイズが0です。");
-                    return [];
-                }
+                // 1. AIが返した全座標から、間取り図全体の大きさを推定する
+                let allPointsX = [];
+                let allPointsY = [];
+                aiData.Blocks.forEach(block => {
+                    if (block.Geometry.Polygon) {
+                        block.Geometry.Polygon.forEach(p => {
+                            allPointsX.push(p.x);
+                            allPointsY.push(p.y);
+                        });
+                    }
+                });
             
-                // 画像全体がキャンバスにフィットするようにスケールとオフセットを計算
-                const scaleX = canvasWidth / imageWidth;
-                const scaleY = canvasHeight / imageHeight;
-                // 画面の上下左右に5%ずつの余白を設ける
-                const fitScale = Math.min(scaleX, scaleY) * 0.9; 
+                if (allPointsX.length === 0) return [];
             
-                // スケール後の画像の寸法と、中央配置のためのオフセットを計算
-                const scaledWidth = imageWidth * fitScale;
-                const scaledHeight = imageHeight * fitScale;
-                const offsetX = (canvasWidth - scaledWidth) / 2;
-                const offsetY = (canvasHeight - scaledHeight) / 2;
+                const minX = Math.min(...allPointsX);
+                const minY = Math.min(...allPointsY);
+                const maxX = Math.max(...allPointsX);
+                const maxY = Math.max(...allPointsY);
+            
+                const aiDrawingWidth = maxX - minX;
+                const aiDrawingHeight = maxY - minY;
+            
+                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
+            
+                // --- ▼▼▼ ここを微調整します (0.95 → 0.9) ▼▼▼ ---
+                // 2. AIが認識した間取り図のサイズが、キャンバスにフィットするように縮尺を計算
+                const scaleX = canvasWidth / aiDrawingWidth;
+                const scaleY = canvasHeight / aiDrawingHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.9; // さらに余白を持たせるため、係数を0.9に変更
+                // --- ▲▲▲ ここまで ▲▲▲ ---
+            
+                // 3. 中央に配置するためのオフセットを計算
+                const displayedWidth = aiDrawingWidth * fitScale;
+                const displayedHeight = aiDrawingHeight * fitScale;
+                const offsetX = (canvasWidth - displayedWidth) / 2;
+                const offsetY = (canvasHeight - displayedHeight) / 2;
             
                 const newElements = [];
                 aiData.Blocks.forEach((block, index) => {
-                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
             
-                    // 元の画像のピクセル座標を、画面のSVGキャンバス座標に変換
-                    // 計算基準がAIの認識範囲(minX, minY)から、画像全体の大きさ(0, 0)に変わっている点に注目
+                    // 4. 新しく計算したスケールとオフセットで座標を変換
                     let points = block.Geometry.Polygon.map(p => ({
-                        x: (p.x * fitScale) + offsetX,
-                        y: (p.y * fitScale) + offsetY
+                        x: ((p.x - minX) * fitScale) + offsetX,
+                        y: ((p.y - minY) * fitScale) + offsetY
                     }));
-            
-                    // 座標の補正
+                    
+                    // 後処理の補正関数を呼び出す
                     points = straightenAndAlignPolygon(points);
-                    if (points.length < 3) return;
             
-                    const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const spaceType = block.type || "その他";
+                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
             
-                    // 空間（space）要素の作成
+                    // 部屋のタイプ名を変換
+                    let spaceType = block.type;
+                    const text = block.Text || "";
+                    if (spaceType === "Room") {
+                        if (text.includes("LDK")) spaceType = "LDK";
+                        else if (text.includes("洋室")) spaceType = "居室";
+                        else if (text.includes("和室")) spaceType = "和室";
+                        else if (text.includes("洗面")) spaceType = "洗面所";
+                        else if (text.includes("浴室")) spaceType = "浴室";
+                        else if (text.includes("トイレ")) spaceType = "トイレ";
+                        else if (text.includes("玄関")) spaceType = "玄関";
+                        else spaceType = "居室";
+                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
+                        spaceType = "収納";
+                    } else if (spaceType === "Balcony") {
+                        spaceType = "バルコニー";
+                    }
+            
                     const spaceElement = {
-                        id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId: groupId,
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: spaceType,
+                        groupId: subGroupId,
                         points: points.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[spaceType] || DEFAULT_FILL_COLORS["その他"],
+                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
                         backgroundPattern: 'none'
                     };
                     newElements.push(spaceElement);
             
-                    // 壁（wall）要素の作成
                     for (let i = 0; i < points.length; i++) {
                         const p1 = points[i];
                         const p2 = points[(i + 1) % points.length];
                         newElements.push({
-                            id: `wall-ai-${groupId}-${i}`, type: 'wall', groupId: groupId, edgeIndex: i,
-                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-                            color: DEFAULT_STROKE_COLOR, strokeWidth: DEFAULT_STROKE_WIDTH, lineStyle: 'solid'
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
                         });
                     }
-                    
-                    // テキスト（text）要素の作成
-                    const centroid = getPolygonCentroid(points);
-                    if (block.Text) {
-                        // テキスト要素のフォントサイズを部屋の大きさに基づいて調整
-                        const area = Math.abs(getPolygonArea(points));
-                        const baseArea = 200 * 200; // 200x200ピクセルを基準エリアとする
-                        const calculatedFontSize = Math.max(8, Math.min(20, Math.sqrt(area / baseArea) * 16));
             
-                        newElements.push({
-                            id: `text-ai-${groupId}`, type: 'text', groupId: groupId,
-                            x: (centroid.x / dimensions.width) * 100,
-                            y: (centroid.y / dimensions.height) * 100,
-                            text: block.Text, color: '#000000', backgroundColor: 'none',
-                            fontSize: calculatedFontSize, fontFamily: 'sans-serif', textAlign: 'center',
-                        });
-                    }
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    newElements.push(labelElement);
                 });
             
-                console.log("最終的に生成されたSVG要素:", newElements);
                 return newElements;
             }, [dimensions]);
-            
-            // generateDrawingFromAi の中で使うヘルパー関数を2つ追加
-            const getPolygonArea = (points) => {
-                let area = 0;
-                for (let i = 0; i < points.length; i++) {
-                    const p1 = points[i];
-                    const p2 = points[(i + 1) % points.length];
-                    area += p1.x * p2.y - p2.x * p1.y;
-                }
-                return area / 2;
-            };
 
-            const extractWallsFromImage = (imageDataUrl) => {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        try {
-                            const src = cv.imread(img);
-                            const gray = new cv.Mat();
-                            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-                            
-                            const blurred = new cv.Mat();
-                            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-            
-                            const edges = new cv.Mat();
-                            cv.Canny(blurred, edges, 50, 150, 3);
-                            
-                            const lines = new cv.Mat();
-                            cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 80, 50, 10);
-                            
-                            const wallLines = [];
-                            for (let i = 0; i < lines.rows; ++i) {
-                                const line = lines.data32S;
-                                const x1 = line[i * 4];
-                                const y1 = line[i * 4 + 1];
-                                const x2 = line[i * 4 + 2];
-                                const y2 = line[i * 4 + 3];
-                                wallLines.push({ x1, y1, x2, y2 });
-                            }
-                            
-                            src.delete(); gray.delete(); blurred.delete(); edges.delete(); lines.delete();
-                            resolve(wallLines);
-            
-                        } catch (error) {
-                            console.error("OpenCV Error:", error);
-                            reject(error);
-                        }
-                    };
-                    img.onerror = reject;
-                    img.src = imageDataUrl;
-                });
-            };
-
-            const detectWallsWithOpenCvJs = (imageDataUrl) => {
-                return new Promise((resolve, reject) => {
-                    // opencv.jsがロードされているか、またはロードを待機する
-                    if (typeof cv === 'undefined' || typeof cv.imread === 'undefined') {
-                        console.log("OpenCV.js is not ready yet, waiting...");
-                        const script = document.getElementById('opencv-js');
-                        if (script) {
-                            // onloadイベントに再試行を登録
-                            script.onload = () => {
-                                console.log("OpenCV.js has now loaded, retrying detection...");
-                                // ロードが完了したら、自身を再度呼び出して処理を継続
-                                resolve(detectWallsWithOpenCvJs(imageDataUrl));
-                            };
-                            script.onerror = () => {
-                                reject(new Error('Failed to load OpenCV.js script.'));
-                            };
-                        } else {
-                            reject(new Error('OpenCV.js script tag not found.'));
-                        }
-                        return; // 一旦処理を終了し、onloadが発火するのを待つ
-                    }
-            
-                    const img = new Image();
-                    img.crossOrigin = "anonymous";
-                    img.onload = () => {
-                        try {
-                            const mat = cv.imread(img);
-                            const gray = new cv.Mat();
-                            cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
-                            const edges = new cv.Mat();
-                            cv.Canny(gray, edges, 50, 150, 3);
-            
-                            const lines = new cv.Mat();
-                            cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 80, 30, 10);
-            
-                            const wall_lines = [];
-                            if (lines.rows > 0) {
-                                for (let i = 0; i < lines.rows; ++i) {
-                                    let line = lines.data32S;
-                                    wall_lines.push({
-                                        'x1': line[i * 4], 'y1': line[i * 4 + 1],
-                                        'x2': line[i * 4 + 2], 'y2': line[i * 4 + 3]
-                                    });
-                                }
-                            }
-                            
-                            mat.delete();
-                            gray.delete();
-                            edges.delete();
-                            lines.delete();
-                            
-                            resolve({ walls: wall_lines });
-            
-                        } catch (error) {
-                            console.error("OpenCV.js processing error:", error);
-                            reject(error);
-                        }
-                    };
-                    img.onerror = (err) => {
-                        reject(new Error("Image could not be loaded for OpenCV."));
-                    };
-                    img.src = imageDataUrl;
-                });
-            };
-            
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
                 const img = new Image();
                 img.onload = async () => {
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
-            
+
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
-                    setImageUrl(imageDataUrl);
-            
-                    //【重要】下絵のスケールと位置の計算ロジックを generateDrawingFromAi と完全に一致させる
+
                     const canvasWidth = dimensions.width;
-                    const canvasHeight = dimensions.height;
-                    const scaleX = canvasWidth / imageWidth;
-                    const scaleY = canvasHeight / imageHeight;
-                    const fitScale = Math.min(scaleX, scaleY) * 0.9;
-                    
-                    const scaledWidth = imageWidth * fitScale;
-                    const scaledHeight = imageHeight * fitScale;
-                    const offsetX = (canvasWidth - scaledWidth) / 2;
-                    const offsetY = (canvasHeight - scaledHeight) / 2;
-                    
-                    // 下絵のスケールと位置を設定
-                    setImageScale(fitScale); 
-                    // CSSのtransform: translate(-50%, -50%)を考慮し、中心からのオフセットで位置を調整
-                    setImagePosition({ x: offsetX + scaledWidth / 2 - canvasWidth / 2, y: offsetY + scaledHeight / 2 - canvasHeight / 2 });
-                    
-                    if (useAi) {
-                        setIsLoading(true);
-                        try {
-                            setLoadingMessage('OpenCVで壁線を検出中...');
-                            const wallData = await detectWallsWithOpenCvJs(imageDataUrl);
-                            if (!wallData || !wallData.walls) {
-                                 throw new Error('OpenCVでの壁線検出に失敗、または壁が見つかりませんでした。');
-                            }
-                            
-                            setLoadingMessage('AIが部屋の構造を解析中...');
-                            const finalOcrData = await analyzeImageWithAI(imageDataUrl, wallData);
-            
-                            let dataForDrawing = null;
-                            if (finalOcrData && finalOcrData.Blocks) {
-                                dataForDrawing = finalOcrData;
-                            } else if (finalOcrData && finalOcrData.ocrData && finalOcrData.ocrData.Blocks) {
-                                dataForDrawing = finalOcrData.ocrData;
-                            }
-            
-                            if (dataForDrawing) {
-                                const newElements = generateDrawingFromAi(dataForDrawing, dimensions, { width: imageWidth, height: imageHeight });
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements], ocrData: finalOcrData },
-                                    future: []
-                                }));
-                            } else {
-                                console.error("AI Response (for debugging):", finalOcrData);
-                                throw new Error("AIからの応答が不正、またはBlocksデータが見つかりませんでした。");
-                            }
-                        } catch (err) {
-                            console.error("AI処理エラー:", err);
-                            alert(`エラーが発生しました: ${err.message}`);
-                        } finally {
-                            setIsLoading(false);
-                            setUploadModalOpen(false);
-                        }
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+                    
+                    setImageUrl(imageDataUrl);
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
+                    
+                    if (useAi) {
+                        setIsLoading(true);
+                        try {
+                            setLoadingMessage('AIが間取り図を解析中...');
+                            // AI呼び出しを1回に統合
+                            const finalOcrData = await analyzeImageWithAI(imageDataUrl);
+
+                            if (finalOcrData && finalOcrData.Blocks) {
+                                const newElements = generateDrawingFromAi(finalOcrData, dimensions, { width: imageWidth, height: imageHeight });
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        ...prev.present,
+                                        svgElements: [...prev.present.svgElements, ...newElements],
+                                        ocrData: finalOcrData // 最終的なデータを保存
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
                     } else {
-                        setUploadModalOpen(false);
+                    setUploadModalOpen(false);
                     }
-                };
-                img.src = imageDataUrl;
-            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
+                };
+                img.src = imageDataUrl;
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
@@ -3835,7 +3663,7 @@ ${JSON.stringify(exampleData10)}
                                 const distToStart = Math.sqrt(Math.pow(clickedPoint.x - firstPoint.x, 2) + Math.pow(clickedPoint.y - firstPoint.y, 2));
                                 if (distToStart < SNAP_THRESHOLD / zoom) {
                                     createPolygonSpace([...linePoints, firstPoint]);
-                                    setLinePoints([]);
+                                    finishDrawing();
                                     setSnappedInfo(null);
                                     return;
                                 }
@@ -4097,7 +3925,8 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleMouseDown = useCallback((e) => {
-                if (e.button !== 0) return;
+                e.stopPropagation();
+
                 if (!drawingMode && !imageUrl && editorMode !== 'edit') {
                     const clickPos = getCanvasCoords(e);
 
@@ -4180,7 +4009,7 @@ ${JSON.stringify(exampleData10)}
             const handleMouseMove = useCallback((e) => {
                 const currentMousePos = getCanvasCoords(e);
                 setMousePos(currentMousePos);
-    
+
                 if (imageDragInfo.current) {
                     const dx = e.clientX - imageDragInfo.current.startMouseX;
                     const dy = e.clientY - imageDragInfo.current.startMouseY;
@@ -4190,56 +4019,77 @@ ${JSON.stringify(exampleData10)}
                     });
                     return;
                 }
-    
-                // ▼▼▼【重要】変数を関数のトップレベルで宣言します ▼▼▼
-                let closestSnap = null; 
-                let newGuideLines = [];
+
+                // ▼▼▼【修正点】ここからスナップ処理全体を修正 ▼▼▼
                 const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space') && isSnapToWall && !isModifierKeyDown;
-    
+
+                // 毎回のマウス移動でガイドラインを初期化
+                let newGuideLines = [];
+                let snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : { ...currentMousePos };
+
                 if (isSnappingEnabled) {
+                    let closestSnap = null;
                     let minDistance = SNAP_THRESHOLD / zoom;
-    
-                    // 1.【最優先】他の図形の頂点へのスナップを探す
+
+                    // 1. 軸スナップの計算とガイドラインの生成
+                    let closestXSnap = { dist: minDistance, point: null };
+                    let closestYSnap = { dist: minDistance, point: null };
+                    for (const wall of svgElements.filter(el => el.type === 'wall')) {
+                        const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
+                        vertices.forEach(vertex => {
+                            const distX = Math.abs(currentMousePos.x - vertex.x);
+                            const distY = Math.abs(currentMousePos.y - vertex.y);
+                            if (distX < closestXSnap.dist) { closestXSnap = { dist: distX, point: vertex }; }
+                            if (distY < closestYSnap.dist) { closestYSnap = { dist: distY, point: vertex }; }
+                        });
+                    }
+                    if (closestXSnap.point) {
+                        snappedPos.x = closestXSnap.point.x;
+                        newGuideLines.push({ x1: closestXSnap.point.x, y1: closestXSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
+                    }
+                    if (closestYSnap.point) {
+                        snappedPos.y = closestYSnap.point.y;
+                        newGuideLines.push({ x1: closestYSnap.point.x, y1: closestYSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
+                    }
+
+                    // 2. 近接スナップの計算 (頂点を優先)
                     for (const wall of svgElements.filter(el => el.type === 'wall')) {
                         const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
                         for (const vertex of vertices) {
-                            const distance = Math.sqrt(Math.pow(currentMousePos.x - vertex.x, 2) + Math.pow(currentMousePos.y - vertex.y, 2));
+                            const distance = Math.sqrt(Math.pow(snappedPos.x - vertex.x, 2) + Math.pow(snappedPos.y - vertex.y, 2));
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                closestSnap = { point: vertex, type: 'vertex', wall: wall };
+                                closestSnap = { point: vertex, type: 'vertex' };
                             }
                         }
                     }
-    
-                    // 2. 頂点にスナップしなかった場合のみ、壁の辺へのスナップを探す
-                    if (!closestSnap) {
+                    if (!closestSnap) { // 頂点にスナップしなかった場合のみ、壁の線上を探す
                         for (const wall of svgElements.filter(el => el.type === 'wall')) {
                             const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
                             const dx = p2.x - p1.x, dy = p2.y - p1.y;
                             if (dx === 0 && dy === 0) continue;
-                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                            const t = ((snappedPos.x - p1.x) * dx + (snappedPos.y - p1.y) * dy) / (dx * dx + dy * dy);
                             const clampedT = Math.max(0, Math.min(1, t));
                             const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                            const distance = Math.sqrt(Math.pow(currentMousePos.x - pointOnLine.x, 2) + Math.pow(currentMousePos.y - pointOnLine.y, 2));
+                            const distance = Math.sqrt(Math.pow(snappedPos.x - pointOnLine.x, 2) + Math.pow(snappedPos.y - pointOnLine.y, 2));
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                closestSnap = { point: pointOnLine, type: 'wall', wall: wall };
+                                closestSnap = { point: pointOnLine, type: 'wall', wall: wall }; // ✅ wallオブジェクトを追加
                             }
                         }
                     }
-                }
-                
-                // 3. 図形にスナップしなかった場合、グリッドへのスナップを試みる
-                if (!closestSnap && isGridVisible) {
-                    const gridSnappedPoint = getGridSnappedPoint(currentMousePos);
-                    const gridSnapDistance = Math.sqrt(Math.pow(currentMousePos.x - gridSnappedPoint.x, 2) + Math.pow(currentMousePos.y - gridSnappedPoint.y, 2));
-                    if (gridSnapDistance < gridSize / 2) {
-                         closestSnap = { point: gridSnappedPoint, type: 'grid' };
+
+                    // 3. 最終的なスナップ情報をセット
+                    if (closestSnap) {
+                        setSnappedInfo(closestSnap);
+                    } else if (newGuideLines.length > 0) {
+                        setSnappedInfo({ point: snappedPos, type: 'extension' });
+                    } else {
+                         setSnappedInfo(null);
                     }
+                } else {
+                    setSnappedInfo(null);
                 }
-    
-                // 4. 最終的なスナップ情報をstateにセット
-                setSnappedInfo(closestSnap);
                 setGuideLines(newGuideLines);
 
                 // 始点へのスナップ処理
@@ -4417,8 +4267,8 @@ ${JSON.stringify(exampleData10)}
                     const initialElementCenterY = dragInfo.current.initialElementCenterY;
                     const startMouseCanvasX = dragInfo.current.startMouseX;
                     const startMouseCanvasY = dragInfo.current.startMouseY;
-                    const mouseMoveDx = currentMousePos.x - startMouseCanvasX;
-                    const mouseMoveDy = currentMousePos.y - startMouseCanvasY;
+                    const mouseMoveDx = currentCanvasX - startMouseCanvasX;
+                    const mouseMoveDy = currentCanvasY - startMouseCanvasY;
                     let proposedFinalCenterX = initialElementCenterX + mouseMoveDx;
                     let proposedFinalCenterY = initialElementCenterY + mouseMoveDy;
                     if (isGridVisible) {
@@ -4520,7 +4370,7 @@ ${JSON.stringify(exampleData10)}
                 mouseDownInfo.current = null;
             };
 
-            const StairsPreviewRenderer = ({ points, width, color, strokeWidth }) => { // strokeWidth を props で受け取る
+            const StairsPreviewRenderer = ({ points, width, color }) => {
                 if (points.length < 2) return null;
 
                 // StairsRendererから、プレビューに必要な計算ロジックのみを抜粋
@@ -4566,8 +4416,8 @@ ${JSON.stringify(exampleData10)}
 
                 return (
                     <g style={{pointerEvents: 'none', opacity: 0.7}}>
-                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray="5,5" />
-                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray="5,5" />
+                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
+                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
                         <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} strokeDasharray="5,5"/>
                     </g>
                 );
@@ -4608,252 +4458,6 @@ ${JSON.stringify(exampleData10)}
 
                 setSelectedId(null);
             }, [selectedId, svgElements]);
-
-            const handleContextMenu = (e) => {
-                e.preventDefault();
-                const mainContainer = mainContainerRef.current;
-                if (!mainContainer) return;
-            
-                const targetId = e.target.closest('[data-id]')?.getAttribute('data-id');
-                const targetElement = svgElements.find(el => el.id === targetId);
-                const rect = mainContainer.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
-            
-                setContextMenu({
-                    visible: true,
-                    x: clickX,
-                    y: clickY,
-                    targetId: targetElement ? targetElement.id : null,
-                    targetType: targetElement ? targetElement.type : null,
-                });
-                
-                if (targetElement) {
-                    setSelectedId(targetElement.id);
-                }
-            };
-            
-            const closeContextMenu = () => {
-                setContextMenu({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
-            };
-            
-            const handleLayerChange = useCallback((action, targetId) => {
-                const targetElement = svgElements.find(el => el.id === targetId);
-                // 空間または壁でなければ何もしない
-                if (!targetElement || (targetElement.type !== 'space' && targetElement.type !== 'wall')) return;
-            
-                // グループIDを取得
-                const groupId = targetElement.groupId || (targetElement.type === 'space' ? targetElement.id : null);
-                if (!groupId) return; // グループに属さない独立した壁はレイヤー変更不可
-            
-                setHistoryState(prevState => {
-                    const past = [...prevState.past, prevState.present];
-                    const currentElements = [...prevState.present.svgElements];
-                    
-                    // 空間/壁グループと、それ以外のグループに分離
-                    const spaceAndWallElements = currentElements.filter(el => el.type === 'space' || el.type === 'wall');
-                    const otherElements = currentElements.filter(el => el.type !== 'space' && el.type !== 'wall');
-            
-                    // 移動対象のグループ（空間、壁、関連テキストなど）を抜き出す
-                    const groupToMove = currentElements.filter(el => el.groupId === groupId);
-                    // 移動対象ではない壁・空間要素
-                    const otherSpaceAndWalls = spaceAndWallElements.filter(el => el.groupId !== groupId);
-            
-                    let reorderedSpaceAndWalls;
-            
-                    switch (action) {
-                        case 'toFront':
-                            reorderedSpaceAndWalls = [...otherSpaceAndWalls, ...groupToMove.filter(el => el.type === 'space' || el.type === 'wall')];
-                            break;
-                        case 'toBack':
-                            reorderedSpaceAndWalls = [...groupToMove.filter(el => el.type === 'space' || el.type === 'wall'), ...otherSpaceAndWalls];
-                            break;
-                        // forwardとbackwardは複雑になるため、一旦主要なtoFront/toBackのみとします
-                        // もし必要であれば、より詳細なロジックを追加することも可能です。
-                        default:
-                            reorderedSpaceAndWalls = spaceAndWallElements;
-                            break;
-                    }
-            
-                    // 2つのグループを再結合
-                    const newSvgElements = [...reorderedSpaceAndWalls, ...otherElements];
-            
-                    return { past, present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
-                });
-            }, [svgElements]);
-
-            const handleClipboardAction = useCallback((action) => {
-                if (!selectedId) return;
-                const element = svgElements.find(el => el.id === selectedId);
-                if (!element) return;
-            
-                const groupId = element.groupId || (['space', 'stairs'].includes(element.type) ? element.id : null);
-                
-                const elementsToProcess = groupId 
-                    ? svgElements.filter(el => el.groupId === groupId)
-                    : [element];
-            
-                // 参照を断ち切るためにディープコピー
-                const copiedData = JSON.parse(JSON.stringify(elementsToProcess));
-            
-                setClipboard({ data: copiedData, isCut: action === 'cut' });
-            
-            }, [selectedId, svgElements]);
-            
-            const handlePaste = useCallback(({ pasteX, pasteY } = {}) => {
-                if (!clipboard.data) return;
-            
-                // --- 1. 貼り付け対象の元の位置とサイズを正確に計算 ---
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                clipboard.data.forEach(el => {
-                    if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
-                        minX = Math.min(minX, el.x1, el.x2);
-                        maxX = Math.max(maxX, el.x1, el.x2);
-                        minY = Math.min(minY, el.y1, el.y2);
-                        maxY = Math.max(maxY, el.y1, el.y2);
-                    } else if (el.type === 'space' || el.type === 'stairs') {
-                        const points = el.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
-                        points.forEach(p => {
-                            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-                            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-                        });
-                    } else { // text, fixture, compass
-                        const cx = el.x / 100 * dimensions.width;
-                        const cy = el.y / 100 * dimensions.height;
-                        const width = el.width || el.size || el.fontSize * 2; // サイズ情報がない場合はフォントサイズから推測
-                        const height = el.height || el.size || el.fontSize * 2;
-                        minX = Math.min(minX, cx - width / 2); maxX = Math.max(maxX, cx + width / 2);
-                        minY = Math.min(minY, cy - height / 2); maxY = Math.max(maxY, cy + height / 2);
-                    }
-                });
-            
-                const originalCenterX = (minX + maxX) / 2;
-                const originalCenterY = (minY + maxY) / 2;
-                
-                // --- 2. 貼り付け先の座標を決定 ---
-                let deltaX, deltaY;
-                if (pasteX !== undefined && pasteY !== undefined) {
-                    // 右クリックメニューからの場合：カーソル位置を基準
-                    deltaX = pasteX - originalCenterX;
-                    deltaY = pasteY - originalCenterY;
-                } else {
-                    // ショートカットからの場合：20pxずらす
-                    deltaX = 20;
-                    deltaY = 20;
-                }
-            
-                // --- 3. 新しい要素を作成 ---
-                const idMap = new Map();
-                const newGroupId = clipboard.data.some(el => el.groupId) ? `group-${Date.now()}` : null;
-            
-                clipboard.data.forEach(el => idMap.set(el.id, `${el.type}-${Date.now()}-${Math.random()}`));
-            
-                const newElements = clipboard.data.map(originalEl => {
-                    let newEl = { ...originalEl, id: idMap.get(originalEl.id) };
-                    if (newEl.groupId) {
-                        newEl.groupId = newGroupId;
-                        if (newEl.type === 'space' || newEl.type === 'stairs') {
-                            newEl.id = newGroupId;
-                        }
-                    }
-                    
-                    if (newEl.type === 'wall' || newEl.type === 'door' || newEl.type === 'window') {
-                        newEl.x1 += deltaX; newEl.y1 += deltaY;
-                        newEl.x2 += deltaX; newEl.y2 += deltaY;
-                    } else if (newEl.type === 'space' || newEl.type === 'stairs') {
-                        const points = newEl.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
-                        newEl.points = points.map(p => `${p.x + deltaX},${p.y + deltaY}`).join(' ');
-                    } else {
-                        const originalPxX = (newEl.x / 100 * dimensions.width);
-                        const originalPxY = (newEl.y / 100 * dimensions.height);
-                        newEl.x = (originalPxX + deltaX) / dimensions.width * 100;
-                        newEl.y = (originalPxY + deltaY) / dimensions.height * 100;
-                    }
-                    return newEl;
-                });
-            
-                // --- 4. stateを更新 ---
-                setHistoryState(prevState => {
-                    let finalElements = [...prevState.present.svgElements];
-                    if (clipboard.isCut) {
-                        const originalIds = clipboard.data.map(el => el.id);
-                        finalElements = finalElements.filter(el => !originalIds.includes(el.id));
-                    }
-                    finalElements.push(...newElements);
-                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: finalElements }, future: [] };
-                });
-            
-                setClipboard(prev => ({ ...prev, isCut: false })); // Cutフラグをリセット
-            }, [clipboard, svgElements, dimensions]);
-            
-            const handleFlip = useCallback((direction) => {
-                if (!selectedId) return;
-                const element = svgElements.find(el => el.id === selectedId);
-                if (!element || !['space', 'fixture', 'stairs'].includes(element.type)) return;
-            
-                const groupId = element.groupId || (['space', 'stairs'].includes(element.type) ? element.id : null);
-                
-                setHistoryState(prevState => {
-                    const currentElements = [...prevState.present.svgElements];
-                    const elementsToFlip = groupId ? currentElements.filter(el => el.groupId === groupId) : [element];
-                    const otherElements = groupId ? currentElements.filter(el => el.groupId !== groupId) : currentElements.filter(el => el.id !== selectedId);
-            
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    elementsToFlip.forEach(el => {
-                        if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
-                            minX = Math.min(minX, el.x1, el.x2); maxX = Math.max(maxX, el.x1, el.x2);
-                            minY = Math.min(minY, el.y1, el.y2); maxY = Math.max(maxY, el.y1, el.y2);
-                        } else if (el.type === 'space' || el.type === 'stairs') {
-                            el.points.split(' ').forEach(p_str => {
-                                const [x, y] = p_str.split(',').map(parseFloat);
-                                minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-                                minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-                            });
-                        } else if (el.type === 'fixture') {
-                            const cx = el.x / 100 * dimensions.width;
-                            const cy = el.y / 100 * dimensions.height;
-                            minX = Math.min(minX, cx - el.width/2); maxX = Math.max(maxX, cx + el.width/2);
-                            minY = Math.min(minY, cy - el.height/2); maxY = Math.max(maxY, cy + el.height/2);
-                        }
-                    });
-                    const centerX = (minX + maxX) / 2;
-                    const centerY = (minY + maxY) / 2;
-            
-                    const flippedElements = elementsToFlip.map(el => {
-                        let newEl = { ...el };
-                        const flipPoint = (p) => {
-                            if (direction === 'horizontal') return { x: 2 * centerX - p.x, y: p.y };
-                            if (direction === 'vertical') return { x: p.x, y: 2 * centerY - p.y };
-                            return p;
-                        };
-            
-                        if (newEl.type === 'wall' || newEl.type === 'door' || newEl.type === 'window') {
-                            const p1 = flipPoint({x: newEl.x1, y: newEl.y1});
-                            const p2 = flipPoint({x: newEl.x2, y: newEl.y2});
-                            newEl.x1 = p1.x; newEl.y1 = p1.y;
-                            newEl.x2 = p2.x; newEl.y2 = p2.y;
-                            // 角度も反転
-                            newEl.baseAngle = (newEl.baseAngle || 0) + 180;
-                        } else if (newEl.type === 'space' || newEl.type === 'stairs') {
-                            const points = newEl.points.split(' ').map(p_str => {
-                                const [x, y] = p_str.split(',').map(parseFloat);
-                                const flipped = flipPoint({x, y});
-                                return `${flipped.x},${flipped.y}`;
-                            });
-                            newEl.points = points.join(' ');
-                        } else if (newEl.type === 'fixture') {
-                            const centerPx = flipPoint({x: (newEl.x / 100 * dimensions.width), y: (newEl.y / 100 * dimensions.height)});
-                            newEl.x = (centerPx.x / dimensions.width) * 100;
-                            newEl.y = (centerPx.y / dimensions.height) * 100;
-                            newEl.rotation = 180 - (newEl.rotation || 0); // 回転も反転させる
-                        }
-                        return newEl;
-                    });
-            
-                    const newSvgElements = [...otherElements, ...flippedElements];
-                    return { past: [...prevState.past, prevState.present], present: { ...prevState.present, svgElements: newSvgElements }, future: [] };
-                });
-            }, [selectedId, svgElements, dimensions]);
 
             const handleStairDirectionChange = (newDirection) => {
                 if (!selectedElement) return;
@@ -5047,25 +4651,6 @@ ${JSON.stringify(exampleData10)}
                 });
             }, [historyState.present]);
 
-            const elementsForRender = useMemo(() => {
-                // 空間と壁を下のレイヤーグループにまとめる
-                const spaceAndWallElements = svgElements.filter(el => el.type === 'space' || el.type === 'wall');
-                
-                // それ以外の要素を上のレイヤーグループにまとめる
-                const otherElements = svgElements.filter(el => el.type !== 'space' && el.type !== 'wall');
-                
-                // 上のレイヤーグループ内での描画順を定義
-                const typeOrder = { 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
-                otherElements.sort((a, b) => {
-                    const orderA = typeOrder[a.type] ?? 99;
-                    const orderB = typeOrder[b.type] ?? 99;
-                    return orderA - orderB;
-                });
-            
-                // 2つのグループを結合して最終的な描画順とする
-                return [...spaceAndWallElements, ...otherElements];
-            }, [svgElements]);
-
 
 
             useEffect(() => {
@@ -5113,35 +4698,9 @@ ${JSON.stringify(exampleData10)}
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    // テキスト入力中はショートカットを無効化
-                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                        return;
-                    }
-                    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
-                    // コピー (Ctrl+C)
-                    if (isCtrlOrCmd && e.key.toLowerCase() === 'c') {
-                        e.preventDefault();
-                        handleClipboardAction('copy');
-                    }
-                    // 切り取り (Ctrl+X)
-                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'x') {
-                        e.preventDefault();
-                        handleClipboardAction('cut');
-                    }
-                    // 貼り付け (Ctrl+V)
-                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
-                        e.preventDefault();
-                    }            
-                    // 以降は既存のショートカット処理
-                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'z') { 
-                        e.preventDefault(); 
-                        handleUndo(); 
-                    }
-                    else if (isCtrlOrCmd && e.key.toLowerCase() === 'y') { 
-                        e.preventDefault(); 
-                        handleRedo(); 
-                    }
-                    else if (e.key === 'Delete' || e.key === 'Backspace') { // Backspaceも追加 
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
+                    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
+                    else if (e.key === 'Delete') { 
                         if (selectedId) {
                             e.preventDefault(); 
                             deleteSelectedElement();
@@ -5159,7 +4718,7 @@ ${JSON.stringify(exampleData10)}
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [handleUndo, handleRedo, deleteSelectedElement, selectedId, handleClipboardAction, handlePaste, mousePos]);
+            }, [handleUndo, handleRedo, deleteSelectedElement, selectedId]);
 
             useEffect(() => {
                 const editorArea = editorAreaRef.current;
@@ -5402,19 +4961,6 @@ ${JSON.stringify(exampleData10)}
 
         }, [madorizuName]); // madorizuNameが変更された時だけこの処理を実行
 
-        // OpenCV.jsのロードを監視するuseEffectを復活
-        useEffect(() => {
-            const checkCv = () => {
-                if (window.cv) {
-                    console.log("OpenCV.js is ready.");
-                    setIsCvReady(true);
-                } else {
-                    setTimeout(checkCv, 100);
-                }
-            };
-            checkCv();
-        }, []);
-
             const getCursorClass = () => {
                 if (isDragging || resizingHandleInfo) return 'cursor-grabbing';
                 if (editorMode === 'create' || editorMode === 'continuous-create') return 'cursor-crosshair';
@@ -5467,6 +5013,16 @@ ${JSON.stringify(exampleData10)}
                 }
                 return 'move';
             }
+            
+            const sortedElements = [...svgElements].sort((a, b) => {
+                const typeOrder = { 'space': 0, 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
+                const orderA = typeOrder[a.type] ?? 99;
+                const orderB = typeOrder[b.type] ?? 99;
+                if (orderA !== orderB) return orderA - orderB;
+                if (a.type === 'space' && b.type === 'wall' && a.groupId === b.groupId) return -1;
+                if (b.type === 'space' && a.type === 'wall' && b.groupId === a.groupId) return 1;
+                return 0;
+            });
 
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
@@ -5851,7 +5407,7 @@ ${JSON.stringify(exampleData10)}
                         </div>
                     </header>
 
-                    <div ref={mainContainerRef} className="flex-1 relative overflow-hidden">
+                    <div className="flex-1 relative overflow-hidden">
                         <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
                                 <div ref={editorContainerRef} className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
@@ -5869,17 +5425,17 @@ ${JSON.stringify(exampleData10)}
                                         crossOrigin="anonymous"
                                     />}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
-                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown} onContextMenu={handleContextMenu}>
+                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown}>
                                         <defs>
                                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
                                                 <polygon points="0 0, 10 3.5, 0 7" />
                                             </marker>
                                         </defs>
-                                        {elementsForRender.map(el => {
+                                        {sortedElements.map(el => {
                                             const isDirectlySelected = el.id === selectedId;
                                             const isPartOfSelectedSpace = selectedElement?.type === 'space' && el.groupId === selectedId;
                                             const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
-            
+
                                             const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR); 
                                             const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
@@ -6030,7 +5586,7 @@ ${JSON.stringify(exampleData10)}
                                                 }
 
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
+                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0}) ${el.isFlipped ? 'scale(-1, 1)' : ''}`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
                                                         {fixtureElement}
                                                         {handles}
                                                     </g>
@@ -6255,32 +5811,28 @@ ${JSON.stringify(exampleData10)}
                                                     </g>
                                                 );
                                             }
-                                            if (drawingMode === 'space' && spaceShape === 'rect') {
-                                                return <rect
-                                                    x={Math.min(drawingStartPoint.x, previewEndPoint.x)}
-                                                    y={Math.min(drawingStartPoint.y, previewEndPoint.y)}
-                                                    width={Math.abs(drawingStartPoint.x - previewEndPoint.x)}
-                                                    height={Math.abs(drawingStartPoint.y - previewEndPoint.y)}
-                                                    fill="transparent"
-                                                    stroke={previewStyle.stroke}
-                                                    strokeWidth={previewStyle.strokeWidth}
-                                                    strokeDasharray={previewStyle.strokeDasharray}
-                                                    style={{ pointerEvents: 'none' }}
-                                                    shapeRendering="crispEdges"
-                                                />;
-                                            }
-                                            if (drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') {
-                                                return <line
-                                                    x1={drawingStartPoint.x}
-                                                    y1={drawingStartPoint.y}
-                                                    x2={previewEndPoint.x}
-                                                    y2={previewEndPoint.y}
-                                                    stroke={previewStyle.stroke}
-                                                    strokeWidth={previewStyle.strokeWidth}
-                                                    strokeDasharray={previewStyle.strokeDasharray}
-                                                    style={{ pointerEvents: 'none' }}
-                                                />;
-                                            }
+                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect 
+                                                x={Math.min(drawingStartPoint.x, previewEndPoint.x)} 
+                                                y={Math.min(drawingStartPoint.y, previewEndPoint.y)} 
+                                                width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
+                                                height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
+                                                fill="transparent" 
+                                                stroke={SELECTED_ELEMENT_COLOR}
+                                                strokeWidth={DEFAULT_STROKE_WIDTH} 
+                                                strokeDasharray="5,5" 
+                                                style={{ pointerEvents: 'none' }} 
+                                                shapeRendering="crispEdges" 
+                                            />;
+                                            if(drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') return <line 
+                                                x1={drawingStartPoint.x} 
+                                                y1={drawingStartPoint.y} 
+                                                x2={previewEndPoint.x} 
+                                                y2={previewEndPoint.y} 
+                                                stroke={SELECTED_ELEMENT_COLOR}
+                                                strokeWidth={strokeWidth} 
+                                                strokeDasharray="5,5" 
+                                                style={{ pointerEvents: 'none' }} 
+                                            />;
                                             return null;
                                         })()}
                                         {snappedInfo && (
@@ -6319,36 +5871,28 @@ ${JSON.stringify(exampleData10)}
                                                 />
                                             </g>
                                         )}
-                                        {linePoints.length > 0 && drawingMode === 'space' && spaceShape === 'line' && (
+                                        {linePoints.length > 0 && (
                                             <g style={{pointerEvents: 'none'}}>
-                                                {/* 確定済みの線 */}
                                                 {linePoints.map((p, i) => {
                                                     if (i === 0) return null;
-                                                    const p1 = linePoints[i - 1];
-                                                    return <line key={`preview-poly-${i}`} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y}
-                                                        stroke={previewStyle.stroke}
-                                                        strokeWidth={previewStyle.strokeWidth}
-                                                        strokeDasharray={previewStyle.strokeDasharray}
-                                                    />;
+                                                    const p1 = linePoints[i-1];
+                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
                                                 })}
-                                                {/* マウスに追従する未確定の線 */}
                                                 <line
                                                     x1={linePoints[linePoints.length - 1].x}
                                                     y1={linePoints[linePoints.length - 1].y}
-                                                    x2={isSnappingToStart ? linePoints[0].x : (snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x))}
-                                                    y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y))}
-                                                    stroke={previewStyle.stroke}
-                                                    strokeWidth={previewStyle.strokeWidth}
-                                                    strokeDasharray={previewStyle.strokeDasharray}
+                                                    x2={isSnappingToStart ? linePoints[0].x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x)}
+                                                    y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y)}
+                                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5"
                                                 />
                                             </g>
                                         )}
                                         {linePoints.length > 0 && drawingMode === 'stairs' && (
+                                            // 階段作成時は、新しいプレビューコンポーネントを呼び出す
                                             <StairsPreviewRenderer 
                                                 points={[...linePoints, isGridVisible ? getGridSnappedPoint(mousePos) : mousePos]}
                                                 width={stairWidth}
-                                                color={previewStyle.stroke}
-                                                strokeWidth={previewStyle.strokeWidth}
+                                                color={strokeColor}
                                             />
                                         )}
                                         {pendingWindow && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
@@ -6397,21 +5941,21 @@ ${JSON.stringify(exampleData10)}
 
                                             // 決定した方向でプレビュー用の窓を描画
                                             return (
-                                              <g 
-                                                transform={`translate(${center.x}, ${center.y}) rotate(${totalRotation}) translate(${-length / 2}, 0)`}
-                                                style={{ pointerEvents: 'none', opacity: 0.7 }}
-                                              >
-                                                {paths.map((part, index) => (
-                                                  <path
-                                                    key={index}
-                                                    d={part.d}
-                                                    fill={part.fill === 'currentColor' ? SELECTED_ELEMENT_COLOR : part.fill || 'none'}
-                                                    stroke={part.stroke === 'currentColor' ? SELECTED_ELEMENT_COLOR : part.stroke || 'none'}
-                                                    strokeWidth={part.strokeWidth || 1}
-                                                    strokeDasharray="5,5"
-                                                  />
-                                                ))}
-                                              </g>
+                                                <g 
+                                                    transform={`translate(${center.x}, ${center.y}) rotate(${totalRotation}) translate(${-length / 2}, 0)`}
+                                                    style={{ pointerEvents: 'none', opacity: 0.7 }}
+                                                >
+                                                    {paths.map((part, index) => (
+                                                        <path
+                                                            key={index}
+                                                            d={part.d}
+                                                            fill={part.fill === 'currentColor' ? strokeColor : part.fill || 'none'}
+                                                            stroke={part.stroke === 'currentColor' ? strokeColor : part.stroke || 'none'}
+                                                            strokeWidth={part.strokeWidth || 1}
+                                                            strokeDasharray="5,5" // プレビューなので点線にする
+                                                        />
+                                                    ))}
+                                                </g>
                                             );
                                         })()}
                                         {tooltip.visible && (
@@ -6450,42 +5994,10 @@ ${JSON.stringify(exampleData10)}
                             </div>
                         </main>
 
-                        {contextMenu.visible ? (
-                            <ContextMenu
-                                x={contextMenu.x}
-                                y={contextMenu.y}
-                                targetId={contextMenu.targetId}
-                                targetType={contextMenu.targetType}
-                                isClipboardEmpty={!clipboard.data} // クリップボードが空かどうかの情報を渡す
-                                onAction={(action) => {
-                                    const { x, y, targetId } = contextMenu;
-                                    switch (action) {
-                                        case 'delete':
-                                            deleteSelectedElement();
-                                            break;
-                                        case 'copy':
-                                        case 'cut':
-                                            handleClipboardAction(action);
-                                            break;
-                                        case 'paste':
-                                            handlePaste({ pasteX: x / zoom, pasteY: y / zoom }); 
-                                            break;
-                                        case 'flipHorizontal':
-                                        case 'flipVertical':
-                                            handleFlip(action === 'flipHorizontal' ? 'horizontal' : 'vertical');
-                                            break;
-                                        default: // レイヤー変更
-                                            handleLayerChange(action, targetId);
-                                            break;
-                                    }
-                                }}
-                                onClose={closeContextMenu}
-                            />
-                        ) : null}
-
-                       <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}> {isSidebarOpen ? '<' : '>'}
+                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className={`absolute top-16 z-20 bg-indigo-600 hover:bg-indigo-700 text-white w-6 h-12 flex items-center justify-center rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out focus:outline-none ${isSidebarOpen ? 'left-80' : '-left-0'}`} aria-label={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}>
+                            {isSidebarOpen ? '?' : '?'}
                         </button>
-            
+
                         <aside ref={sidebarRef} className={`absolute top-0 left-0 h-full w-80 bg-gray-50 p-4 space-y-4 z-10 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{overflowY: 'auto'}}>
                             <div ref={displaySettingsRef}>
                                 <h2 className="text-lg font-semibold mb-2 flex justify-between items-center cursor-pointer" onClick={() => setDisplaySettingsOpen(!isDisplaySettingsOpen)}>
