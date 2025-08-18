@@ -1326,7 +1326,7 @@
             if (!isOpen) return null;
         
             const [localPreview, setLocalPreview] = useState(null);
-            const [localUseAi, setLocalUseAi] = useState(true);
+            const [localUseAi, setLocalUseAi] = useState(false);
             const fileInputRef = useRef(null);
         
             const handleFileChange = (event) => {
@@ -1390,16 +1390,17 @@
                                         )}
                                     </div>
         
-                                    <div className="flex items-center">
+                                    <div className="flex items-center opacity-50 cursor-not-allowed">
                                         <input
                                             id="ai-checkbox"
                                             type="checkbox"
                                             checked={localUseAi}
                                             onChange={(e) => setLocalUseAi(e.target.checked)}
                                             className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            disabled
                                         />
                                         <label htmlFor="ai-checkbox" className="ml-2 block text-sm text-gray-900">
-                                            AIで読み取る (Amazon Textract)
+                                            AIで読み取る (開発中)
                                         </label>
                                     </div>
                                 </div>
@@ -5881,9 +5882,11 @@ ${JSON.stringify(exampleData10)}
                                                 <line
                                                     x1={linePoints[linePoints.length - 1].x}
                                                     y1={linePoints[linePoints.length - 1].y}
-                                                    x2={isSnappingToStart ? linePoints[0].x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x)}
-                                                    y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y)}
-                                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5"
+                                                    x2={isSnappingToStart ? linePoints[0].x : (snappedInfo ? snappedInfo.point.x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x))}
+                                                    y2={isSnappingToStart ? linePoints[0].y : (snappedInfo ? snappedInfo.point.y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y))}
+                                                    stroke={SELECTED_ELEMENT_COLOR}
+                                                    strokeWidth={DEFAULT_STROKE_WIDTH}
+                                                    strokeDasharray="5,5"
                                                 />
                                             </g>
                                         )}
