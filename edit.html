@@ -4176,68 +4176,51 @@ ${JSON.stringify(exampleData10)}
                 let snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : { ...currentMousePos };
 
                 if (isSnappingEnabled) {
-                    let closestSnap = null;
                     let minDistance = SNAP_THRESHOLD / zoom;
-
-                    // 1. 軸スナップの計算とガイドラインの生成
-                    let closestXSnap = { dist: minDistance, point: null };
-                    let closestYSnap = { dist: minDistance, point: null };
-                    for (const wall of svgElements.filter(el => el.type === 'wall')) {
-                        const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
-                        vertices.forEach(vertex => {
-                            const distX = Math.abs(currentMousePos.x - vertex.x);
-                            const distY = Math.abs(currentMousePos.y - vertex.y);
-                            if (distX < closestXSnap.dist) { closestXSnap = { dist: distX, point: vertex }; }
-                            if (distY < closestYSnap.dist) { closestYSnap = { dist: distY, point: vertex }; }
-                        });
-                    }
-                    if (closestXSnap.point) {
-                        snappedPos.x = closestXSnap.point.x;
-                        newGuideLines.push({ x1: closestXSnap.point.x, y1: closestXSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
-                    }
-                    if (closestYSnap.point) {
-                        snappedPos.y = closestYSnap.point.y;
-                        newGuideLines.push({ x1: closestYSnap.point.x, y1: closestYSnap.point.y, x2: snappedPos.x, y2: snappedPos.y });
-                    }
-
-                    // 2. 近接スナップの計算 (頂点を優先)
+    
+                    // 1.【最優先】他の図形の頂点へのスナップを探す (生のカーソル位置を基準にする)
                     for (const wall of svgElements.filter(el => el.type === 'wall')) {
                         const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
                         for (const vertex of vertices) {
-                            const distance = Math.sqrt(Math.pow(snappedPos.x - vertex.x, 2) + Math.pow(snappedPos.y - vertex.y, 2));
+                            const distance = Math.sqrt(Math.pow(currentMousePos.x - vertex.x, 2) + Math.pow(currentMousePos.y - vertex.y, 2));
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                closestSnap = { point: vertex, type: 'vertex' };
+                                closestSnap = { point: vertex, type: 'vertex', wall: wall };
                             }
                         }
                     }
-                    if (!closestSnap) { // 頂点にスナップしなかった場合のみ、壁の線上を探す
+    
+                    // 2. 頂点にスナップしなかった場合のみ、壁の辺へのスナップを探す
+                    if (!closestSnap) {
                         for (const wall of svgElements.filter(el => el.type === 'wall')) {
                             const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
                             const dx = p2.x - p1.x, dy = p2.y - p1.y;
                             if (dx === 0 && dy === 0) continue;
-                            const t = ((snappedPos.x - p1.x) * dx + (snappedPos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
                             const clampedT = Math.max(0, Math.min(1, t));
                             const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                            const distance = Math.sqrt(Math.pow(snappedPos.x - pointOnLine.x, 2) + Math.pow(snappedPos.y - pointOnLine.y, 2));
+                            const distance = Math.sqrt(Math.pow(currentMousePos.x - pointOnLine.x, 2) + Math.pow(currentMousePos.y - pointOnLine.y, 2));
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                closestSnap = { point: pointOnLine, type: 'wall', wall: wall }; // ✅ wallオブジェクトを追加
+                                closestSnap = { point: pointOnLine, type: 'wall', wall: wall };
                             }
                         }
                     }
-
-                    // 3. 最終的なスナップ情報をセット
-                    if (closestSnap) {
-                        setSnappedInfo(closestSnap);
-                    } else if (newGuideLines.length > 0) {
-                        setSnappedInfo({ point: snappedPos, type: 'extension' });
-                    } else {
-                         setSnappedInfo(null);
-                    }
-                } else {
-                    setSnappedInfo(null);
                 }
+                
+                // 3. 図形にスナップしなかった場合、グリッドへのスナップを試みる
+                if (!closestSnap && isGridVisible) {
+                    const gridSnappedPoint = getGridSnappedPoint(currentMousePos);
+                    // 元のカーソル位置とグリッドスナップ位置が十分に近い場合のみスナップ情報として採用
+                    const gridSnapDistance = Math.sqrt(Math.pow(currentMousePos.x - gridSnappedPoint.x, 2) + Math.pow(currentMousePos.y - gridSnappedPoint.y, 2));
+                    if (gridSnapDistance < gridSize / 2) { // グリッドサイズの半分以内ならスナップ
+                         closestSnap = { point: gridSnappedPoint, type: 'grid' };
+                    }
+                }
+    
+                // 4. 最終的なスナップ情報をstateにセット
+                setSnappedInfo(closestSnap);
+    
                 setGuideLines(newGuideLines);
 
                 // 始点へのスナップ処理
