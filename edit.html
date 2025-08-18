@@ -1589,6 +1589,29 @@
 
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
+            const previewStyle = useMemo(() => {
+                // 空間描画モードでない場合は、デフォルトの青い点線スタイルを返す
+                if (drawingMode !== 'space') {
+                    return {
+                        stroke: SELECTED_ELEMENT_COLOR, // 青色
+                        strokeWidth: DEFAULT_STROKE_WIDTH, // デフォルトの太さ
+                        strokeDasharray: '5,5', // 点線
+                    };
+                }
+        
+                // 空間描画モードの場合のスタイルを計算
+                const specialProps = SUB_TYPE_PROPERTIES[spaceType];
+                const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
+                const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
+                const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
+                
+                return {
+                    stroke: strokeColor,
+                    strokeWidth: finalStrokeWidth,
+                    strokeDasharray: finalLineStyle.dashArray || 'none',
+                };
+            }, [drawingMode, spaceType, strokeWidth, lineStyle, strokeColor]);
+
             const handleSelectedElementUpdate = useCallback((updates) => {
                 if (!selectedId) return;
                  setHistoryState(prevState => {
@@ -6238,9 +6261,9 @@ ${JSON.stringify(exampleData10)}
                                                 width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
                                                 height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
                                                 fill="transparent" 
-                                                stroke={SELECTED_ELEMENT_COLOR}
-                                                strokeWidth={DEFAULT_STROKE_WIDTH} 
-                                                strokeDasharray="5,5" 
+                                                stroke={previewStyle.stroke}
+                                                strokeWidth={previewStyle.strokeWidth} 
+                                                strokeDasharray={previewStyle.strokeDasharray}
                                                 style={{ pointerEvents: 'none' }} 
                                                 shapeRendering="crispEdges" 
                                             />;
@@ -6304,7 +6327,9 @@ ${JSON.stringify(exampleData10)}
                                                     y1={linePoints[linePoints.length - 1].y}
                                                     x2={isSnappingToStart ? linePoints[0].x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x)}
                                                     y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y)}
-                                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5"
+                                                    stroke={drawingMode === 'space' ? previewStyle.stroke : SELECTED_ELEMENT_COLOR}
+                                                    strokeWidth={drawingMode === 'space' ? previewStyle.strokeWidth : DEFAULT_STROKE_WIDTH}
+                                                    strokeDasharray={drawingMode === 'space' ? previewStyle.strokeDasharray : "5,5"}
                                                 />
                                             </g>
                                         )}
