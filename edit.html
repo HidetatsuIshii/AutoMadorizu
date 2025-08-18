@@ -1327,7 +1327,7 @@
             if (!isOpen) return null;
         
             const [localPreview, setLocalPreview] = useState(null);
-            const [localUseAi, setLocalUseAi] = useState(true);
+            const [localUseAi, setLocalUseAi] = useState(false);
             const fileInputRef = useRef(null);
         
             const handleFileChange = (event) => {
@@ -1395,7 +1395,7 @@
                                         <input
                                             id="ai-checkbox"
                                             type="checkbox"
-                                            checked={false}
+                                            checked={localUseAi}
                                             onChange={(e) => setLocalUseAi(e.target.checked)}
                                             className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                                             disabled
