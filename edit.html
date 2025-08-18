@@ -1590,27 +1590,28 @@
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
             const previewStyle = useMemo(() => {
-                // 空間描画モードでない場合は、デフォルトの青い点線スタイルを返す
-                if (drawingMode !== 'space') {
+                // 空間または壁を描画している場合のみ、現在の設定を反映したスタイルを計算
+                if (drawingMode === 'space' || drawingMode === 'wall') {
+                    // 「サブ」タブで選択された空間タイプ固有のスタイルを適用
+                    const specialProps = (drawingMode === 'space') ? SUB_TYPE_PROPERTIES[spaceType] : null;
+                    const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
+                    const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
+                    const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
+                    
                     return {
-                        stroke: SELECTED_ELEMENT_COLOR, // 青色
-                        strokeWidth: DEFAULT_STROKE_WIDTH, // デフォルトの太さ
-                        strokeDasharray: '5,5', // 点線
+                        stroke: SELECTED_ELEMENT_COLOR, // プレビューの色は常に選択色（青）
+                        strokeWidth: finalStrokeWidth,
+                        strokeDasharray: finalLineStyle.dashArray || 'none',
                     };
                 }
         
-                // 空間描画モードの場合のスタイルを計算
-                const specialProps = SUB_TYPE_PROPERTIES[spaceType];
-                const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
-                const finalLineStyleId = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
-                const finalLineStyle = LINE_STYLES.find(s => s.id === finalLineStyleId) || LINE_STYLES[0];
-                
+                // それ以外の描画モード（ドア、窓など）は、シンプルな青い点線プレビューを維持
                 return {
-                    stroke: strokeColor,
-                    strokeWidth: finalStrokeWidth,
-                    strokeDasharray: finalLineStyle.dashArray || 'none',
+                    stroke: SELECTED_ELEMENT_COLOR,
+                    strokeWidth: DEFAULT_STROKE_WIDTH,
+                    strokeDasharray: '5,5',
                 };
-            }, [drawingMode, spaceType, strokeWidth, lineStyle, strokeColor]);
+            }, [drawingMode, spaceType, strokeWidth, lineStyle]); // 依存配列に現在の描画設定stateを指定
 
             const handleSelectedElementUpdate = useCallback((updates) => {
                 if (!selectedId) return;
@@ -6255,28 +6256,33 @@ ${JSON.stringify(exampleData10)}
                                                     </g>
                                                 );
                                             }
-                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect 
-                                                x={Math.min(drawingStartPoint.x, previewEndPoint.x)} 
-                                                y={Math.min(drawingStartPoint.y, previewEndPoint.y)} 
-                                                width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
-                                                height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
-                                                fill="transparent" 
-                                                stroke={previewStyle.stroke}
-                                                strokeWidth={previewStyle.strokeWidth} 
-                                                strokeDasharray={previewStyle.strokeDasharray}
-                                                style={{ pointerEvents: 'none' }} 
-                                                shapeRendering="crispEdges" 
-                                            />;
-                                            if(drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') return <line 
-                                                x1={drawingStartPoint.x} 
-                                                y1={drawingStartPoint.y} 
-                                                x2={previewEndPoint.x} 
-                                                y2={previewEndPoint.y} 
-                                                stroke={SELECTED_ELEMENT_COLOR}
-                                                strokeWidth={strokeWidth} 
-                                                strokeDasharray="5,5" 
-                                                style={{ pointerEvents: 'none' }} 
-                                            />;
+                                            if (drawingMode === 'space' && spaceShape === 'rect') {
+                                                return <rect
+                                                    x={Math.min(drawingStartPoint.x, previewEndPoint.x)}
+                                                    y={Math.min(drawingStartPoint.y, previewEndPoint.y)}
+                                                    width={Math.abs(drawingStartPoint.x - previewEndPoint.x)}
+                                                    height={Math.abs(drawingStartPoint.y - previewEndPoint.y)}
+                                                    fill="transparent"
+                                                    stroke={previewStyle.stroke}
+                                                    strokeWidth={previewStyle.strokeWidth}
+                                                    strokeDasharray={previewStyle.strokeDasharray}
+                                                    style={{ pointerEvents: 'none' }}
+                                                    shapeRendering="crispEdges"
+                                                />;
+                                            }
+                                            if (drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') {
+                                                const style = (drawingMode === 'wall') ? previewStyle : { stroke: SELECTED_ELEMENT_COLOR, strokeWidth: strokeWidth, strokeDasharray: "5,5" };
+                                                return <line
+                                                    x1={drawingStartPoint.x}
+                                                    y1={drawingStartPoint.y}
+                                                    x2={previewEndPoint.x}
+                                                    y2={previewEndPoint.y}
+                                                    stroke={style.stroke}
+                                                    strokeWidth={style.strokeWidth}
+                                                    strokeDasharray={style.strokeDasharray}
+                                                    style={{ pointerEvents: 'none' }}
+                                                />;
+                                            }
                                             return null;
                                         })()}
                                         {snappedInfo && (
@@ -6315,21 +6321,27 @@ ${JSON.stringify(exampleData10)}
                                                 />
                                             </g>
                                         )}
-                                        {linePoints.length > 0 && (
+                                        {linePoints.length > 0 && drawingMode === 'space' && spaceShape === 'line' && (
                                             <g style={{pointerEvents: 'none'}}>
+                                                {/* 確定済みの線 */}
                                                 {linePoints.map((p, i) => {
                                                     if (i === 0) return null;
-                                                    const p1 = linePoints[i-1];
-                                                    return <line key={i} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y} stroke={SELECTED_ELEMENT_COLOR} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray={LINE_STYLES.find(s => s.id === lineStyle)?.dashArray || 'none'} />;
+                                                    const p1 = linePoints[i - 1];
+                                                    return <line key={`preview-poly-${i}`} x1={p1.x} y1={p1.y} x2={p.x} y2={p.y}
+                                                        stroke={previewStyle.stroke}
+                                                        strokeWidth={previewStyle.strokeWidth}
+                                                        strokeDasharray={previewStyle.strokeDasharray}
+                                                    />;
                                                 })}
+                                                {/* マウスに追従する未確定の線 */}
                                                 <line
                                                     x1={linePoints[linePoints.length - 1].x}
                                                     y1={linePoints[linePoints.length - 1].y}
-                                                    x2={isSnappingToStart ? linePoints[0].x : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x)}
-                                                    y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y)}
-                                                    stroke={drawingMode === 'space' ? previewStyle.stroke : SELECTED_ELEMENT_COLOR}
-                                                    strokeWidth={drawingMode === 'space' ? previewStyle.strokeWidth : DEFAULT_STROKE_WIDTH}
-                                                    strokeDasharray={drawingMode === 'space' ? previewStyle.strokeDasharray : "5,5"}
+                                                    x2={isSnappingToStart ? linePoints[0].x : (snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(mousePos).x : mousePos.x))}
+                                                    y2={isSnappingToStart ? linePoints[0].y : (isGridVisible ? getGridSnappedPoint(mousePos).y : mousePos.y))}
+                                                    stroke={previewStyle.stroke}
+                                                    strokeWidth={previewStyle.strokeWidth}
+                                                    strokeDasharray={previewStyle.strokeDasharray}
                                                 />
                                             </g>
                                         )}
