@@ -1495,6 +1495,8 @@
             const [isLoading, setIsLoading] = useState(false);
             const [loadingMessage, setLoadingMessage] = useState('');
             const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
+            const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetElement: null });
+            const [clipboard, setClipboard] = useState(null);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -5181,7 +5183,7 @@ ${JSON.stringify(exampleData10)}
                 );
             };
 
-            const StairsRenderer = ({ element }) => {
+            const StairsRenderer = ({ element, onContextMenu }) => {
                 const { points: pointsStr, width, direction, color, strokeWidth } = element;
 
                 // ヘルパー関数: 2直線の交点を計算
@@ -5325,7 +5327,7 @@ ${JSON.stringify(exampleData10)}
                 const textOffsetY = -arrowDir.y * 20;
 
                 return (
-                    <g data-id={element.id} style={{ pointerEvents: 'all', cursor: 'grab' }}>
+                    <g data-id={element.id} onContextMenu={onContextMenu} style={{ pointerEvents: 'all', cursor: 'grab' }}>
                         <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
                         <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
                         {steps}
@@ -5335,8 +5337,193 @@ ${JSON.stringify(exampleData10)}
                 );
             };
 
+            // --- コンテキストメニュー用のコンポーネント ---
+            const ContextMenu = () => {
+                if (!contextMenu.visible) return null;
+    
+                const { x, y, targetId, targetElement } = contextMenu;
+                const menuStyle = { top: y, left: x, position: 'fixed', zIndex: 1000 };
+                const isSpaceOrWall = targetElement?.type === 'space' || targetElement?.type === 'wall';
+    
+                const handleAction = (action, option) => {
+                    switch (action) {
+                        case 'cut': handleCut(); break;
+                        case 'copy': handleCopy(); break;
+                        case 'paste': handlePaste(); break;
+                        case 'delete': deleteSelectedElement(targetId); break; // targetIdを渡すように変更
+                        case 'reorder': reorderElements(option); break;
+                    }
+                    setContextMenu({ visible: false }); // メニューを閉じる
+                };
+    
+                return (
+                    <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" onContextMenu={(e) => e.preventDefault()}>
+                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
+                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
+                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
+                        <div className="my-1 border-t border-gray-200"></div>
+    
+                        {isSpaceOrWall && (
+                            <>
+                                <div className="relative group">
+                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center"><span>最前面へ移動</span><span>▶</span></button>
+                                    <div className="absolute left-full top-0 w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
+                                        <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
+                                    </div>
+                                </div>
+                                <div className="relative group">
+                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center"><span>最背面へ移動</span><span>▶</span></button>
+                                    <div className="absolute left-full top-0 w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
+                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
+                                    </div>
+                                </div>
+                                <div className="my-1 border-t border-gray-200"></div>
+                            </>
+                        )}
+    
+                        <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
+                    </div>
+                );
+            };
+            
+            // --- コンテキストメニューのアクション関数 ---
+    
+            const handleContextMenu = (e) => {
+                e.preventDefault();
+                const targetId = e.currentTarget.getAttribute('data-id');
+                const targetElement = svgElements.find(el => el.id === targetId);
+                if (targetElement) {
+                    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, targetId, targetElement });
+                    setSelectedId(targetId); // 右クリックした要素を選択状態にする
+                }
+            };
+    
+            const handleCopy = () => {
+                const { targetId } = contextMenu;
+                if (!targetId) return;
+    
+                const elementToCopy = svgElements.find(el => el.id === targetId);
+                if (!elementToCopy) return;
+                
+                const groupId = elementToCopy.groupId || (elementToCopy.type === 'space' ? elementToCopy.id : null);
+                let elementsToCopy = [];
+    
+                if (groupId) {
+                    elementsToCopy = svgElements.filter(el => el.groupId === groupId);
+                } else {
+                    elementsToCopy = [elementToCopy];
+                }
+                
+                setClipboard({
+                    type: 'copy',
+                    elements: JSON.parse(JSON.stringify(elementsToCopy)) // Deep copy
+                });
+            };
+            
+            const handleCut = () => {
+                handleCopy(); // 先にコピー
+                deleteSelectedElement(contextMenu.targetId); // その後削除
+            };
+    
+            const handlePaste = () => {
+                if (!clipboard) return;
+                const { x, y } = contextMenu;
+                const { top, left } = svgRef.current.getBoundingClientRect();
+                
+                // キャンバス上の貼り付け位置を計算
+                const pasteX = (x - left) / zoom;
+                const pasteY = (y - top) / zoom;
+                
+                let elementsToAdd = JSON.parse(JSON.stringify(clipboard.elements));
+                
+                // 新しいIDを生成し、位置を調整
+                const newGroupId = `space-group-${Date.now()}`;
+                const isGroup = elementsToAdd.length > 1;
+                
+                const firstElPoints = elementsToAdd[0].points ? elementsToAdd[0].points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})) : null;
+                const originalCenter = getPolygonCentroid(firstElPoints) || { x: elementsToAdd[0].x1, y: elementsToAdd[0].y1 };
+    
+                const deltaX = pasteX - originalCenter.x;
+                const deltaY = pasteY - originalCenter.y;
+    
+                elementsToAdd.forEach(el => {
+                    const oldId = el.id;
+                    const newId = `${el.type}-${Date.now()}-${Math.random()}`;
+                    el.id = newId;
+    
+                    if (isGroup) {
+                        el.groupId = newGroupId;
+                    }
+    
+                    if (el.type === 'space' || el.type === 'stairs') {
+                        const points = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                        const movedPoints = points.map(p => ({ x: p.x + deltaX, y: p.y + deltaY }));
+                        el.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
+                    } else if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
+                        el.x1 += deltaX; el.y1 += deltaY;
+                        el.x2 += deltaX; el.y2 += deltaY;
+                    } else { // text, fixture, compass
+                        el.x = ((el.x / 100 * dimensions.width) + deltaX) / dimensions.width * 100;
+                        el.y = ((el.y / 100 * dimensions.height) + deltaY) / dimensions.height * 100;
+                    }
+                });
+                
+                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...elementsToAdd] }, future: [] }));
+            };
+    
+            const reorderElements = (direction) => {
+                const { targetId } = contextMenu;
+                if (!targetId) return;
+    
+                const elementToMove = svgElements.find(el => el.id === targetId);
+                const groupId = elementToMove?.groupId || (elementToMove?.type === 'space' ? targetId : null);
+                
+                let itemsToMoveIds = [];
+                if (groupId) {
+                    itemsToMoveIds = svgElements.filter(el => el.groupId === groupId).map(el => el.id);
+                } else {
+                    itemsToMoveIds = [targetId];
+                }
+                
+                let others = svgElements.filter(el => !itemsToMoveIds.includes(el.id));
+                let items = svgElements.filter(el => itemsToMoveIds.includes(el.id));
+                
+                let newSvgElements = [];
+    
+                switch(direction) {
+                    case 'front': newSvgElements = [...others, ...items]; break;
+                    case 'back': newSvgElements = [...items, ...others]; break;
+                    case 'forward': {
+                        const firstItemIndex = svgElements.findIndex(el => el.id === items[0].id);
+                        if (firstItemIndex < svgElements.length - items.length) {
+                            const targetIndex = firstItemIndex + items.length;
+                            const elementAfter = svgElements[targetIndex];
+                            const othersWithoutAfter = others.filter(el => el.id !== elementAfter.id);
+                            newSvgElements = [...othersWithoutAfter.slice(0, firstItemIndex), ...items, elementAfter, ...othersWithoutAfter.slice(firstItemIndex)];
+                        } else { newSvgElements = svgElements; }
+                        break;
+                    }
+                    case 'backward': {
+                        const firstItemIndex = svgElements.findIndex(el => el.id === items[0].id);
+                         if (firstItemIndex > 0) {
+                            const elementBefore = svgElements[firstItemIndex - 1];
+                            const othersWithoutBefore = others.filter(el => el.id !== elementBefore.id);
+                            const insertIndex = othersWithoutBefore.findIndex(el => el.id === svgElements[firstItemIndex - 2]?.id) + 1;
+                            newSvgElements = [...othersWithoutBefore.slice(0, insertIndex), elementBefore, ...items, ...othersWithoutBefore.slice(insertIndex)];
+                        } else { newSvgElements = svgElements; }
+                        break;
+                    }
+                    default: newSvgElements = svgElements;
+                }
+                
+                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: newSvgElements }, future: [] }));
+            };
+
             return (                    
-                <div className="flex flex-col h-screen">
+                <div className="flex flex-col h-screen" onClick={()
+                    <ContextMenu />
                     <UploadModal
                         isOpen={isUploadModalOpen}
                         onClose={() => setUploadModalOpen(false)}
@@ -5423,7 +5610,7 @@ ${JSON.stringify(exampleData10)}
                                             
                                             if (el.type === 'space') {
                                                 return (
-                                                    <g key={el.id}>
+                                                    <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
                                                         <polygon data-id={el.id} points={el.points} fill={el.fill} stroke="none" shapeRendering="crispEdges" style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }} />
                                                         <BackgroundRenderer element={el} />
                                                     </g>
@@ -5475,7 +5662,7 @@ ${JSON.stringify(exampleData10)}
                                                 }
 
                                                 return (
-                                                    <g key={el.id} data-id={el.id} style={{ pointerEvents, cursor: 'pointer' }}>
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
                                                         {/* 見た目用の線 */}
                                                         <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents: 'none' }} />
                                                         {/* クリック判定用の透明な線 */}
@@ -5484,17 +5671,17 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             }
                                             if (el.type === 'stairs') {
-                                                return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} />;
+                                                return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} onContextMenu={handleContextMenu} />;
                                             }
                                             if (el.type === 'text') {
-                                                return <TextRenderer key={el.id} element={el} isDirectlySelected={isDirectlySelected} isDragging={isDragging} />;
+                                                return <TextRenderer key={el.id} element={el} isDirectlySelected={isDirectlySelected} isDragging={isDragging} onContextMenu={handleContextMenu} />;
                                             }
                                             if (el.type === 'compass') {
                                                 const cx = el.x / 100 * dimensions.width;
                                                 const cy = el.y / 100 * dimensions.height;
                                                 const template = COMPASS_TEMPLATES.find(t => t.id === el.templateId) || COMPASS_TEMPLATES[0];
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab'}}>
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0})`} style={{cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab'}}>
                                                         <image href={template.src} x={-el.size / 2} y={-el.size / 2} width={el.size} height={el.size} preserveAspectRatio="xMidYMid meet" />
                                                         {isDirectlySelected && <rect x={-el.size/2 - 2} y={-el.size/2 - 2} width={el.size + 4} height={el.size + 4} fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2" />}
                                                     </g>
@@ -5567,7 +5754,7 @@ ${JSON.stringify(exampleData10)}
                                                 }
 
                                                 return (
-                                                    <g key={el.id} data-id={el.id} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0}) ${el.isFlipped ? 'scale(-1, 1)' : ''}`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} transform={`translate(${cx}, ${cy}) rotate(${el.rotation || 0}) ${el.isFlipped ? 'scale(-1, 1)' : ''}`} style={{cursor: isDirectlySelected ? 'default' : 'grab'}}>
                                                         {fixtureElement}
                                                         {handles}
                                                     </g>
@@ -5588,7 +5775,7 @@ ${JSON.stringify(exampleData10)}
                                                     const padding = 4 / zoom;
                                                     const clickPadding = 5;
                                                     return (
-                                                        <g key={el.id} data-id={el.id} transform={`translate(${centerX}, ${centerY}) rotate(${totalRotation}) translate(${-el.length / 2}, 0)`} style={{cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab'}}>
+                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} transform={`translate(${centerX}, ${centerY}) rotate(${totalRotation}) translate(${-el.length / 2}, 0)`} style={{cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab'}}>
                                                             {paths.map((part, index) => (
                                                             <path
                                                                 key={index}
