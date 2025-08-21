@@ -3717,21 +3717,10 @@ ${JSON.stringify(exampleData10)}
             const createPolygonSpace = useCallback((points) => {
                 const groupId = `space-group-${Date.now()}`;
                 const newElements = [];
-
+            
                 const specialProps = SUB_TYPE_PROPERTIES[spaceType];
                 const finalLineStyle = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
                 const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
-
-                for (let i = 0; i < points.length; i++) {
-                    const p1 = points[i];
-                    const p2 = points[(i + 1) % points.length];
-                    const wallElement = {
-                        id: `wall-${Date.now()}-${i}`, type: 'wall', groupId, edgeIndex: i,
-                        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-                        color: strokeColor, strokeWidth: finalStrokeWidth, lineStyle: finalLineStyle
-                    };
-                    newElements.push(wallElement);
-                }
 
                 let finalBackgroundPattern = backgroundPattern;
                 if (spaceType === '玄関') finalBackgroundPattern = 'grid-small';
@@ -3745,12 +3734,18 @@ ${JSON.stringify(exampleData10)}
                     points: points.map(p => `${p.x},${p.y}`).join(' '),
                     fill: specialProps?.fill !== undefined ? specialProps.fill : fillColor,
                     backgroundPattern: finalBackgroundPattern,
+                    // ✅ 壁のスタイル情報をspace要素に直接追加します。
+                    stroke: strokeColor,
+                    strokeWidth: finalStrokeWidth,
+                    lineStyle: finalLineStyle
                 };
                 newElements.push(spaceElement);
-
+            
                 const centroid = getPolygonCentroid([...points]);
                 const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
                 if (labelElement) {
+                    // ✅ ラベルにも同じgroupIdを付与します。
+                    labelElement.groupId = groupId;
                     newElements.push(labelElement);
                 }
                 
@@ -3761,7 +3756,8 @@ ${JSON.stringify(exampleData10)}
                 if (editorMode !== 'continuous-create') {
                     setSelectedId(groupId);
                 }
-            }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, dimensions, editorMode, strokeWidth]);
+                // ✅ 依存配列に壁スタイル関連のstateを追加します。
+            }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, strokeWidth, dimensions, editorMode]);
 
             const createStairs = useCallback((points) => {
                 const stairId = `stairs-${Date.now()}`; // 階段とテキストの共通ID
@@ -5673,64 +5669,27 @@ ${JSON.stringify(exampleData10)}
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                             
                                             if (el.type === 'space') {
+                                                const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
+                                                // ✅ space要素自身が持つスタイル情報を取得
+                                                const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || DEFAULT_STROKE_COLOR);
+                                                const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                const style = LINE_STYLES.find(s => s.id === el.lineStyle);
+                                    
                                                 return (
                                                     <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
-                                                        <polygon data-id={el.id} points={el.points} fill={el.fill} stroke="none" shapeRendering="crispEdges" style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }} />
-                                                        <BackgroundRenderer element={el} />
-                                                    </g>
-                                                );
-                                            }
-                                            if (el.type === 'wall') {
-                                                const pointerEvents = (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all';
-                                                const style = LINE_STYLES.find(s => s.id === el.lineStyle);
-                                                const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR);
-                                            
-                                                // 座標を直接使用するシンプルな描画ロジックに変更
-                                                // これにより、座標計算のズレを防ぐ
-                                                if (el.lineStyle === 'double') {
-                                                    const dx = el.x2 - el.x1;
-                                                    const dy = el.y2 - el.y1;
-                                                    const len = Math.sqrt(dx * dx + dy * dy);
-                                                    if (len === 0) return null;
-                                                    
-                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
-                                                    const offsetDistance = (strokeW - finalStrokeWidth) / 2;
-                                                    const offsetX = -dy / len * offsetDistance;
-                                                    const offsetY = dx / len * offsetDistance;
-                                                    
-                                                    return (
-                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
-                                                            {/* 2本の線で二重線を表現 */}
-                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
-                                                            {/* クリック判定用の透明な線 */}
-                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
-                                                                stroke="transparent" strokeWidth={Math.max(strokeW, 10)} />
-                                                        </g>
-                                                    );
-                                                }
-                                            
-                                                return (
-                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
-                                                        {/* 見た目用の線 */}
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke={stroke} 
-                                                            strokeWidth={strokeW} 
+                                                        <polygon
+                                                            data-id={el.id}
+                                                            points={el.points}
+                                                            fill={el.fill}
+                                                            // ✅ stroke関連の属性を追加して枠線を描画
+                                                            stroke={stroke}
+                                                            strokeWidth={strokeW}
                                                             strokeDasharray={style?.dashArray}
-                                                            strokeLinecap="square"
+                                                            strokeLinejoin="miter" // 角をシャープに描画
                                                             shapeRendering="crispEdges"
-                                                            style={{ pointerEvents: 'none' }} 
+                                                            style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
                                                         />
-                                                        {/* クリック判定用の透明で太い線 */}
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke="transparent" 
-                                                            strokeWidth={Math.max(strokeW, 10)} 
-                                                        />
+                                                        <BackgroundRenderer element={el} />
                                                     </g>
                                                 );
                                             }
@@ -6639,60 +6598,22 @@ ${JSON.stringify(exampleData10)}
                                         {editorMode === 'edit' && (
                                             <div className="mt-4 space-y-4">
                                                 {!selectedElement && <p className="text-sm text-gray-600">編集したいアイテムをクリックしてください。</p>}
+                                                
+                                                {/* ▼▼▼ 空間（Space）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'space' && (() => {
-                                                    const firstWall = svgElements.find(el => el.groupId === selectedElement.id && el.type === 'wall');
-                                                    // firstWallが存在しない（空間が壊れている）場合の表示部分
-                                                    if (!firstWall) { // Space might be broken, just show basic options
-                                                        return (
-                                                            <>
-                                                                <SpaceTypeSelector selectedType={selectedElement.spaceType} onChange={(newType) => handleSelectedGroupUpdate({ spaceType: newType })} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
-                                                                <BackgroundSelector selected={selectedElement.backgroundPattern || 'none'} onChange={(pattern) => handleSelectedElementUpdate({ backgroundPattern: pattern })} />
-                                                                {/* ここから修正 */}
-                                                                <div> {/* 「塗りつぶしの色」全体のコンテナ */}
-                                                                    {/* labelと透明チェックボックスを横並びにするdiv */}
-                                                                    <div className="flex items-center justify-between">
-                                                                        <label htmlFor="edit-fill-color-picker" className="block text-sm font-medium text-gray-700">塗りつぶしの色</label> {/* タイトルを変更 */}
-                                                                        <div className="flex items-center"> {/* 透明トグルとそのラベル */}
-                                                                            <input id="edit-transparent-toggle" type="checkbox" checked={selectedElement.fill === 'none'} onChange={(e) => {
-                                                                                if (e.target.checked) {
-                                                                                    setEditLastFillColor(selectedElement.fill);
-                                                                                    handleSelectedElementUpdate({ fill: 'none' });
-                                                                                } else {
-                                                                                    handleSelectedElementUpdate({ fill: editLastFillColor });
-                                                                                }
-                                                                            }} className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" />
-                                                                            <label htmlFor="edit-transparent-toggle" className="ml-2 text-sm text-gray-700">透明</label>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className={`mt-1 h-10 w-full border border-gray-300 rounded-md ${selectedElement.fill === 'none' ? 'transparent-bg' : ''}`}>
-                                                                        <input 
-                                                                            type="color" 
-                                                                            value={selectedElement.fill === 'none' ? '#ffffff' : selectedElement.fill} 
-                                                                            onChange={(e) => handleSelectedElementUpdate({ fill: e.target.value })} 
-                                                                            onFocus={() => setIsPickingColor(true)}  // ? この行を追加
-                                                                            onBlur={() => setIsPickingColor(false)}   // ? この行を追加
-                                                                            className={`h-full w-full ${selectedElement.fill === 'none' ? 'opacity-0' : ''}`} 
-                                                                            disabled={selectedElement.fill === 'none'}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                                {/* ここまで修正 */}
-                                                                <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この空間を削除</button></div>
-                                                            </>
-                                                        );
-                                                    }
-
-                                                    // firstWallが存在する（通常の空間）場合の表示部分
                                                     return (
                                                         <>
+                                                            {/* 空間タイプの選択 */}
                                                             <SpaceTypeSelector selectedType={selectedElement.spaceType} onChange={(newType) => handleSelectedGroupUpdate({ spaceType: newType })} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
+                                                            
+                                                            {/* 背景パターンの選択 */}
                                                             <BackgroundSelector selected={selectedElement.backgroundPattern || 'none'} onChange={(pattern) => handleSelectedElementUpdate({ backgroundPattern: pattern })} />
-                                                            {/* ここから修正 */}
-                                                            <div> {/* 「塗りつぶしの色」全体のコンテナ */}
-                                                                {/* labelと透明チェックボックスを横並びにするdiv */}
+                        
+                                                            {/* 塗りつぶしの色 */}
+                                                            <div>
                                                                 <div className="flex items-center justify-between">
-                                                                    <label htmlFor="edit-fill-color-picker" className="block text-sm font-medium text-gray-700">塗りつぶしの色</label> {/* タイトルを変更 */}
-                                                                    <div className="flex items-center"> {/* 透明トグルとそのラベル */}
+                                                                    <label htmlFor="edit-fill-color-picker" className="block text-sm font-medium text-gray-700">塗りつぶしの色</label>
+                                                                    <div className="flex items-center">
                                                                         <input id="edit-transparent-toggle" type="checkbox" checked={selectedElement.fill === 'none'} onChange={(e) => {
                                                                             if (e.target.checked) {
                                                                                 setEditLastFillColor(selectedElement.fill);
@@ -6708,44 +6629,63 @@ ${JSON.stringify(exampleData10)}
                                                                     <input type="color" value={selectedElement.fill === 'none' ? '#ffffff' : selectedElement.fill} onChange={(e) => handleSelectedElementUpdate({ fill: e.target.value })} onFocus={() => setIsPickingColor(true)} onBlur={() => setIsPickingColor(false)} className={`h-full w-full ${selectedElement.fill === 'none' ? 'opacity-0' : ''}`} disabled={selectedElement.fill === 'none'}/>
                                                                 </div>
                                                             </div>
-                                                            {/* ここまで修正 */}
+                        
+                                                            {/* --- ここから壁のプロパティ編集UI --- */}
                                                             <div className="mt-4 pt-4 border-t border-gray-300">
                                                                 <h3 className="text-md font-semibold mb-2">壁のプロパティ</h3>
-                                                                <LineStyleSelector selectedStyle={firstWall.lineStyle} onChange={(v) => handleSelectedWallsUpdate('lineStyle', v)} />
+                                                                
+                                                                {/* 壁の線の種類 */}
+                                                                <LineStyleSelector 
+                                                                    selectedStyle={selectedElement.lineStyle} 
+                                                                    onChange={(v) => handleSelectedElementUpdate({lineStyle: v})} 
+                                                                />
+                                                                
+                                                                {/* 壁の線の太さ */}
                                                                 <div>
                                                                     <label className="block text-sm font-medium text-gray-700">線の太さ</label>
                                                                     <div className="flex items-center space-x-2 mt-1">
-                                                                        <input type="range" min="1" max="20" step="1" value={firstWall.strokeWidth} onChange={(e) => handleSelectedWallsUpdate('strokeWidth', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                                        <input type="number" value={firstWall.strokeWidth} onChange={(e) => handleSelectedWallsUpdate('strokeWidth', parseInt(e.target.value) || 1)} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
+                                                                        <input 
+                                                                            type="range" 
+                                                                            min="1" max="20" step="1" 
+                                                                            value={selectedElement.strokeWidth} 
+                                                                            onChange={(e) => handleSelectedElementUpdate({strokeWidth: parseInt(e.target.value)})} 
+                                                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                                        />
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={selectedElement.strokeWidth} 
+                                                                            onChange={(e) => handleSelectedElementUpdate({strokeWidth: parseInt(e.target.value) || 1})} 
+                                                                            className="w-20 p-1 border border-gray-300 rounded-md text-sm" 
+                                                                        />
                                                                     </div>
                                                                 </div>
+                        
+                                                                {/* 壁の線の色 */}
                                                                 <div>
                                                                     <label className="block text-sm font-medium text-gray-700">線の色</label>
-                                                                    <input type="color" value={firstWall.color} onChange={(e) => handleSelectedWallsUpdate('color', e.target.value)} onFocus={() => setIsPickingColor(true)} onBlur={() => setIsPickingColor(false)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
+                                                                    <input 
+                                                                        type="color" 
+                                                                        value={selectedElement.stroke} 
+                                                                        onChange={(e) => handleSelectedElementUpdate({ stroke: e.target.value })} 
+                                                                        onFocus={() => setIsPickingColor(true)} onBlur={() => setIsPickingColor(false)} 
+                                                                        className="mt-1 h-10 w-full border border-gray-300 rounded-md"
+                                                                    />
                                                                 </div>
                                                             </div>
-
+                                                            {/* --- ここまで壁のプロパティ編集UI --- */}
+                        
                                                             <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この空間を削除</button></div>
                                                         </>
                                                     );
                                                 })()}
-                                                {selectedElement?.type === 'wall' && (
-                                                    <>
-                                                        <LineStyleSelector selectedStyle={selectedElement.lineStyle} onChange={(v) => handleSelectedElementUpdate({lineStyle: v})} />
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">線の太さ</label>
-                                                            <div className="flex items-center space-x-2 mt-1">
-                                                                <input type="range" min="1" max="20" step="1" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate({strokeWidth: parseInt(e.target.value)})} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
-                                                                <input type="number" value={selectedElement.strokeWidth} onChange={(e) => handleSelectedElementUpdate({strokeWidth: parseInt(e.target.value) || 1})} className="w-20 p-1 border border-gray-300 rounded-md text-sm" />
-                                                            </div>
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">線の色</label>
-                                                            <input type="color" value={selectedElement.color} onChange={(e) => handleSelectedElementUpdate({color: e.target.value})} onFocus={() => setIsPickingColor(true)} onBlur={() => setIsPickingColor(false)} className="mt-1 h-10 w-full border border-gray-300 rounded-md"/>
-                                                        </div>
-                                                        <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この壁を削除</button></div>
-                                                    </>
+                                                
+                                                {/* ❌ 独立した壁要素はなくなったので、このブロックは不要になります。丸ごと削除してください。 */}
+                                                {/* {selectedElement?.type === 'wall' && (
+                                                    // ... wall編集用のUI ...
                                                 )}
+                                                */}
+                        
+                                                {/* ▼▼▼ 階段（Stairs）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'stairs' && (
                                                     <>
                                                         <div>
@@ -6766,6 +6706,8 @@ ${JSON.stringify(exampleData10)}
                                                         <div className="mt-6"><button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この階段を削除</button></div>
                                                     </>
                                                 )}
+                                                
+                                                {/* ▼▼▼ ドア（Door）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'door' && (
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中のドアを編集</h3>
@@ -6774,7 +6716,7 @@ ${JSON.stringify(exampleData10)}
                                                             selectedTemplateId={selectedElement.templateId}
                                                             onChange={(newTemplateId) => handleSelectedElementUpdate({ templateId: newTemplateId })}
                                                         />
-
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">ドアの厚み: {selectedElement.wallThickness}px</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -6804,18 +6746,19 @@ ${JSON.stringify(exampleData10)}
                                                                 className="mt-1 h-10 w-full border border-gray-300 rounded-md"
                                                             />
                                                         </div>
-
+                        
                                                         <div className="flex space-x-2">
                                                             <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button>
                                                             <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button>
                                                         </div>
-
+                        
                                                         <div className="mt-2">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このドアを削除</button>
                                                         </div>
                                                     </div>
                                                 )}
-
+                        
+                                                {/* ▼▼▼ 窓（Window）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'window' && (
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中の窓を編集</h3>
@@ -6824,7 +6767,7 @@ ${JSON.stringify(exampleData10)}
                                                             selectedTemplateId={selectedElement.templateId}
                                                             onChange={(newTemplateId) => handleSelectedElementUpdate({ templateId: newTemplateId })}
                                                         />
-
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">窓の厚み: {selectedElement.wallThickness}px</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -6857,23 +6800,23 @@ ${JSON.stringify(exampleData10)}
                                                                 className="mt-1 h-10 w-full border border-gray-300 rounded-md"
                                                             />
                                                         </div>
-
+                        
                                                         <div className="flex space-x-2">
                                                             <button onClick={rotateSelectedElement90Degrees} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">90度回転</button>
                                                             <button onClick={toggleSelectedElementSwingDirection} className="flex-1 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">反転</button>
                                                         </div>
-
+                        
                                                         <div className="mt-2">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この窓を削除</button>
                                                         </div>
                                                     </div>
                                                 )}
-
+                                                
+                                                {/* ▼▼▼ 設備（Fixture）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'fixture' && (
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中の設備を編集</h3>
-
-                                                        {/* カテゴリ */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
                                                             <div className="mt-2 grid grid-cols-4 gap-2">
@@ -6888,8 +6831,7 @@ ${JSON.stringify(exampleData10)}
                                                                 ))}
                                                             </div>
                                                         </div>
-
-                                                        {/* 設備の種類 */}
+                        
                                                         <FixtureTemplateSelector
                                                             selectedTemplateId={selectedElement.templateId}
                                                             onChange={(newTemplateId) => handleSelectedElementUpdate({ templateId: newTemplateId })}
@@ -6898,8 +6840,7 @@ ${JSON.stringify(exampleData10)}
                                                             isFlipped={selectedElement.isFlipped || false}
                                                             onFlipChange={(isChecked) => handleSelectedElementUpdate({ isFlipped: isChecked })}
                                                         />
-
-                                                        {/* サイズ */}
+                                                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">サイズ (幅): {Math.round(selectedElement.width)}px</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -6934,8 +6875,7 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                         </div>
-
-                                                        {/* 回転 */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">回転: {selectedElement.rotation || 0}°</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -6950,7 +6890,7 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                                 <input
                                                                     type="number"
-                                                                    value={selectedElement.rotation || 0}
+                                                                    value={Math.round(selectedElement.rotation || 0)}
                                                                     onChange={(e) => handleSelectedElementUpdate({ rotation: parseInt(e.target.value) || 0 })}
                                                                     className="w-20 p-1 border border-gray-300 rounded-md text-sm"
                                                                 />
@@ -6967,81 +6907,14 @@ ${JSON.stringify(exampleData10)}
                                                                 </button>
                                                             </div>
                                                         </div>
-
-                                                        {/* プレビューボックス */}
-                                                        <div className="w-full h-32 rounded-md flex items-center justify-center overflow-hidden relative">
-                                                            {(() => {
-                                                                const template = FIXTURE_TEMPLATES[fixtureCategory]?.find(t => t.id === selectedElement.templateId);
-                                                                if (!template) return <div className="text-sm text-gray-500">設備を選択</div>;
-
-                                                                const actualWidth = selectedElement.width;
-                                                                const actualHeight = selectedElement.height;
-
-                                                                const boxSize = 128;
-                                                                const paddingRatio = 0.8;
-                                                                const itemMaxDim = Math.max(actualWidth, actualHeight);
-                                                                
-                                                                if (itemMaxDim === 0) return null;
-
-                                                                const displayScale = (boxSize * paddingRatio) / itemMaxDim;
-                                                                const displayWidth = actualWidth * displayScale;
-                                                                const displayHeight = actualHeight * displayScale;
-
-                                                                const backgroundGridSize = gridSize * displayScale;
-                                                                const gridStyle = {
-                                                                    backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
-                                                                    backgroundSize: `${backgroundGridSize}px ${backgroundGridSize}px`
-                                                                };
-                                                                
-                                                                const parentDiv = document.querySelector('.w-full.h-32.rounded-md');
-                                                                if (parentDiv) {
-                                                                    Object.assign(parentDiv.style, gridStyle);
-                                                                }
-
-                                                                if (template.src) {
-                                                                    return (
-                                                                        <div style={{
-                                                                            transform: `rotate(${selectedElement.rotation || 0}deg)`,
-                                                                            width: displayWidth,
-                                                                            height: displayHeight,
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center'
-                                                                        }}>
-                                                                            <img src={template.src} style={{ width: '100%', height: '100%' }} />
-                                                                        </div>
-                                                                    );
-                                                                } else {
-                                                                    const viewBoxSize = Math.max(template.defaultSize, template.defaultSize / (template.aspectRatio || 1)) * 1.1;
-                                                                    return (
-                                                                        <svg
-                                                                            width={displayWidth}
-                                                                            height={displayHeight}
-                                                                            viewBox={`${-viewBoxSize / 2} ${-viewBoxSize / 2} ${viewBoxSize} ${viewBoxSize}`}
-                                                                            style={{ transform: `rotate(${selectedElement.rotation || 0}deg)`, overflow: 'visible' }}
-                                                                        >
-                                                                            <g transform={`scale(${displayWidth / template.defaultSize}, ${displayHeight / template.defaultSize})`}>
-                                                                                <path
-                                                                                    d={template.path}
-                                                                                    fill={template.defaultFill}
-                                                                                    stroke={template.defaultStroke}
-                                                                                    strokeWidth={template.defaultStrokeWidth}
-                                                                                    vectorEffect="non-scaling-stroke"
-                                                                                />
-                                                                            </g>
-                                                                        </svg>
-                                                                    );
-                                                                }
-                                                            })()}
-                                                        </div>
-
-                                                        {/* 削除ボタン */}
+                        
                                                         <div className="mt-2">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この設備を削除</button>
                                                         </div>
                                                     </div>
                                                 )}
-
+                                                
+                                                {/* ▼▼▼ 方角（Compass）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'compass' && (
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中の方角を編集</h3>
@@ -7099,11 +6972,11 @@ ${JSON.stringify(exampleData10)}
                                                     </div>
                                                 )}
                                                 
+                                                {/* ▼▼▼ テキスト（Text）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'text' && (
                                                     <div className="space-y-4">
                                                         <h3 className="text-md font-semibold mb-2">選択中のテキストを編集</h3>
-
-                                                        {/* テキスト入力 */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">テキスト</label>
                                                             <textarea
@@ -7114,8 +6987,7 @@ ${JSON.stringify(exampleData10)}
                                                                 rows="3"
                                                             ></textarea>
                                                         </div>
-
-                                                        {/* フォント */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">フォント</label>
                                                             <select
@@ -7126,8 +6998,7 @@ ${JSON.stringify(exampleData10)}
                                                                 {FONT_FAMILIES.map(font => <option key={font.id} value={font.id}>{font.name}</option>)}
                                                             </select>
                                                         </div>
-
-                                                        {/* フォントサイズ */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">フォントサイズ: {selectedElement.fontSize}px</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -7148,8 +7019,7 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                         </div>
-
-                                                        {/* 回転 */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">回転</label>
                                                             <div className="flex items-center space-x-2 mt-1">
@@ -7170,10 +7040,8 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                         </div>
-
-                                                        {/* 色の設定 */}
+                        
                                                         <div className="grid grid-cols-1 gap-y-4">
-                                                            {/* 塗りつぶしの色 */}
                                                             <div>
                                                                 <div className="flex items-center justify-between">
                                                                     <label className="block text-sm font-medium text-gray-700">塗りつぶしの色</label>
@@ -7203,7 +7071,6 @@ ${JSON.stringify(exampleData10)}
                                                                     />
                                                                 </div>
                                                             </div>
-                                                            {/* 文字色 */}
                                                             <div>
                                                                 <label className="block text-sm font-medium text-gray-700">文字色</label>
                                                                 <input
@@ -7216,8 +7083,7 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                         </div>
-
-                                                        {/* 配置 */}
+                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">配置</label>
                                                             <div className="flex bg-gray-200 rounded-lg p-1">
@@ -7226,8 +7092,7 @@ ${JSON.stringify(exampleData10)}
                                                                 <button onClick={() => handleSelectedElementUpdate({ textAlign: 'right' })} className={`w-full py-1 rounded-md text-sm ${selectedElement.textAlign === 'right' ? 'bg-white shadow' : ''}`}>右揃え</button>
                                                             </div>
                                                         </div>
-
-                                                        {/* 削除ボタン */}
+                        
                                                         <div className="mt-2">
                                                             <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">このテキストを削除</button>
                                                         </div>
