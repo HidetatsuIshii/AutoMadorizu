@@ -5673,56 +5673,55 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             }
                                             if (el.type === 'wall') {
-                                                let { x1, y1, x2, y2 } = el;
-                                                const extension = el.strokeWidth / 2;
-                                                const dx_orig = el.x2 - el.x1;
-                                                const dy_orig = el.y2 - el.y1;
-                                                const len_orig = Math.sqrt(dx_orig * dx_orig + dy_orig * dy_orig);
-                                                if (len_orig > 0) {
-                                                    const ux = dx_orig / len_orig;
-                                                    const uy = dy_orig / len_orig;
-                                                    x1 -= ux * extension;
-                                                    y1 -= uy * extension;
-                                                    x2 += ux * extension;
-                                                    y2 += uy * extension;
-                                                }
-
                                                 const pointerEvents = (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all';
                                                 const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                                 const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                                 const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR);
-
+                                            
+                                                // 座標を直接使用するシンプルな描画ロジックに変更
+                                                // これにより、座標計算のズレを防ぐ
                                                 if (el.lineStyle === 'double') {
-                                                    const dx = x2 - x1;
-                                                    const dy = y2 - y1;
+                                                    const dx = el.x2 - el.x1;
+                                                    const dy = el.y2 - el.y1;
                                                     const len = Math.sqrt(dx * dx + dy * dy);
                                                     if (len === 0) return null;
-                                                    const finalStrokeWidth = 0.5;
-                                                    const spaceFillerWidth = Math.max(0, strokeW - (2 * finalStrokeWidth));
+                                                    
+                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
                                                     const offsetDistance = (strokeW - finalStrokeWidth) / 2;
                                                     const offsetX = -dy / len * offsetDistance;
                                                     const offsetY = dx / len * offsetDistance;
+                                                    
                                                     return (
-                                                        <g key={el.id} data-id={el.id} style={{ pointerEvents, cursor: 'pointer' }}>
-                                                            {spaceFillerWidth > 0 &&
-                                                                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="white" strokeWidth={spaceFillerWidth} style={{ pointerEvents: 'none' }} />
-                                                            }
-                                                            <line x1={x1 + offsetX} y1={y1 + offsetY} x2={x2 + offsetX} y2={y2 + offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} style={{ pointerEvents: 'none' }} />
-                                                            <line x1={x1 - offsetX} y1={y1 - offsetY} x2={x2 - offsetX} y2={y2 - offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} style={{ pointerEvents: 'none' }} />
+                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
+                                                            {/* 2本の線で二重線を表現 */}
+                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
+                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY}
+                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                            {/* クリック判定用の透明な線 */}
                                                             <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
                                                                 stroke="transparent" strokeWidth={Math.max(strokeW, 10)} />
                                                         </g>
                                                     );
                                                 }
-
+                                            
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
                                                         {/* 見た目用の線 */}
-                                                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={strokeW} strokeDasharray={style?.dashArray} style={{ pointerEvents: 'none' }} />
-                                                        {/* クリック判定用の透明な線 */}
-                                                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(strokeW, 10)} />
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke={stroke} 
+                                                            strokeWidth={strokeW} 
+                                                            strokeDasharray={style?.dashArray}
+                                                            strokeLinecap="butt" // 角の見た目を揃えるため "butt" に変更
+                                                            style={{ pointerEvents: 'none' }} 
+                                                        />
+                                                        {/* クリック判定用の透明で太い線 */}
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke="transparent" 
+                                                            strokeWidth={Math.max(strokeW, 10)} 
+                                                        />
                                                     </g>
                                                 );
                                             }
