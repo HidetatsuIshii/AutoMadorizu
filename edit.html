@@ -4247,65 +4247,65 @@ ${JSON.stringify(exampleData10)}
                     }
     
                     if (isDragging) {
-                        const initialElementCenterX = dragInfo.current.initialElementCenterX;
-                        const initialElementCenterY = dragInfo.current.initialElementCenterY;
-                        const startMouseCanvasX = dragInfo.current.startMouseX;
-                        const startMouseCanvasY = dragInfo.current.startMouseY;
-                        const mouseMoveDx = currentMousePos.x - startMouseCanvasX;
-                        const mouseMoveDy = currentMousePos.y - startMouseCanvasY;
-                        let proposedFinalCenterX = initialElementCenterX + mouseMoveDx;
-                        let proposedFinalCenterY = initialElementCenterY + mouseMoveDy;
-                        if (isGridVisible) {
-                            const snappedX = Math.round(proposedFinalCenterX / gridSize) * gridSize;
-                            const snappedY = Math.round(proposedFinalCenterY / gridSize) * gridSize;
-                            const distX = Math.abs(proposedFinalCenterX - snappedX);
-                            const distY = Math.abs(proposedFinalCenterY - snappedY);
-                            if (distX < SNAP_THRESHOLD && distY < SNAP_THRESHOLD) {
-                                proposedFinalCenterX = snappedX;
-                                proposedFinalCenterY = snappedY;
-                            }
-                        }
-                        const finalDeltaX = proposedFinalCenterX - initialElementCenterX;
-                        const finalDeltaY = proposedFinalCenterY - initialElementCenterY;
-                        const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId);
-                        if(!elementToDragOriginal) return;
-                        const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null);
-                        const isGroupDrag = !!groupId && elementToDragOriginal.type === 'space'; 
-                        const elementsToUpdate = isGroupDrag
-                            ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId)
-                            : [elementToDragOriginal];
-                        const newElements = historyOnActionStart.current.svgElements.map(el => {
-                            const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
-                            if (originalEl) {
-                                const newEl = { ...el };
-                                switch (originalEl.type) {
-                                    case 'text':
-                                    case 'fixture':
-                                    case 'compass':
-                                        newEl.x = originalEl.x + (finalDeltaX / dimensions.width) * 100;
-                                        newEl.y = originalEl.y + (finalDeltaY / dimensions.height) * 100;
-                                        break;
-                                    case 'door':
-                                    case 'window':
-                                    case 'wall':
-                                        newEl.x1 = originalEl.x1 + finalDeltaX;
-                                        newEl.y1 = originalEl.y1 + finalDeltaY;
-                                        newEl.x2 = originalEl.x2 + finalDeltaX;
-                                        newEl.y2 = originalEl.y2 + finalDeltaY;
-                                        break;
-                                    case 'space':
-                                    case 'stairs':
-                                        const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
-                                        const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY }));
-                                        newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
-                                        break;
-                                }
-                                return newEl;
-                            }
-                            return el;
-                        });
-                        setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
-                    }
+                        const startMouseCanvasX = dragInfo.current.startMouseX;
+                        const startMouseCanvasY = dragInfo.current.startMouseY;
+                        
+                        // 1. マウスの純粋な移動距離を計算
+                        const mouseMoveDx = currentMousePos.x - startMouseCanvasX;
+                        const mouseMoveDy = currentMousePos.y - startMouseCanvasY;
+                        
+                        // 2. 移動距離をグリッドサイズにスナップさせる
+                        let finalDeltaX = mouseMoveDx;
+                        let finalDeltaY = mouseMoveDy;
+                        if (isGridVisible) {
+                            finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize;
+                            finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize;
+                        }
+        
+                        const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId);
+                        if(!elementToDragOriginal) return;
+                        
+                        const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null);
+                        const isGroupDrag = !!groupId; 
+                        
+                        const elementsToUpdate = isGroupDrag
+                            ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId)
+                            : [elementToDragOriginal];
+                            
+                        const newElements = historyOnActionStart.current.svgElements.map(el => {
+                            const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
+                            if (originalEl) {
+                                const newEl = { ...el };
+                                // 3. スナップされた移動距離を元の座標に加算する
+                                switch (originalEl.type) {
+                                    case 'text':
+                                    case 'fixture':
+                                    case 'compass':
+                                        newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100;
+                                        newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100;
+                                        break;
+                                    case 'door':
+                                    case 'window':
+                                    case 'wall':
+                                        newEl.x1 = originalEl.x1 + finalDeltaX;
+                                        newEl.y1 = originalEl.y1 + finalDeltaY;
+                                        newEl.x2 = originalEl.x2 + finalDeltaX;
+                                        newEl.y2 = originalEl.y2 + finalDeltaY;
+                                        break;
+                                    case 'space':
+                                    case 'stairs':
+                                        const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                                        const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY }));
+                                        newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
+                                        break;
+                                }
+                                return newEl;
+                            }
+                            return el;
+                        });
+                        setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
+                        return; // ドラッグ中はここで処理を終了
+                    }
             }, [
                 getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart,
                 drawingMode, spaceShape, linePoints, zoom, svgElements, isSnapToWall, isModifierKeyDown,
