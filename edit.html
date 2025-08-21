@@ -5526,7 +5526,7 @@ ${JSON.stringify(exampleData10)}
             };
 
             return (                    
-                <div className="flex flex-col h-screen" onClick={()
+                <div className="flex flex-col h-screen" onClick={() => setContextMenu({ visible: false })}>
                     <ContextMenu />
                     <UploadModal
                         isOpen={isUploadModalOpen}
