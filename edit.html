@@ -3634,20 +3634,23 @@ ${JSON.stringify(exampleData10)}
                     
                     // ▼▼▼ ここからがポリゴン描画の修正箇所です ▼▼▼
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
-                        const clickedPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
-                        
-                        // スナップ情報が「始点」ならポリゴンを閉じる
-                        if (drawingMode === 'space' && spaceShape === 'line' && snappedInfo?.type === 'startPoint') {
-                            createPolygonSpace([...linePoints, snappedInfo.point]); // スナップした正確な座標で閉じる
-                            setLinePoints([]); // ポイントをリセット
-                            setSnappedInfo(null);
-                            return;
+                        // 【修正点】クリックした瞬間の座標を基準に、始点との距離を再計算してポリゴンを閉じる判定を行う
+                        if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
+                            const firstPoint = linePoints[0];
+                            const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
+                            
+                            if (distToStart < SNAP_THRESHOLD / zoom) {
+                                // 距離が近ければ、クリック位置ではなく始点の座標でポリゴンを閉じる
+                                createPolygonSpace([...linePoints, firstPoint]); 
+                                setLinePoints([]); // ポイントをリセット
+                                setSnappedInfo(null);
+                                return;
+                            }
                         }
                         
-                        // 階段描画の終了判定
                         if (drawingMode === 'stairs' && linePoints.length > 0) {
                             const lastPoint = linePoints[linePoints.length - 1];
-                            const distToLast = Math.sqrt(Math.pow(clickedPoint.x - lastPoint.x, 2) + Math.pow(clickedPoint.y - lastPoint.y, 2));
+                            const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
                             if (distToLast < SNAP_THRESHOLD / zoom) {
                                 createStairs(linePoints);
                                 finishDrawing();
@@ -3656,7 +3659,8 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
     
-                        // 通常の頂点追加
+                        // 通常の頂点追加（ここはMouseMove時のスナップ情報を活用）
+                        const clickedPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
                         setLinePoints(prev => [...prev, clickedPoint]);
                         setSnappedInfo(null);
                         return;
@@ -3698,7 +3702,7 @@ ${JSON.stringify(exampleData10)}
                 fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType,
                 fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom,
                 backgroundPattern, createPolygonSpace, createItem, createStairs,
-                isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown, finishDrawing // finishDrawingを依存関係に追加
+                isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown, finishDrawing
             ]);
 
             const createPolygonSpace = useCallback((points) => {
