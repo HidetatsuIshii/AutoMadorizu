@@ -3556,7 +3556,8 @@ ${JSON.stringify(exampleData10)}
                 setLinePoints([]);
             }, [linePoints, drawingMode, spaceShape, createPolygonSpace, createStairs]);
 
-            const handleCanvasClick = useCallback((e) => {        
+            const handleCanvasClick = useCallback((e) => {
+                if (e.button === 2) return;
                 const clickPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
     
@@ -3911,6 +3912,7 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleMouseDown = useCallback((e) => {
+                if (e.button === 2) return;
                 e.stopPropagation();
 
                 if (!drawingMode && !imageUrl && editorMode !== 'edit') {
