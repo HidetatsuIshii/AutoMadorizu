@@ -1322,7 +1322,7 @@
         );
 
         // --- メインエディタコンポーネント ---
-        const UploadModal = ({ isOpen, onClose, onSubmit, isLoading, loadingMessage }) => {
+        const UploadModal = ({ isOpen, onClose, onSubmit, isLoading, loadingMessage, modalRef }) => {
             if (!isOpen) return null;
         
             const [localPreview, setLocalPreview] = useState(null);
@@ -1353,7 +1353,7 @@
             };
         
             return (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div ref={modalRef} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
                         <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">下絵のアップロード</h3>
                         {isLoading ? (
@@ -1498,6 +1498,7 @@
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
+            const modalRef = useRef(null);
             const tooltipTimers = useRef([]);
             const sidebarRef = useRef(null);
             const imageDragInfo = useRef(null);
@@ -4794,7 +4795,11 @@ ${JSON.stringify(exampleData10)}
             useEffect(() => {
                 if (!isDisplaySettingsOpen) return;
                 function handleClickOutside(event) {
-                    if (displaySettingsRef.current && !displaySettingsRef.current.contains(event.target) && editorAreaRef.current && !editorAreaRef.current.contains(event.target)) {
+                    // ▼▼▼ 条件にモーダルのチェックを追加 ▼▼▼
+                    if (displaySettingsRef.current && !displaySettingsRef.current.contains(event.target) &&
+                        editorAreaRef.current && !editorAreaRef.current.contains(event.target) &&
+                        (!modalRef.current || !modalRef.current.contains(event.target)) // ← この行を追加
+                    ) {
                         setDisplaySettingsOpen(false);
                     }
                 }
@@ -5364,6 +5369,7 @@ ${JSON.stringify(exampleData10)}
                         onSubmit={handleModalSubmit}
                         isLoading={isLoading}
                         loadingMessage={loadingMessage}
+                        modalRef={modalRef}
                     />
                     <header className="bg-white shadow-md p-2 flex items-center justify-between z-30 flex-shrink-0">
                         <div className="flex items-center space-x-4">
