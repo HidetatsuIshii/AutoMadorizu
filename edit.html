@@ -3560,12 +3560,12 @@ ${JSON.stringify(exampleData10)}
                 if (e.button === 2) return;
                 const clickPos = getCanvasCoords(e);
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
-    
+            
                 if (editorMode === 'edit') {
                     setSelectedId(targetId);
                     return;
                 }
-    
+            
                 if (editorMode === 'create' || editorMode === 'continuous-create') {
                     if (pendingFixture) {
                         const startPoint = pendingFixture;
@@ -3581,28 +3581,28 @@ ${JSON.stringify(exampleData10)}
                         }
                         return;
                     }
-    
-                    if (drawingMode === 'window' || drawingMode === 'door') {
-                        if (pendingWindow) {
-                            const center = { x: (pendingWindow.start.x + pendingWindow.end.x) / 2, y: (pendingWindow.start.y + pendingWindow.end.y) / 2 };
-                            const dx = clickPos.x - center.x;
-                            const dy = clickPos.y - center.y;
-                            let rotation = 0;
-                            let isInner = false;
-                            if (dx < 0 && dy < 0) { rotation = 180; isInner = true; }
-                            else if (dx > 0 && dy < 0) { rotation = 0; isInner = false; }
-                            else if (dx > 0 && dy > 0) { rotation = 0; isInner = true; }
-                            else { rotation = 180; isInner = false; }
-                            createItem(pendingWindow.start, pendingWindow.end, { rotation, isInner });
-                            setPendingWindow(null);
-                            setSnappedInfo(null);
-                            activeSnapWallRef.current = null;
-                            if (editorMode === 'create') {
-                                setEditorMode('edit');
-                            }
-                            return;
+            
+                    if (pendingWindow) {
+                        const center = { x: (pendingWindow.start.x + pendingWindow.end.x) / 2, y: (pendingWindow.start.y + pendingWindow.end.y) / 2 };
+                        const dx = clickPos.x - center.x;
+                        const dy = clickPos.y - center.y;
+                        let rotation = 0;
+                        let isInner = false;
+                        if (dx < 0 && dy < 0) { rotation = 180; isInner = true; }
+                        else if (dx > 0 && dy < 0) { rotation = 0; isInner = false; }
+                        else if (dx > 0 && dy > 0) { rotation = 0; isInner = true; }
+                        else { rotation = 180; isInner = false; }
+                        createItem(pendingWindow.start, pendingWindow.end, { rotation, isInner });
+                        setPendingWindow(null);
+                        setSnappedInfo(null);
+                        activeSnapWallRef.current = null;
+                        if (editorMode === 'create') {
+                            setEditorMode('edit');
                         }
-                        else if (drawingStartPoint) {
+                        return;
+                    }
+                    else if (drawingMode === 'window' || drawingMode === 'door') {
+                        if (drawingStartPoint) {
                             let clickedEndPoint;
                             const walls = svgElements.filter(el => el.type === 'wall');
                             if (isSnapToWall && !isModifierKeyDown && walls.length > 0) {
@@ -3633,17 +3633,14 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
-                    // ▼▼▼ ここからがポリゴン描画の修正箇所です ▼▼▼
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
-                        // 【修正点】クリックした瞬間の座標を基準に、始点との距離を再計算してポリゴンを閉じる判定を行う
                         if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
                             const firstPoint = linePoints[0];
                             const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
                             
                             if (distToStart < SNAP_THRESHOLD / zoom) {
-                                // 距離が近ければ、クリック位置ではなく始点の座標でポリゴンを閉じる
                                 createPolygonSpace([...linePoints, firstPoint]); 
-                                setLinePoints([]); // ポイントをリセット
+                                setLinePoints([]);
                                 setSnappedInfo(null);
                                 return;
                             }
@@ -3659,48 +3656,52 @@ ${JSON.stringify(exampleData10)}
                                 return;
                             }
                         }
-    
-                        // 通常の頂点追加（ここはMouseMove時のスナップ情報を活用）
+            
                         const clickedPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
                         setLinePoints(prev => [...prev, clickedPoint]);
                         setSnappedInfo(null);
                         return;
                     }
-                    // ▲▲▲ ここまでがポリゴン描画の修正箇所です ▲▲▲
-    
+                    
+                    // [修正箇所1] 2クリック描画の「2クリック目」の処理
                     if (drawingStartPoint) {
-                        const endPoint = getCanvasCoords(e); // ★スナップ無しの生の座標を取得
+                        const endPoint = getCanvasCoords(e);
                         
                         if (drawingMode === 'space' && spaceShape === 'rect') {
-                            // ★始点と終点の両方にスナップを適用する
-                            const snappedStart = isGridVisible ? getGridSnappedPoint(drawingStartPoint) : drawingStartPoint;
+                            // 始点(drawingStartPoint)は既にスナップ済みなので、そのまま使用します。
                             const snappedEnd = isGridVisible ? getGridSnappedPoint(endPoint) : endPoint;
                     
-                            const x1 = Math.min(snappedStart.x, snappedEnd.x);
-                            const y1 = Math.min(snappedStart.y, snappedEnd.y);
-                            const x2 = Math.max(snappedStart.x, snappedEnd.x);
-                            const y2 = Math.max(snappedStart.y, snappedEnd.y);
+                            const x1 = Math.min(drawingStartPoint.x, snappedEnd.x);
+                            const y1 = Math.min(drawingStartPoint.y, snappedEnd.y);
+                            const x2 = Math.max(drawingStartPoint.x, snappedEnd.x);
+                            const y2 = Math.max(drawingStartPoint.y, snappedEnd.y);
                             const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
                             createPolygonSpace(rectPoints);
                         } else {
-                            // 壁線など他の描画モードの処理も同様に修正
-                            const finalStartPoint = drawingStartPoint;
+                            // wall, compass などのその他の2クリック描画
+                            // 始点(drawingStartPoint)は1クリック目にスナップ済みです。
                             const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
-                            createItem(finalStartPoint, finalEndPoint);
+                            createItem(drawingStartPoint, finalEndPoint);
                         }
+                        
                         setDrawingStartPoint(null);
                         setSnappedInfo(null);
                         return;
                     }
-    
+            
+                    // [修正箇所2] 1クリック描画、または2クリック描画の「1クリック目」の処理
                     if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
-                        const startPoint = getCanvasCoords(e); // ★スナップ無しの生の座標を取得するように変更
+                        const startPoint = getCanvasCoords(e);
+                        // ✅ まずクリックした座標をスナップします
+                        const snappedStartPoint = isGridVisible ? getGridSnappedPoint(startPoint) : startPoint;
+            
                         if (drawingMode === 'fixture') {
-                            setPendingFixture(isGridVisible ? getGridSnappedPoint(startPoint) : startPoint);
+                            setPendingFixture(snappedStartPoint);
                         } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
-                            setDrawingStartPoint(startPoint); // ★スナップ前の座標をセット
-                        } else { 
-                            createItem(isGridVisible ? getGridSnappedPoint(startPoint) : startPoint);
+                            // ✅ スナップ済みの座標を開始点としてセットします
+                            setDrawingStartPoint(snappedStartPoint);
+                        } else { // textなど1クリックで完結するもの
+                            createItem(snappedStartPoint);
                         }
                         setSnappedInfo(null);
                     }
@@ -4014,7 +4015,7 @@ ${JSON.stringify(exampleData10)}
     
                 // ▼▼▼ ここからが吸着機能の修正箇所です ▼▼▼
                 const isDrawingPolygon = (drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs';
-                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space') && isSnapToWall && !isModifierKeyDown;
+                const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
                 
                 let newGuideLines = [];
                 let closestSnap = null;
