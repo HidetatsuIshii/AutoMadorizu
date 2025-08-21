@@ -3541,11 +3541,11 @@ ${JSON.stringify(exampleData10)}
             }, [zoom]);
 
             const getGridSnappedPoint = useCallback((point) => {
-                return {
-                    x: Math.round(point.x / gridSize) * gridSize,
-                    y: Math.round(point.y / gridSize) * gridSize
-                };
-            }, [gridSize]);
+                return {
+                    x: Math.floor(point.x / gridSize) * gridSize + gridSize / 2,
+                    y: Math.floor(point.y / gridSize) * gridSize + gridSize / 2
+                };
+            }, [gridSize]);
 
             const finishDrawing = useCallback(() => {
                 if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length > 1) {
@@ -5004,18 +5004,17 @@ ${JSON.stringify(exampleData10)}
             
             const getLayerLevel = (type) => {
                 switch(type) {
+                    case 'space':
                     case 'wall':
                     case 'stairs':
-                        return 0; // 壁・階段を最背面に
-                    case 'space':
-                        return 1; // 空間の塗りをその次に
+                        return 0; // 空間と壁が同じレイヤー
                     case 'door':
                     case 'window':
                     case 'fixture':
                     case 'compass':
-                        return 2; // レイヤーレベルを1つ繰り上げ
+                        return 1;
                     case 'text':
-                        return 3; // レイヤーレベルを1つ繰り上げ
+                        return 2;
                     default:
                         return 99;
                 }
