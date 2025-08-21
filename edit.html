@@ -4405,10 +4405,10 @@ ${JSON.stringify(exampleData10)}
                 );
             };
 
-            const deleteSelectedElement = useCallback(() => {
-                if (!selectedId) return;
-
-                const elementToDelete = svgElements.find(el => el.id === selectedId);
+            const deleteSelectedElement = useCallback((idToDelete) => {
+                const id = idToDelete || selectedId; // 引数でIDが渡されればそれを、なければstateのIDを使用
+                if (!id) return;
+                const elementToDelete = svgElements.find(el => el.id === id);
                 if (!elementToDelete) return;
 
                 setHistoryState(prevState => {
@@ -5348,18 +5348,32 @@ ${JSON.stringify(exampleData10)}
                 const { x, y, targetId, targetElement } = contextMenu;
                 const menuStyle = { top: y, left: x, position: 'fixed', zIndex: 1000 };
                 const isSpaceOrWall = targetElement?.type === 'space' || targetElement?.type === 'wall';
-    
+                
                 const handleAction = (action, option) => {
                     switch (action) {
                         case 'cut': handleCut(); break;
                         case 'copy': handleCopy(); break;
                         case 'paste': handlePaste(); break;
-                        case 'delete': deleteSelectedElement(targetId); break; // targetIdを渡すように変更
+                        case 'delete': deleteSelectedElement(targetId); break;
                         case 'reorder': reorderElements(option); break;
+                        case 'toggleGrid': setGridVisible(prev => !prev); break;
                     }
-                    setContextMenu({ visible: false }); // メニューを閉じる
+                    setContextMenu({ visible: false });
                 };
     
+                // ▼▼▼ targetElementの有無で表示するメニューを分岐 ▼▼▼
+                if (!targetElement) {
+                    // キャンバス上での右クリックメニュー
+                    return (
+                        <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" onContextMenu={(e) => e.preventDefault()}>
+                            <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
+                            <div className="my-1 border-t border-gray-200"></div>
+                            <button onClick={() => handleAction('toggleGrid')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>{isGridVisible ? 'グリッド線を非表示' : 'グリッド線を表示'}</span></button>
+                        </div>
+                    );
+                }
+    
+                // 図形上での右クリックメニュー
                 return (
                     <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" onContextMenu={(e) => e.preventDefault()}>
                         <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
@@ -5391,9 +5405,22 @@ ${JSON.stringify(exampleData10)}
                     </div>
                 );
             };
+
+            // 右クリックされたのが図形の上ではない（SVGキャンバス自体）の場合のみメニューを表示
+            const handleCanvasContextMenu = (e) => {
+                if (e.target === svgRef.current) {
+                    e.preventDefault();
+                    setContextMenu({ 
+                        visible: true, 
+                        x: e.clientX, 
+                        y: e.clientY, 
+                        targetId: null,
+                        targetElement: null 
+                    });
+                }
+            };
             
             // --- コンテキストメニューのアクション関数 ---
-    
             const handleContextMenu = (e) => {
                 e.preventDefault();
                 const targetId = e.currentTarget.getAttribute('data-id');
@@ -5433,27 +5460,17 @@ ${JSON.stringify(exampleData10)}
     
             const handlePaste = () => {
                 if (!clipboard) return;
-                const { x, y } = contextMenu;
-                const { top, left } = svgRef.current.getBoundingClientRect();
                 
-                // キャンバス上の貼り付け位置を計算
-                const pasteX = (x - left) / zoom;
-                const pasteY = (y - top) / zoom;
+                const offset = 20; // 貼り付け時のオフセット量 (ピクセル)
                 
+                // クリップボード内のデータをディープコピーして新しい要素を作成
                 let elementsToAdd = JSON.parse(JSON.stringify(clipboard.elements));
-                
-                // 新しいIDを生成し、位置を調整
+                let newClipboardElements = [];
+    
                 const newGroupId = `space-group-${Date.now()}`;
                 const isGroup = elementsToAdd.length > 1;
-                
-                const firstElPoints = elementsToAdd[0].points ? elementsToAdd[0].points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})) : null;
-                const originalCenter = getPolygonCentroid(firstElPoints) || { x: elementsToAdd[0].x1, y: elementsToAdd[0].y1 };
-    
-                const deltaX = pasteX - originalCenter.x;
-                const deltaY = pasteY - originalCenter.y;
     
                 elementsToAdd.forEach(el => {
-                    const oldId = el.id;
                     const newId = `${el.type}-${Date.now()}-${Math.random()}`;
                     el.id = newId;
     
@@ -5461,20 +5478,29 @@ ${JSON.stringify(exampleData10)}
                         el.groupId = newGroupId;
                     }
     
+                    // 各要素タイプの座標にオフセットを加算
                     if (el.type === 'space' || el.type === 'stairs') {
                         const points = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
-                        const movedPoints = points.map(p => ({ x: p.x + deltaX, y: p.y + deltaY }));
+                        const movedPoints = points.map(p => ({ x: p.x + offset, y: p.y + offset }));
                         el.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
                     } else if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
-                        el.x1 += deltaX; el.y1 += deltaY;
-                        el.x2 += deltaX; el.y2 += deltaY;
+                        el.x1 += offset; el.y1 += offset;
+                        el.x2 += offset; el.y2 += offset;
                     } else { // text, fixture, compass
-                        el.x = ((el.x / 100 * dimensions.width) + deltaX) / dimensions.width * 100;
-                        el.y = ((el.y / 100 * dimensions.height) + deltaY) / dimensions.height * 100;
+                        el.x = ((el.x / 100 * dimensions.width) + offset) / dimensions.width * 100;
+                        el.y = ((el.y / 100 * dimensions.height) + offset) / dimensions.height * 100;
                     }
+                    newClipboardElements.push(JSON.parse(JSON.stringify(el))); // 次のペーストのために、移動後の要素を保存
                 });
                 
+                // 描画データに新しい要素を追加
                 setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...elementsToAdd] }, future: [] }));
+    
+                // クリップボードの内容を、今貼り付けた要素の情報で更新する
+                setClipboard({
+                    type: 'copy',
+                    elements: newClipboardElements
+                });
             };
     
             const reorderElements = (direction) => {
@@ -5597,7 +5623,7 @@ ${JSON.stringify(exampleData10)}
                                         crossOrigin="anonymous"
                                     />}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
-                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown}>
+                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown} onContextMenu={handleCanvasContextMenu}>
                                         <defs>
                                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
                                                 <polygon points="0 0, 10 3.5, 0 7" />
