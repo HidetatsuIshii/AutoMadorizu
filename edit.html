@@ -5002,14 +5002,38 @@ ${JSON.stringify(exampleData10)}
                 return 'move';
             }
             
+            const getLayerLevel = (type) => {
+                switch(type) {
+                    case 'space':
+                    case 'wall':
+                    case 'stairs':
+                        return 0; // 1. 空間・壁・階段のレイヤー
+                    case 'door':
+                    case 'window':
+                    case 'fixture':
+                    case 'compass':
+                        return 1; // 2. 建具・設備のレイヤー
+                    case 'text':
+                        return 2; // 3. テキストのレイヤー (最前面)
+                    default:
+                        return 99;
+                }
+            };
+    
+            const originalIndexMap = new Map(svgElements.map((el, index) => [el.id, index]));
+    
             const sortedElements = [...svgElements].sort((a, b) => {
-                const typeOrder = { 'space': 0, 'wall': 1, 'stairs': 2, 'door': 3, 'window': 3, 'fixture': 4, 'compass': 5, 'text': 6 };
-                const orderA = typeOrder[a.type] ?? 99;
-                const orderB = typeOrder[b.type] ?? 99;
-                if (orderA !== orderB) return orderA - orderB;
-                if (a.type === 'space' && b.type === 'wall' && a.groupId === b.groupId) return -1;
-                if (b.type === 'space' && a.type === 'wall' && b.groupId === a.groupId) return 1;
-                return 0;
+                const levelA = getLayerLevel(a.type);
+                const levelB = getLayerLevel(b.type);
+    
+                if (levelA !== levelB) {
+                    // 1. まずはレイヤーレベルで並び替え
+                    return levelA - levelB;
+                } else {
+                    // 2. 同じレイヤーレベル内では、元の配列の順序を維持する
+                    //    (「最前面へ移動」などで変更された順序がここで反映される)
+                    return originalIndexMap.get(a.id) - originalIndexMap.get(b.id);
+                }
             });
 
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
