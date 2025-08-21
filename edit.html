@@ -5695,9 +5695,9 @@ ${JSON.stringify(exampleData10)}
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
                                                             {/* 2本の線で二重線を表現 */}
                                                             <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
                                                             <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
                                                             {/* クリック判定用の透明な線 */}
                                                             <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
                                                                 stroke="transparent" strokeWidth={Math.max(strokeW, 10)} />
@@ -5713,7 +5713,8 @@ ${JSON.stringify(exampleData10)}
                                                             stroke={stroke} 
                                                             strokeWidth={strokeW} 
                                                             strokeDasharray={style?.dashArray}
-                                                            strokeLinecap="butt" // 角の見た目を揃えるため "butt" に変更
+                                                            strokeLinecap="square"
+                                                            shapeRendering="crispEdges"
                                                             style={{ pointerEvents: 'none' }} 
                                                         />
                                                         {/* クリック判定用の透明で太い線 */}
