@@ -3669,16 +3669,24 @@ ${JSON.stringify(exampleData10)}
                     // ▲▲▲ ここまでがポリゴン描画の修正箇所です ▲▲▲
     
                     if (drawingStartPoint) {
-                        let finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                        const endPoint = getCanvasCoords(e); // ★スナップ無しの生の座標を取得
+                        
                         if (drawingMode === 'space' && spaceShape === 'rect') {
-                            const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
-                            const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
-                            const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
-                            const y2 = Math.max(drawingStartPoint.y, finalEndPoint.y);
+                            // ★始点と終点の両方にスナップを適用する
+                            const snappedStart = isGridVisible ? getGridSnappedPoint(drawingStartPoint) : drawingStartPoint;
+                            const snappedEnd = isGridVisible ? getGridSnappedPoint(endPoint) : endPoint;
+                    
+                            const x1 = Math.min(snappedStart.x, snappedEnd.x);
+                            const y1 = Math.min(snappedStart.y, snappedEnd.y);
+                            const x2 = Math.max(snappedStart.x, snappedEnd.x);
+                            const y2 = Math.max(snappedStart.y, snappedEnd.y);
                             const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
                             createPolygonSpace(rectPoints);
                         } else {
-                            createItem(drawingStartPoint, finalEndPoint);
+                            // 壁線など他の描画モードの処理も同様に修正
+                            const finalStartPoint = drawingStartPoint;
+                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
+                            createItem(finalStartPoint, finalEndPoint);
                         }
                         setDrawingStartPoint(null);
                         setSnappedInfo(null);
@@ -3686,13 +3694,13 @@ ${JSON.stringify(exampleData10)}
                     }
     
                     if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
-                        const startPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                        const startPoint = getCanvasCoords(e); // ★スナップ無しの生の座標を取得するように変更
                         if (drawingMode === 'fixture') {
-                            setPendingFixture(startPoint);
+                            setPendingFixture(isGridVisible ? getGridSnappedPoint(startPoint) : startPoint);
                         } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
-                            setDrawingStartPoint(startPoint);
+                            setDrawingStartPoint(startPoint); // ★スナップ前の座標をセット
                         } else { 
-                            createItem(startPoint);
+                            createItem(isGridVisible ? getGridSnappedPoint(startPoint) : startPoint);
                         }
                         setSnappedInfo(null);
                     }
