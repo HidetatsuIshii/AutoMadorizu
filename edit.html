@@ -3653,7 +3653,7 @@ ${JSON.stringify(exampleData10)}
                                 const distToLast = Math.sqrt(Math.pow(clickedPoint.x - lastPoint.x, 2) + Math.pow(clickedPoint.y - lastPoint.y, 2));
                                 if (distToLast < SNAP_THRESHOLD / zoom) {
                                     createStairs(linePoints);
-                                    finishDrawing();
+                                    setLinePoints([]);
                                     setSnappedInfo(null);
                                     return;
                                 }
@@ -3664,7 +3664,7 @@ ${JSON.stringify(exampleData10)}
                                 const distToStart = Math.sqrt(Math.pow(clickedPoint.x - firstPoint.x, 2) + Math.pow(clickedPoint.y - firstPoint.y, 2));
                                 if (distToStart < SNAP_THRESHOLD / zoom) {
                                     createPolygonSpace([...linePoints, firstPoint]);
-                                    finishDrawing();
+                                    setLinePoints([]);
                                     setSnappedInfo(null);
                                     return;
                                 }
