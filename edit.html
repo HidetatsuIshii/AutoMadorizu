@@ -4037,7 +4037,7 @@ ${JSON.stringify(exampleData10)}
     
                     // 2. 【新規】描画中のポリゴンの頂点へのスナップ
                     if (isDrawingPolygon && linePoints.length > 0) {
-                        // 2-A. 始点へのスナップ (ポリゴンを閉じる)
+                        // 始点へのスナップ（ポリゴンを閉じる判定）はそのまま
                         if (linePoints.length >= 2) {
                             const firstPoint = linePoints[0];
                             const distance = Math.sqrt(Math.pow(currentMousePos.x - firstPoint.x, 2) + Math.pow(currentMousePos.y - firstPoint.y, 2));
@@ -4047,23 +4047,51 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
                         
-                        // 2-B. 既存の頂点との水平・垂直スナップ
-                        linePoints.forEach(p => {
+                        // 最も近い垂直線(X軸)と水平線(Y軸)の候補をそれぞれ探す
+                        let bestVerticalSnap = null;
+                        let bestHorizontalSnap = null;
+                        let minXDist = SNAP_THRESHOLD / zoom;
+                        let minYDist = SNAP_THRESHOLD / zoom;
+            
+                        [...linePoints, ...svgElements.filter(el => el.type === 'wall').flatMap(w => [{x: w.x1, y: w.y1}, {x: w.x2, y: w.y2}])].forEach(p => {
+                            // 最も近い垂直ガイド（X座標をスナップ）を探す
                             const distX = Math.abs(currentMousePos.x - p.x);
-                            if (distX < minDistance) {
-                                minDistance = distX;
-                                closestSnap = { point: { x: p.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: p } };
+                            if (distX < minXDist) {
+                                minXDist = distX;
+                                bestVerticalSnap = { x: p.x, from: p };
                             }
+            
+                            // 最も近い水平ガイド（Y座標をスナップ）を探す
                             const distY = Math.abs(currentMousePos.y - p.y);
-                            if (distY < minDistance) {
-                                minDistance = distY;
-                                closestSnap = { point: { x: currentMousePos.x, y: p.y }, type: 'extension', guide: { type: 'horizontal', from: p } };
+                            if (distY < minYDist) {
+                                minYDist = distY;
+                                bestHorizontalSnap = { y: p.y, from: p };
                             }
                         });
-                    }
-                    
-                    // 3. 既存の壁の「線上」へのスナップ (頂点へのスナップがない場合)
-                    if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWalls.length > 0) {
+            
+                        // 垂直・水平両方のスナップ候補が見つかった場合、その交点へのスナップを試みる
+                        if (bestVerticalSnap && bestHorizontalSnap) {
+                            const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
+                            const distToIntersection = Math.sqrt(
+                                Math.pow(currentMousePos.x - intersectionPoint.x, 2) +
+                                Math.pow(currentMousePos.y - intersectionPoint.y, 2)
+                            );
+            
+                            // マウスが交点に十分近ければ、交点を最優先のスナップ先とする
+                            if (distToIntersection < SNAP_THRESHOLD / zoom) {
+                                closestSnap = { 
+                                    point: intersectionPoint, 
+                                    type: 'intersection', 
+                                    guide: { 
+                                        vertical: { from: bestVerticalSnap.from },
+                                        horizontal: { from: bestHorizontalSnap.from }
+                                    } 
+                                };
+                            }
+                        }
+            
+                        // 交点にスナップしなかった場合、従来通り最も近い軸（XかYか）にスナップする
+                        if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWalls.length > 0) {
                          for (const wall of allWalls) {
                             const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
                             const dx = p2.x - p1.x, dy = p2.y - p1.y;
@@ -4082,27 +4110,30 @@ ${JSON.stringify(exampleData10)}
                 
                 setSnappedInfo(closestSnap);
     
-                // ガイドラインの生成
+                // ガイドラインの描画ロジックを、交点スナップに対応させる
                 if (closestSnap?.type === 'extension') {
                     const { guide } = closestSnap;
                     if (guide.type === 'vertical') {
-                        newGuideLines.push({ x1: guide.from.x, y1: guide.from.y, x2: guide.from.x, y2: currentMousePos.y });
+                        newGuideLines.push({ x1: guide.from.x, y1: guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                     } else if (guide.type === 'horizontal') {
-                        newGuideLines.push({ x1: guide.from.x, y1: guide.from.y, x2: currentMousePos.x, y2: guide.from.y });
+                        newGuideLines.push({ x1: guide.from.x, y1: guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                     }
+                } else if (closestSnap?.type === 'intersection') {
+                    const { guide } = closestSnap;
+                    // 垂直ガイドを描画
+                    newGuideLines.push({ x1: guide.vertical.from.x, y1: guide.vertical.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
+                    // 水平ガイドを描画
+                    newGuideLines.push({ x1: guide.horizontal.from.x, y1: guide.horizontal.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                 }
                 setGuideLines(newGuideLines);
-    
-                // 以前の isSnappingToStart 関連のロジックは新しいスナップ処理に統合されたため不要
-                // isDragging, resizingHandleInfo のロジックは変更なし
-                // ...(以下、ドラッグとリサイズのロジックは変更なし)...
-                    if (editorMode === 'edit' && dragTarget.current && dragInfo.current && mouseDownInfo.current) {
-                        const dist = Math.sqrt(Math.pow(e.clientX - mouseDownInfo.current.x, 2) + Math.pow(e.clientY - mouseDownInfo.current.y, 2));
-                        if (!isDragging && dist > 5) {
-                            setIsDragging(true);
-                            setSelectedId(dragTarget.current.id);
-                        }
-                    }
+            
+                if (editorMode === 'edit' && dragTarget.current && dragInfo.current && mouseDownInfo.current) {
+                    const dist = Math.sqrt(Math.pow(e.clientX - mouseDownInfo.current.x, 2) + Math.pow(e.clientY - mouseDownInfo.current.y, 2));
+                    if (!isDragging && dist > 5) {
+                        setIsDragging(true);
+                        setSelectedId(dragTarget.current.id);
+                    }
+                }
     
                     if (resizingHandleInfo) {
                         const { id, handleIndex, type } = resizingHandleInfo;
