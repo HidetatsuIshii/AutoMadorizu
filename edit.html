@@ -139,11 +139,11 @@
             "和室":       { fill: "#dcfce7", background: 'grid-large',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
             "収納":       { fill: "#fef9c3", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
             "洗面所":     { fill: "#dbeafe", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
-            "浴室":       { fill: "#dbeafe", background: 'grid-small',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "浴室":       { fill: "#dbeafe", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
             "トイレ":     { fill: "#dbeafe", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
             "廊下":       { fill: "rgb(245, 229, 212)", background: 'none', lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
             "玄関":       { fill: "#dedede", background: 'grid-small',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
-            "バルコニー": { fill: "#f5f5f5", background: 'vertical-lines',  lineStyle: 'dashed', strokeWidth: 2, strokeColor: '#808080' },
+            "バルコニー": { fill: "#f5f5f5", background: 'none',            lineStyle: 'dashed', strokeWidth: 2, strokeColor: '#808080' },
             // --- サブの空間 ---
             "柱":         { fill: "#000000", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
             "吹抜":       { fill: "none",    background: 'dotted-x',      lineStyle: 'dotted', strokeWidth: 2, strokeColor: '#000000' },
@@ -155,8 +155,8 @@
             "下足入":     { fill: "#CD924C", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
             "冷蔵庫":     { fill: "none",    background: 'none',            lineStyle: 'dotted', strokeWidth: 1, strokeColor: '#808080' },
             "洗濯機":     { fill: "none",    background: 'none',            lineStyle: 'dotted', strokeWidth: 1, strokeColor: '#808080' },
-            "PS":         { fill: "#ffffff", background: 'solid-x',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
-            "MB":         { fill: "#ffffff", background: 'solid-x',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "PS":         { fill: "#ffffff", background: 'none',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "MB":         { fill: "#ffffff", background: 'none',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
             // --- デフォルト設定 ---
             "default":    { fill: "#fafafa", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' }
         };
@@ -5760,28 +5760,75 @@ ${JSON.stringify(exampleData10)}
                                             
                                             if (el.type === 'space') {
                                                 const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
-                                                // ✅ space要素自身が持つスタイル情報を取得
                                                 const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || DEFAULT_STROKE_COLOR);
                                                 const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const style = LINE_STYLES.find(s => s.id === el.lineStyle);
-                                    
-                                                return (
-                                                    <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
-                                                        <polygon
-                                                            data-id={el.id}
-                                                            points={el.points}
-                                                            fill={el.fill}
-                                                            // ✅ stroke関連の属性を追加して枠線を描画
-                                                            stroke={stroke}
-                                                            strokeWidth={strokeW}
-                                                            strokeDasharray={style?.dashArray}
-                                                            strokeLinejoin="miter" // 角をシャープに描画
-                                                            shapeRendering="crispEdges"
-                                                            style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
-                                                        />
-                                                        <BackgroundRenderer element={el} />
-                                                    </g>
-                                                );
+                                            
+                                                // 線の種類が 'double' の場合、手動で枠線を描画
+                                                if (el.lineStyle === 'double') {
+                                                    const points = el.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
+                                                    
+                                                    return (
+                                                        <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
+                                                            {/* 1. 塗りつぶし専用のポリゴン (枠線なし) */}
+                                                            <polygon
+                                                                data-id={el.id}
+                                                                points={el.points}
+                                                                fill={el.fill}
+                                                                stroke="none"
+                                                                style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
+                                                            />
+                                                            
+                                                            {/* 2. 背景パターンの描画 */}
+                                                            <BackgroundRenderer element={el} />
+                                            
+                                                            {/* 3. 二重線の枠線を手動で描画 */}
+                                                            <g style={{ pointerEvents: 'none' }}>
+                                                                {points.map((p1, i) => {
+                                                                    const p2 = points[(i + 1) % points.length];
+                                                                    
+                                                                    // 壁(wall)の二重線描画ロジックを再利用
+                                                                    const dx = p2.x - p1.x;
+                                                                    const dy = p2.y - p1.y;
+                                                                    const len = Math.sqrt(dx * dx + dy * dy);
+                                                                    if (len === 0) return null;
+                                                                    
+                                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
+                                                                    const offsetDistance = (strokeW - finalStrokeWidth) / 2;
+                                                                    const offsetX = -dy / len * offsetDistance;
+                                                                    const offsetY = dx / len * offsetDistance;
+                                                                    
+                                                                    return (
+                                                                        <g key={`${el.id}-edge-${i}`}>
+                                                                            <line x1={p1.x + offsetX} y1={p1.y + offsetY} x2={p2.x + offsetX} y2={p2.y + offsetY}
+                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" />
+                                                                            <line x1={p1.x - offsetX} y1={p1.y - offsetY} x2={p2.x - offsetX} y2={p2.y - offsetY}
+                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" />
+                                                                        </g>
+                                                                    );
+                                                                })}
+                                                            </g>
+                                                        </g>
+                                                    );
+                                                } else {
+                                                    // 'double' 以外 (実線、破線など) の場合は従来の描画
+                                                    const style = LINE_STYLES.find(s => s.id === el.lineStyle);
+                                                    return (
+                                                        <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
+                                                            <polygon
+                                                                data-id={el.id}
+                                                                points={el.points}
+                                                                fill={el.fill}
+                                                                stroke={stroke}
+                                                                strokeWidth={strokeW}
+                                                                strokeDasharray={style?.dashArray}
+                                                                strokeLinejoin="miter"
+                                                                shapeRendering="crispEdges"
+                                                                style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
+                                                            />
+                                                            <BackgroundRenderer element={el} />
+                                                        </g>
+                                                    );
+                                                }
                                             }
                                             if (el.type === 'wall') {
                                                 const pointerEvents = (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all';
