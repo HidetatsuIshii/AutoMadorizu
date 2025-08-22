@@ -3668,13 +3668,11 @@ ${JSON.stringify(exampleData10)}
                         const endPoint = getCanvasCoords(e);
                         
                         if (drawingMode === 'space' && spaceShape === 'rect') {
-                            // 始点(drawingStartPoint)は既にスナップ済みなので、そのまま使用します。
-                            const snappedEnd = isGridVisible ? getGridSnappedPoint(endPoint) : endPoint;
-                    
-                            const x1 = Math.min(drawingStartPoint.x, snappedEnd.x);
-                            const y1 = Math.min(drawingStartPoint.y, snappedEnd.y);
-                            const x2 = Math.max(drawingStartPoint.x, snappedEnd.x);
-                            const y2 = Math.max(drawingStartPoint.y, snappedEnd.y);
+                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
+                            const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
+                            const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
+                            const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
+                            const y2 = Math.max(drawingStartPoint.y, finalEndPoint.y);
                             const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
                             createPolygonSpace(rectPoints);
                         } else {
@@ -4013,7 +4011,7 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
             
-                const isDrawingPolygon = (drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs';
+                const isDrawingShape = (drawingMode === 'space' || drawingMode === 'stairs' || drawingMode === 'wall');
                 const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
                 
                 let newGuideLines = [];
@@ -4021,35 +4019,39 @@ ${JSON.stringify(exampleData10)}
                 let minDistance = SNAP_THRESHOLD / zoom;
             
                 if (isSnappingEnabled) {
-                    const allWalls = svgElements.filter(el => el.type === 'wall');
-                    for (const wall of allWalls) {
-                        const vertices = [{x: wall.x1, y: wall.y1}, {x: wall.x2, y: wall.y2}];
-                        for (const vertex of vertices) {
-                            const distance = Math.sqrt(Math.pow(currentMousePos.x - vertex.x, 2) + Math.pow(currentMousePos.y - vertex.y, 2));
-                            if (distance < minDistance) {
-                                minDistance = distance;
-                                closestSnap = { point: vertex, type: 'vertex' };
-                            }
+                    // ▼▼▼ ここから修正箇所です ▼▼▼
+            
+                    // [修正1] スナップ対象となる全ての頂点を一つの配列に集約します
+                    let pointsToSnapAgainst = [];
+            
+                    // 既存の壁と空間の頂点を全てスナップ対象に追加
+                    svgElements.forEach(el => {
+                        if (el.type === 'wall') {
+                            pointsToSnapAgainst.push({x: el.x1, y: el.y1});
+                            pointsToSnapAgainst.push({x: el.x2, y: el.y2});
+                        } else if (el.type === 'space') {
+                            const spacePoints = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                            pointsToSnapAgainst.push(...spacePoints);
                         }
-                    }
+                    });
                     
-                    // ▼▼▼ ここからが直角スナップ機能の修正箇所です ▼▼▼
-                    if (isDrawingPolygon && linePoints.length > 0) {
-                        if (linePoints.length >= 2) {
-                            const firstPoint = linePoints[0];
-                            const distance = Math.sqrt(Math.pow(currentMousePos.x - firstPoint.x, 2) + Math.pow(currentMousePos.y - firstPoint.y, 2));
-                            if (distance < minDistance) {
-                                minDistance = distance;
-                                closestSnap = { point: firstPoint, type: 'startPoint' };
-                            }
-                        }
-                        
+                    // 現在描画中の図形の頂点もスナップ対象に追加
+                    if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
+                        pointsToSnapAgainst.push(...linePoints);
+                    } else if (drawingMode === 'space' && spaceShape === 'rect' && drawingStartPoint) {
+                        pointsToSnapAgainst.push(drawingStartPoint);
+                    } else if (drawingMode === 'wall' && drawingStartPoint) {
+                        pointsToSnapAgainst.push(drawingStartPoint);
+                    }
+            
+                    // [修正2] 集約した頂点に対して、統一されたスナップ処理を実行します
+                    if (pointsToSnapAgainst.length > 0) {
                         let bestVerticalSnap = null;
                         let bestHorizontalSnap = null;
                         let minXDist = SNAP_THRESHOLD / zoom;
                         let minYDist = SNAP_THRESHOLD / zoom;
             
-                        [...linePoints, ...svgElements.filter(el => el.type === 'wall').flatMap(w => [{x: w.x1, y: w.y1}, {x: w.x2, y: w.y2}])].forEach(p => {
+                        pointsToSnapAgainst.forEach(p => {
                             const distX = Math.abs(currentMousePos.x - p.x);
                             if (distX < minXDist) {
                                 minXDist = distX;
@@ -4070,7 +4072,7 @@ ${JSON.stringify(exampleData10)}
                             );
             
                             if (distToIntersection < SNAP_THRESHOLD / zoom) {
-                                minDistance = distToIntersection; // Update minDistance to prioritize intersection
+                                minDistance = distToIntersection;
                                 closestSnap = { 
                                     point: intersectionPoint, 
                                     type: 'intersection', 
@@ -4098,8 +4100,8 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
                     }
-                    // ▲▲▲ ここまでが直角スナップ機能の修正箇所です ▲▲▲
-            
+                    // ▲▲▲ ここまで修正 ▲▲▲
+                    
                     if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWalls.length > 0) {
                          for (const wall of allWalls) {
                             const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
@@ -4133,7 +4135,6 @@ ${JSON.stringify(exampleData10)}
                 }
                 setGuideLines(newGuideLines);
             
-                // ▼▼▼ ここから、前回抜け落ちていたドラッグとリサイズの処理です ▼▼▼
                 if (editorMode === 'edit' && dragTarget.current && dragInfo.current && mouseDownInfo.current) {
                     const dist = Math.sqrt(Math.pow(e.clientX - mouseDownInfo.current.x, 2) + Math.pow(e.clientY - mouseDownInfo.current.y, 2));
                     if (!isDragging && dist > 5) {
@@ -6090,18 +6091,22 @@ ${JSON.stringify(exampleData10)}
                                                     </g>
                                                 );
                                             }
-                                            if(drawingMode === 'space' && spaceShape === 'rect') return <rect 
-                                                x={Math.min(drawingStartPoint.x, previewEndPoint.x)} 
-                                                y={Math.min(drawingStartPoint.y, previewEndPoint.y)} 
-                                                width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
-                                                height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
-                                                fill="transparent" 
-                                                stroke={SELECTED_ELEMENT_COLOR}
-                                                strokeWidth={DEFAULT_STROKE_WIDTH} 
-                                                strokeDasharray="5,5" 
-                                                style={{ pointerEvents: 'none' }} 
-                                                shapeRendering="crispEdges" 
-                                            />;
+                                            if(drawingMode === 'space' && spaceShape === 'rect') {
+                                                // スナップ情報があればそれを使い、なければグリッドスナップされたマウス位置を使います
+                                                const previewEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(mousePos) : mousePos);
+                                                return <rect 
+                                                    x={Math.min(drawingStartPoint.x, previewEndPoint.x)} 
+                                                    y={Math.min(drawingStartPoint.y, previewEndPoint.y)} 
+                                                    width={Math.abs(drawingStartPoint.x - previewEndPoint.x)} 
+                                                    height={Math.abs(drawingStartPoint.y - previewEndPoint.y)} 
+                                                    fill="transparent" 
+                                                    stroke={SELECTED_ELEMENT_COLOR}
+                                                    strokeWidth={strokeWidth} // strokeWidth stateを参照するように変更
+                                                    strokeDasharray="5,5" 
+                                                    style={{ pointerEvents: 'none' }} 
+                                                    shapeRendering="crispEdges" 
+                                                />;
+                                            }
                                             if(drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'wall') return <line 
                                                 x1={drawingStartPoint.x} 
                                                 y1={drawingStartPoint.y} 
