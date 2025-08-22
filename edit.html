@@ -4454,34 +4454,42 @@ ${JSON.stringify(exampleData10)}
                 if (imageDragInfo.current) {
                     imageDragInfo.current = null;
                 }
-                if (!mouseDownInfo.current) {
-                    return;
-                }
-
-                if (!isDragging && !resizingHandleInfo && !wasDraggingImage) { 
-                    handleCanvasClick(e);
-                } else {
-                    const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
-                    if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
-                        setHistoryState(prevState => {
-                            const updatedElements = prevState.present.svgElements.map(el => {
-                                if (el.id === selectedId) {
-                                    const { groupId, edgeIndex, ...independentWall } = el;
-                                    return independentWall;
-                                }
-                                return el;
+            
+                // 1クリック目以降の、角度や反転などを確定させるためのクリック操作かどうかを判定します
+                const isFinalizingClick =
+                    pendingFixture ||
+                    pendingWindow ||
+                    (drawingStartPoint && (drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'compass'));
+            
+                // 確定クリックの場合、または通常のクリック（キャンバス内でマウスダウンされている）の場合に処理を実行します
+                if (isFinalizingClick || mouseDownInfo.current) {
+                    if (!isDragging && !resizingHandleInfo && !wasDraggingImage) {
+                        handleCanvasClick(e);
+                    } else {
+                        // ドラッグ終了時の処理（既存のロジックを維持）
+                        const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
+                        if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
+                            setHistoryState(prevState => {
+                                const updatedElements = prevState.present.svgElements.map(el => {
+                                    if (el.id === selectedId) {
+                                        const { groupId, edgeIndex, ...independentWall } = el;
+                                        return independentWall;
+                                    }
+                                    return el;
+                                });
+                                return {
+                                    past: [...prevState.past, historyOnActionStart.current],
+                                    present: { ...prevState.present, svgElements: updatedElements },
+                                    future: []
+                                };
                             });
-                            return {
-                                past: [...prevState.past, historyOnActionStart.current],
-                                present: { ...prevState.present, svgElements: updatedElements },
-                                future: []
-                            };
-                        });
-                    } else if (historyOnActionStart.current && JSON.stringify(historyOnActionStart.current.svgElements) !== JSON.stringify(svgElements)) {
-                        setHistoryState(prev => ({ ...prev, past: [...prev.past, historyOnActionStart.current], future: [] }));
+                        } else if (historyOnActionStart.current && JSON.stringify(historyOnActionStart.current.svgElements) !== JSON.stringify(svgElements)) {
+                            setHistoryState(prev => ({ ...prev, past: [...prev.past, historyOnActionStart.current], future: [] }));
+                        }
                     }
                 }
-                
+            
+                // 各種状態をリセット
                 setIsDragging(false);
                 setResizingHandleInfo(null);
                 dragTarget.current = null;
