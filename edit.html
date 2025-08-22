@@ -5765,13 +5765,14 @@ ${JSON.stringify(exampleData10)}
                                             
                                                 if (el.lineStyle === 'double') {
                                                     const points = el.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
-                                                    if (points.length < 3) return null; // 点が3つ未満なら描画しない
+                                                    if (points.length < 2) return null; // 点が2つ未満なら描画しない
                                             
-                                                    // --- ▼▼▼ ここからが新しい角の計算ロジックです ▼▼▼ ---
+                                                    // --- ▼▼▼ 新しい角の計算ロジックです ▼▼▼ ---
                                             
+                                                    // 2つの線分の交点を計算するヘルパー関数
                                                     const getLineIntersection = (p1, p2, p3, p4) => {
                                                         const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                                                        if (Math.abs(d) < 1e-8) return null;
+                                                        if (Math.abs(d) < 1e-8) return null; // ほぼ平行
                                                         const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
                                                         return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
                                                     };
@@ -5780,38 +5781,41 @@ ${JSON.stringify(exampleData10)}
                                                     const innerPoints = [];
                                                     const offsetDistance = strokeW / 2;
                                             
+                                                    // 1. まず、全ての角（頂点）における、内側と外側の正しい座標を先に計算してしまう
                                                     for (let i = 0; i < points.length; i++) {
                                                         const p_prev = points[(i - 1 + points.length) % points.length];
                                                         const p_curr = points[i];
                                                         const p_next = points[(i + 1) % points.length];
                                             
-                                                        // 1. 入ってくる辺 (p_prev -> p_curr) の法線ベクトルを計算
+                                                        // 入ってくる辺の法線ベクトル
                                                         let vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
                                                         let len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
                                                         let perp_in = len_in > 0 ? { x: -vec_in.y / len_in, y: vec_in.x / len_in } : {x:0, y:0};
                                             
-                                                        // 2. 出ていく辺 (p_curr -> p_next) の法線ベクトルを計算
+                                                        // 出ていく辺の法線ベクトル
                                                         let vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
                                                         let len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
                                                         let perp_out = len_out > 0 ? { x: -vec_out.y / len_out, y: vec_out.x / len_out } : {x:0, y:0};
                                             
-                                                        // 3. 内側と外側の辺（線分）を定義
+                                                        // 内側と外側の辺（線分）を定義
                                                         const outer_line1 = { p1: {x: p_prev.x + perp_in.x * offsetDistance, y: p_prev.y + perp_in.y * offsetDistance}, p2: {x: p_curr.x + perp_in.x * offsetDistance, y: p_curr.y + perp_in.y * offsetDistance} };
                                                         const outer_line2 = { p1: {x: p_curr.x + perp_out.x * offsetDistance, y: p_curr.y + perp_out.y * offsetDistance}, p2: {x: p_next.x + perp_out.x * offsetDistance, y: p_next.y + perp_out.y * offsetDistance} };
                                                         const inner_line1 = { p1: {x: p_prev.x - perp_in.x * offsetDistance, y: p_prev.y - perp_in.y * offsetDistance}, p2: {x: p_curr.x - perp_in.x * offsetDistance, y: p_curr.y - perp_in.y * offsetDistance} };
                                                         const inner_line2 = { p1: {x: p_curr.x - perp_out.x * offsetDistance, y: p_curr.y - perp_out.y * offsetDistance}, p2: {x: p_next.x - perp_out.x * offsetDistance, y: p_next.y - perp_out.y * offsetDistance} };
                                                         
-                                                        // 4. 交点を計算して、新しい角の頂点とする
+                                                        // 交点を計算
                                                         const outerCorner = getLineIntersection(outer_line1.p1, outer_line1.p2, outer_line2.p1, outer_line2.p2);
                                                         const innerCorner = getLineIntersection(inner_line1.p1, inner_line1.p2, inner_line2.p1, inner_line2.p2);
-                                            
-                                                        if (outerCorner) outerPoints.push(outerCorner); else outerPoints.push(outer_line1.p2);
-                                                        if (innerCorner) innerPoints.push(innerCorner); else innerPoints.push(inner_line1.p2);
+                                                        
+                                                        // 交点が計算できない場合（直線など）は、オフセットしただけの点を採用
+                                                        outerPoints.push(outerCorner || outer_line1.p2);
+                                                        innerPoints.push(innerCorner || inner_line1.p2);
                                                     }
                                             
+                                                    // 2. 計算した頂点リストを元に、辺を描画していく
                                                     return (
                                                         <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
-                                                            {/* 1. 塗りつぶし専用のポリゴン */}
+                                                            {/* 塗りつぶし用ポリゴン */}
                                                             <polygon
                                                                 data-id={el.id}
                                                                 points={el.points}
@@ -5820,17 +5824,28 @@ ${JSON.stringify(exampleData10)}
                                                                 style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
                                                             />
                                                             
-                                                            {/* 2. 背景パターンの描画 */}
+                                                            {/* 背景パターン */}
                                                             <BackgroundRenderer element={el} />
                                             
-                                                            {/* 3. 計算した頂点から二重線ポリゴンを描画 */}
+                                                            {/* 二重線の枠線 */}
                                                             <g style={{ pointerEvents: 'none' }}>
-                                                                {/* 外側のポリゴンと内側のポリゴンで塗りつぶし、その差分が線になる */}
-                                                                <path 
-                                                                    d={`M ${outerPoints.map(p => `${p.x} ${p.y}`).join(' L ')} Z M ${innerPoints.map(p => `${p.x} ${p.y}`).join(' L ')} Z`}
-                                                                    fill={stroke}
-                                                                    fillRule="evenodd"
-                                                                />
+                                                                {points.map((_, i) => {
+                                                                    const outerP1 = outerPoints[i];
+                                                                    const outerP2 = outerPoints[(i + 1) % points.length];
+                                                                    const innerP1 = innerPoints[i];
+                                                                    const innerP2 = innerPoints[(i + 1) % points.length];
+                                                                    
+                                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
+                                            
+                                                                    return (
+                                                                        <g key={`${el.id}-edge-${i}`}>
+                                                                            <line x1={outerP1.x} y1={outerP1.y} x2={outerP2.x} y2={outerP2.y}
+                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" />
+                                                                            <line x1={innerP1.x} y1={innerP1.y} x2={innerP2.x} y2={innerP2.y}
+                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" />
+                                                                        </g>
+                                                                    );
+                                                                })}
                                                             </g>
                                                         </g>
                                                     );
@@ -5847,7 +5862,7 @@ ${JSON.stringify(exampleData10)}
                                                                 stroke={stroke}
                                                                 strokeWidth={strokeW}
                                                                 strokeDasharray={style?.dashArray}
-                                                                strokeLinejoin="miter" // マイター結合を指定
+                                                                strokeLinejoin="miter"
                                                                 shapeRendering="crispEdges"
                                                                 style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
                                                             />
