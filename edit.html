@@ -3667,63 +3667,63 @@ ${JSON.stringify(exampleData10)}
                                     const p1 = points[i];
                                     const p2 = points[(i + 1) % points.length];
                                     allWallSegments.push({ ...el, p1, p2 });
-                                    if (drawingMode === 'stairs' && linePoints.length === 0 && isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
-                                        let closestWall = null;
-                                        let minDistanceSq = Infinity;
-                                        let closestPointOnWall = null;
-                                    
-                                        for (const wall of allWallSegments) {
-                                            const p1 = wall.p1;
-                                            const p2 = wall.p2;
-                                            const dx = p2.x - p1.x;
-                                            const dy = p2.y - p1.y;
-                                    
-                                            if (dx === 0 && dy === 0) continue;
-                                    
-                                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                            const clampedT = Math.max(0, Math.min(1, t));
-                                            const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                            const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                    
-                                            if (distSq < minDistanceSq) {
-                                                minDistanceSq = distSq;
-                                                closestWall = wall;
-                                                closestPointOnWall = pointOnLine;
-                                            }
-                                        }
-                                    
-                                        if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
-                                            const wallDx = closestWall.p2.x - closestWall.p1.x;
-                                            const wallDy = closestWall.p2.y - closestWall.p1.y;
-                                            const wallAngle = Math.atan2(wallDy, wallDx) * 180 / Math.PI;
-                                    
-                                            // 壁の法線ベクトル（単位ベクトル）
-                                            const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
-                                            const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
-                                            
-                                            // マウス位置から見て、壁のどちら側に階段を置くかを決める
-                                            const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
-                                            const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
-                                            const side = Math.sign(dotProduct) || 1;
-                                    
-                                            // 階段の中心線の位置を計算
-                                            const previewCenter = {
-                                                x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
-                                                y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
-                                            };
-                                            
-                                            setStairSnapPreview({ center: previewCenter, angle: wallAngle });
-                                            setSnappedInfo(null); // 他のスナップ表示を無効化
-                                        } else {
-                                            setStairSnapPreview(null);
-                                        }
-                                    } else if (stairSnapPreview) {
-                                        setStairSnapPreview(null);
-                                    }
                                 }
                             }
                         });
-            
+                        if (drawingMode === 'stairs' && linePoints.length === 0 && isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
+                            let closestWall = null;
+                            let minDistanceSq = Infinity;
+                            let closestPointOnWall = null;
+                                    
+                            for (const wall of allWallSegments) {
+                                 const p1 = wall.p1;
+                                const p2 = wall.p2;
+                                const dx = p2.x - p1.x;
+                                const dy = p2.y - p1.y;
+                                    
+                                if (dx === 0 && dy === 0) continue;
+                                    
+                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                const clampedT = Math.max(0, Math.min(1, t));
+                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+                                    
+                                if (distSq < minDistanceSq) {
+                                     minDistanceSq = distSq;
+                                    closestWall = wall;
+                                    closestPointOnWall = pointOnLine;
+                                }
+                            }
+                                    
+                            if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
+                                const wallDx = closestWall.p2.x - closestWall.p1.x;
+                                const wallDy = closestWall.p2.y - closestWall.p1.y;
+                                const wallAngle = Math.atan2(wallDy, wallDx) * 180 / Math.PI;
+                                    
+                                // 壁の法線ベクトル（単位ベクトル）
+                                const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                                const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
+                                            
+                                // マウス位置から見て、壁のどちら側に階段を置くかを決める
+                                const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                                const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                                 const side = Math.sign(dotProduct) || 1;
+                                    
+                                // 階段の中心線の位置を計算
+                                const previewCenter = {
+                                    x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
+                                    y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
+                                };
+                                            
+                                setStairSnapPreview({ center: previewCenter, angle: wallAngle });
+                                setSnappedInfo(null); // 他のスナップ表示を無効化
+                            } else {
+                                setStairSnapPreview(null);
+                            }
+                        } else if (stairSnapPreview) {
+                            setStairSnapPreview(null);
+                        }
+
                         if (drawingStartPoint) {
                             let clickedEndPoint;
                             if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
