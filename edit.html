@@ -3663,12 +3663,11 @@ ${JSON.stringify(exampleData10)}
                         return;
                     }
                     
-                    // [修正箇所1] 2クリック描画の「2クリック目」の処理
                     if (drawingStartPoint) {
                         const endPoint = getCanvasCoords(e);
+                        const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
                         
                         if (drawingMode === 'space' && spaceShape === 'rect') {
-                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
                             const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
                             const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
                             const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
@@ -3676,9 +3675,6 @@ ${JSON.stringify(exampleData10)}
                             const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
                             createPolygonSpace(rectPoints);
                         } else {
-                            // wall, compass などのその他の2クリック描画
-                            // 始点(drawingStartPoint)は1クリック目にスナップ済みです。
-                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
                             createItem(drawingStartPoint, finalEndPoint);
                         }
                         
@@ -3687,19 +3683,21 @@ ${JSON.stringify(exampleData10)}
                         return;
                     }
             
-                    // [修正箇所2] 1クリック描画、または2クリック描画の「1クリック目」の処理
+                    // ▼▼▼ このブロックが修正箇所です ▼▼▼
                     if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
-                        const startPoint = getCanvasCoords(e);
-                        // ✅ まずクリックした座標をスナップします
-                        const snappedStartPoint = isGridVisible ? getGridSnappedPoint(startPoint) : startPoint;
+                        // [修正] snappedInfo（頂点/延長線スナップ）があれば最優先で使い、
+                        // なければグリッドスナップ、それもなければ素のクリック座標を使います。
+                        const finalStartPoint = snappedInfo 
+                            ? snappedInfo.point 
+                            : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
             
                         if (drawingMode === 'fixture') {
-                            setPendingFixture(snappedStartPoint);
+                            setPendingFixture(finalStartPoint);
                         } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
-                            // ✅ スナップ済みの座標を開始点としてセットします
-                            setDrawingStartPoint(snappedStartPoint);
+                            // スナップで決定した最終的な座標を開始点としてセットします
+                            setDrawingStartPoint(finalStartPoint);
                         } else { // textなど1クリックで完結するもの
-                            createItem(snappedStartPoint);
+                            createItem(finalStartPoint);
                         }
                         setSnappedInfo(null);
                     }
