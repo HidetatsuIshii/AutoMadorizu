@@ -3749,7 +3749,6 @@ ${JSON.stringify(exampleData10)}
                             setSnappedInfo(null);
                             return;
                         } else {
-                            // ▼▼▼ ここからが今回の主要な修正箇所です ▼▼▼
                             let startPoint = null;
                             let snappedWall = null;
                 
@@ -3800,8 +3799,8 @@ ${JSON.stringify(exampleData10)}
                     }
                     
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
+                        // 階段モードでプレビューが表示されている状態でクリックされたら、その位置を始点とする
                         if (drawingMode === 'stairs' && stairSnapPreview) {
-                            // 階段のスナッププレビューがある場合、その中心点を始点とする
                             const segmentStart = {
                                 x: stairSnapPreview.center.x,
                                 y: stairSnapPreview.center.y
@@ -4180,8 +4179,10 @@ ${JSON.stringify(exampleData10)}
                     });
                     return;
                 }
-            
-                // [修正点1] 'space'の辺と'wall'要素から、全ての壁セグメントのリストを作成します
+                
+                // ▼▼▼【ここからが階段プレビューのための追加・修正箇所】▼▼▼
+                
+                // 壁セグメントのリストを作成
                 const allWallSegments = [];
                 svgElements.forEach(el => {
                     if (el.type === 'wall') {
@@ -4196,8 +4197,64 @@ ${JSON.stringify(exampleData10)}
                     }
                 });
             
+                // 階段モードで、まだ描画を開始していない場合のプレビュー処理
+                if (drawingMode === 'stairs' && linePoints.length === 0 && isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
+                    let closestWall = null;
+                    let minDistanceSq = Infinity;
+                    let closestPointOnWall = null;
+            
+                    for (const wall of allWallSegments) {
+                        const p1 = wall.p1;
+                        const p2 = wall.p2;
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+            
+                        if (dx === 0 && dy === 0) continue;
+            
+                        const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                        const clampedT = Math.max(0, Math.min(1, t));
+                        const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                        const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+            
+                        if (distSq < minDistanceSq) {
+                            minDistanceSq = distSq;
+                            closestWall = wall;
+                            closestPointOnWall = pointOnLine;
+                        }
+                    }
+                    
+                    // スナップ範囲内であればプレビュー情報をセット
+                    if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
+                        const wallDx = closestWall.p2.x - closestWall.p1.x;
+                        const wallDy = closestWall.p2.y - closestWall.p1.y;
+                        const wallAngle = Math.atan2(wallDy, wallDx) * 180 / Math.PI;
+                        
+                        const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                        const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
+                        
+                        const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                        const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                        const side = Math.sign(dotProduct) || 1;
+            
+                        const previewCenter = {
+                            x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
+                            y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
+                        };
+                        
+                        setStairSnapPreview({ center: previewCenter, angle: wallAngle });
+                        setSnappedInfo(null); // 他のスナップ表示と競合しないようにクリア
+                    } else {
+                        setStairSnapPreview(null); // スナップ範囲外ならプレビューを消す
+                    }
+                } else if (stairSnapPreview) {
+                    setStairSnapPreview(null); // 条件を満たさなくなったらプレビューを消す
+                }
+            
+                // ▲▲▲【ここまでが階段プレビューのための追加・修正箇所】▲▲▲
+            
                 const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
                 
+                // ... (以降の既存のスナップロジックは変更なし)
                 let newGuideLines = [];
                 let closestSnap = null;
                 let minDistance = SNAP_THRESHOLD / zoom;
@@ -4257,7 +4314,6 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
-                    // [修正点2] 'allWalls' の代わりに先ほど作成した 'allWallSegments' を使って壁へのスナップを計算します
                     if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWallSegments.length > 0) {
                         for (const segment of allWallSegments) {
                             const { p1, p2 } = segment;
@@ -4269,14 +4325,19 @@ ${JSON.stringify(exampleData10)}
                             const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
                             if (distSq < minDistance * minDistance) {
                                 minDistance = Math.sqrt(distSq);
-                                closestSnap = { point: pointOnLine, type: 'wall', wall: segment }; // 'wall'プロパティにはセグメント情報全体を渡します
+                                closestSnap = { point: pointOnLine, type: 'wall', wall: segment }; 
                             }
                         }
                     }
                 }
                 
-                setSnappedInfo(closestSnap);
-            
+                // stairSnapPreviewが表示されているときは、他のスナップを無効化
+                if (stairSnapPreview) {
+                  setSnappedInfo(null);
+                } else {
+                  setSnappedInfo(closestSnap);
+                }
+                
                 if (closestSnap?.type === 'extension') {
                     const { guide } = closestSnap;
                     if (guide.type === 'vertical') {
@@ -4503,10 +4564,10 @@ ${JSON.stringify(exampleData10)}
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
                 }
-            }, [
+             }, [
                 getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart,
                 drawingMode, spaceShape, linePoints, zoom, svgElements, isSnapToWall, isModifierKeyDown,
-                dragTarget, mouseDownInfo, selectedId, editorMode, imagePosition
+                dragTarget, mouseDownInfo, selectedId, editorMode, imagePosition, stairWidth, stairSnapPreview // stairWidth, stairSnapPreview を依存配列に追加
             ]);
 
 
