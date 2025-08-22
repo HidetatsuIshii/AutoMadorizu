@@ -5411,11 +5411,11 @@ ${JSON.stringify(exampleData10)}
 
             const StairsRenderer = ({ element, onContextMenu }) => {
                 const { points: pointsStr, width, color, strokeWidth } = element;
-                
-                // 2直線の交点を計算
+            
+                // ヘルパー関数: 2直線の交点を計算
                 const getLineIntersection = (p1, p2, p3, p4) => {
                     const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                    if (Math.abs(d) < 1e-8) return null;
+                    if (Math.abs(d) < 1e-8) { return null; }
                     const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
                     return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
                 };
@@ -5423,15 +5423,14 @@ ${JSON.stringify(exampleData10)}
                 const points = pointsStr.split(' ').map(p => { const [x, y] = p.split(',').map(parseFloat); return { x, y }; });
                 if (points.length < 2) return null;
             
-                const outlines = [[], []]; // [0] for right side, [1] for left side
+                const outlines = [[], []];
                 const halfWidth = width / 2;
             
-                // アウトラインの頂点を計算
+                // アウトラインの頂点を計算 (前回修正したロジックを維持)
                 for (let i = 0; i < points.length; i++) {
                     const p_curr = points[i];
                     const p_prev = i > 0 ? points[i - 1] : null;
                     const p_next = i < points.length - 1 ? points[i + 1] : null;
-                    
                     const getPerp = (p1, p2) => {
                         const vec = { x: p2.x - p1.x, y: p2.y - p1.y };
                         const len = Math.sqrt(vec.x ** 2 + vec.y ** 2);
@@ -5463,32 +5462,89 @@ ${JSON.stringify(exampleData10)}
                     }
                 }
             
+                // ▼▼▼【ここから下を、元の段差描画ロジックに戻します】▼▼▼
                 const steps = [];
                 const stepInterval = 15;
                 let accumulatedLength = 0;
             
+                const cornerMargins = new Array(points.length).fill(0);
+                for (let i = 1; i < points.length - 1; i++) {
+                    const p_prev = points[i-1], p_curr = points[i], p_next = points[i+1];
+                    const vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
+                    const vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
+                    const len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
+                    const len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
+                    const dir_in = len_in > 0 ? {x: vec_in.x/len_in, y: vec_in.y/len_in} : {x:0, y:0};
+                    const dir_out = len_out > 0 ? {x: vec_out.x/len_out, y: vec_out.y/len_out} : {x:0, y:0};
+                    let dot = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
+                    dot = Math.max(-1, Math.min(1, dot));
+                    const angle = Math.acos(dot);
+            
+                    if (angle >= Math.PI / 4) {
+                        cornerMargins[i] = Math.min(width / 2, len_in / 2, len_out / 2);
+                    }
+                }
+            
                 for (let i = 0; i < points.length - 1; i++) {
-                    const p1 = points[i], p2 = points[i + 1];
+                    const p1 = points[i], p2 = points[i+1];
                     const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
-                    const segmentLen = Math.sqrt(segmentVec.x ** 2 + segmentVec.y ** 2);
+                    const segmentLen = Math.sqrt(segmentVec.x**2 + segmentVec.y**2);
                     if (segmentLen < 1) continue;
+                    
+                    const startMargin = cornerMargins[i];
+                    const endMargin = cornerMargins[i+1];
             
                     const segmentDir = { x: segmentVec.x / segmentLen, y: segmentVec.y / segmentLen };
                     const perp = { x: -segmentDir.y, y: segmentDir.x };
-                    let nextStepDist = Math.ceil(accumulatedLength / stepInterval) * stepInterval;
-                    if(nextStepDist <= accumulatedLength) nextStepDist += stepInterval;
-            
-                    while (nextStepDist < accumulatedLength + segmentLen) {
+                    let nextStepDist = Math.ceil((accumulatedLength + startMargin) / stepInterval) * stepInterval;
+                    
+                    while(nextStepDist < accumulatedLength + segmentLen - endMargin) {
                         const l = nextStepDist - accumulatedLength;
-                        const stepCenter = { x: p1.x + segmentDir.x * l, y: p1.y + segmentDir.y * l };
-                        const s1 = { x: stepCenter.x + perp.x * halfWidth, y: stepCenter.y + perp.y * halfWidth };
-                        const s2 = { x: stepCenter.x - perp.x * halfWidth, y: stepCenter.y - perp.y * halfWidth };
-                        steps.push(<line key={`step-${i}-${l}`} x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={color} strokeWidth={1} />);
+                        if (l >= startMargin) {
+                            const stepCenter = { x: p1.x + segmentDir.x * l, y: p1.y + segmentDir.y * l };
+                            const s1 = { x: stepCenter.x + perp.x * width / 2, y: stepCenter.y + perp.y * width / 2 };
+                            const s2 = { x: stepCenter.x - perp.x * width / 2, y: stepCenter.y - perp.y * width / 2 };
+                            steps.push(<line key={`step-s-${i}-${l}`} x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={color} strokeWidth={1} />);
+                        }
                         nextStepDist += stepInterval;
                     }
                     accumulatedLength += segmentLen;
                 }
-                
+            
+                for (let i = 1; i < points.length - 1; i++) {
+                    const margin = cornerMargins[i];
+                    const crossProduct = (points[i].x - points[i-1].x) * (points[i+1].y - points[i].y) - (points[i].y - points[i-1].y) * (points[i+1].x - points[i].x);
+            
+                    if (margin === 0) {
+                        const innerCornerPoint = outlines[(crossProduct > 0) ? 1 : 0][i-1]; // outlinesのインデックスをi-1に修正
+                        const outerCornerPoint = outlines[(crossProduct > 0) ? 0 : 1][i-1]; // outlinesのインデックスをi-1に修正
+                        steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
+                    } else {
+                        const innerOutlineIndex = (crossProduct > 0) ? 1 : 0;
+                        const outerOutlineIndex = (crossProduct > 0) ? 0 : 1;
+                        
+                        const innerCornerPoint = outlines[innerOutlineIndex][i-1];
+                        const outerCornerPoint = outlines[outerOutlineIndex][i-1];
+            
+                        const prevOuterPoint = outlines[outerOutlineIndex][i-2];
+                        const nextOuterPoint = outlines[outerOutlineIndex][i];
+            
+                        const vecOuterIn = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
+                        const lenOuterIn = Math.sqrt(vecOuterIn.x**2 + vecOuterIn.y**2);
+                        const dirOuterIn = { x: vecOuterIn.x / lenOuterIn, y: vecOuterIn.y / lenOuterIn };
+                        const outerP1 = { x: outerCornerPoint.x + dirOuterIn.x * margin, y: outerCornerPoint.y + dirOuterIn.y * margin };
+                        
+                        const vecOuterOut = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
+                        const lenOuterOut = Math.sqrt(vecOuterOut.x**2 + vecOuterOut.y**2);
+                        const dirOuterOut = { x: vecOuterOut.x / lenOuterOut, y: vecOuterOut.y / lenOuterOut };
+                        const outerP2 = { x: outerCornerPoint.x + dirOuterOut.x * margin, y: outerCornerPoint.y + dirOuterOut.y * margin };
+                        
+                        steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
+                        steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
+                    }
+                }
+                // ▲▲▲【ここまでが元の段差描画ロジック】▲▲▲
+            
                 return (
                     <g data-id={element.id} onContextMenu={onContextMenu} style={{ pointerEvents: 'all', cursor: 'grab' }}>
                         <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
