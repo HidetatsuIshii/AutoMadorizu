@@ -130,6 +130,36 @@
             main: ["LDK", "DK", "K", "居室", "和室", "収納", "洗面所", "浴室", "トイレ", "廊下", "玄関", "バルコニー"],
             sub: ["柱", "吹抜", "グルニエ", "折上天井", "床下収納", "カウンター", "棚", "下足入", "冷蔵庫", "洗濯機", "PS", "MB"]
         };
+        const SPACE_STYLE_PRESETS = {
+            // --- 主要な空間 ---
+            "LDK":        { fill: "#fef3c7", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "DK":         { fill: "#fef3c7", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "K":          { fill: "#fef3c7", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "居室":       { fill: "#f5e5d4", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "和室":       { fill: "#dcfce7", background: 'grid-large',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "収納":       { fill: "#fef9c3", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "洗面所":     { fill: "#dbeafe", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "浴室":       { fill: "#dbeafe", background: 'grid-small',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "トイレ":     { fill: "#dbeafe", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "廊下":       { fill: "rgb(245, 229, 212)", background: 'none', lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "玄関":       { fill: "#dedede", background: 'grid-small',      lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' },
+            "バルコニー": { fill: "#f5f5f5", background: 'vertical-lines',  lineStyle: 'dashed', strokeWidth: 2, strokeColor: '#808080' },
+            // --- サブの空間 ---
+            "柱":         { fill: "#000000", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "吹抜":       { fill: "none",    background: 'dotted-x',      lineStyle: 'dotted', strokeWidth: 2, strokeColor: '#000000' },
+            "グルニエ":   { fill: "none",    background: 'dotted-x',      lineStyle: 'dotted', strokeWidth: 2, strokeColor: '#000000' },
+            "折上天井":   { fill: "none",    background: 'dotted-x',      lineStyle: 'dotted', strokeWidth: 2, strokeColor: '#000000' },
+            "床下収納":   { fill: "none",    background: 'dotted-x',      lineStyle: 'dotted', strokeWidth: 2, strokeColor: '#000000' },
+            "カウンター": { fill: "#CD924C", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "棚":         { fill: "#CD924C", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "下足入":     { fill: "#CD924C", background: 'none',            lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "冷蔵庫":     { fill: "none",    background: 'none',            lineStyle: 'dotted', strokeWidth: 1, strokeColor: '#808080' },
+            "洗濯機":     { fill: "none",    background: 'none',            lineStyle: 'dotted', strokeWidth: 1, strokeColor: '#808080' },
+            "PS":         { fill: "#ffffff", background: 'solid-x',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            "MB":         { fill: "#ffffff", background: 'solid-x',         lineStyle: 'solid',  strokeWidth: 1, strokeColor: '#000000' },
+            // --- デフォルト設定 ---
+            "default":    { fill: "#fafafa", background: 'none',            lineStyle: 'solid',  strokeWidth: 3, strokeColor: '#000000' }
+        };
         const FONT_FAMILIES = [
             { id: 'sans-serif', name: 'ゴシック体' },
             { id: 'serif', name: '明朝体' },
@@ -1518,6 +1548,19 @@
 
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
+            const handleSpaceTypeChange = (newType) => {
+                // 1. 空間タイプそのものを更新
+                setSpaceType(newType);
+                // 2. 新しいタイプに対応するプリセットを探す（なければデフォルトを使用）
+                const preset = SPACE_STYLE_PRESETS[newType] || SPACE_STYLE_PRESETS['default'];
+                // 3. プリセットに基づいて各スタイルを一括で更新
+                setFillColor(preset.fill);
+                setBackgroundPattern(preset.background);
+                setLineStyle(preset.lineStyle);
+                setStrokeWidth(preset.strokeWidth);
+                setStrokeColor(preset.strokeColor);
+            };
+
             const handleSelectedElementUpdate = useCallback((updates) => {
                 if (!selectedId) return;
                  setHistoryState(prevState => {
@@ -1565,15 +1608,27 @@
             const handleSelectedGroupUpdate = useCallback((updates) => {
                 const activeGroupId = selectedElement?.groupId || (selectedElement?.type === 'space' ? selectedElement.id : null);
                 if (!activeGroupId) return;
-
+            
                 setHistoryState(prevState => {
                     const updatedSvgElements = prevState.present.svgElements.map(el => {
                         if (el.groupId === activeGroupId) {
                             let newEl = { ...el, ...updates };
+            
+                            // spaceTypeが更新された場合
                             if (updates.spaceType) {
+                                // [修正点] 新しいタイプに対応するプリセットを取得
+                                const preset = SPACE_STYLE_PRESETS[updates.spaceType] || SPACE_STYLE_PRESETS['default'];
+                                
                                 if (el.type === 'space') {
-                                    newEl.fill = DEFAULT_FILL_COLORS[updates.spaceType] || '#ffffff';
+                                    // [修正点] プリセットに基づいてスタイルを全て上書き
+                                    newEl.fill = preset.fill;
+                                    newEl.backgroundPattern = preset.background;
+                                    newEl.lineStyle = preset.lineStyle;
+                                    newEl.strokeWidth = preset.strokeWidth;
+                                    newEl.stroke = preset.strokeColor; // プロパティ名を 'stroke' に統一
                                 }
+            
+                                // テキストラベルも更新
                                 if (el.type === 'text') {
                                     newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
                                         ? `${updates.spaceType}\n◯.◯帖`
@@ -1584,7 +1639,7 @@
                         }
                         return el;
                     });
-                     return {
+                        return {
                         past: [...prevState.past, prevState.present],
                         present: { ...prevState.present, svgElements: updatedSvgElements },
                         future: []
@@ -6370,7 +6425,7 @@ ${JSON.stringify(exampleData10)}
                                                         </div>
 
                                                         {/* 1. 空間タイプ */}
-                                                        <SpaceTypeSelector selectedType={spaceType} onChange={setSpaceType} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
+                                                        <SpaceTypeSelector selectedType={spaceType} onChange={handleSpaceTypeChange} spaceTypeTab={spaceTypeTab} setSpaceTypeTab={setSpaceTypeTab} />
 
                                                         {/* 2. 背景 */}
                                                         <BackgroundSelector selected={backgroundPattern} onChange={setBackgroundPattern} />
