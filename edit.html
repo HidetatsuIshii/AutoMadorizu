@@ -3620,7 +3620,7 @@ ${JSON.stringify(exampleData10)}
                     setSelectedId(targetId);
                     return;
                 }
-            
+                
                 if (editorMode === 'create' || editorMode === 'continuous-create') {
                     if (pendingFixture) {
                         const startPoint = pendingFixture;
@@ -3636,7 +3636,7 @@ ${JSON.stringify(exampleData10)}
                         }
                         return;
                     }
-            
+                
                     if (pendingWindow) {
                         const center = { x: (pendingWindow.start.x + pendingWindow.end.x) / 2, y: (pendingWindow.start.y + pendingWindow.end.y) / 2 };
                         const dx = clickPos.x - center.x;
@@ -3657,14 +3657,48 @@ ${JSON.stringify(exampleData10)}
                         return;
                     }
                     else if (drawingMode === 'window' || drawingMode === 'door') {
+                        
+                        // [修正点] handleMouseMove と同様に、ここでも全ての壁セグメントを取得します
+                        const allWallSegments = [];
+                        svgElements.forEach(el => {
+                            if (el.type === 'wall') {
+                                allWallSegments.push({ ...el, p1: { x: el.x1, y: el.y1 }, p2: { x: el.x2, y: el.y2 } });
+                            } else if (el.type === 'space') {
+                                const points = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                                for (let i = 0; i < points.length; i++) {
+                                    const p1 = points[i];
+                                    const p2 = points[(i + 1) % points.length];
+                                    allWallSegments.push({ ...el, p1, p2 });
+                                }
+                            }
+                        });
+            
                         if (drawingStartPoint) {
                             let clickedEndPoint;
-                            const walls = svgElements.filter(el => el.type === 'wall');
-                            if (isSnapToWall && !isModifierKeyDown && walls.length > 0) {
+                            if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
                                 if (snappedInfo?.wall) {
                                     clickedEndPoint = snappedInfo.point;
                                 } else {
-                                    clickedEndPoint = getClosestPointOnWalls(clickPos, walls);
+                                    // getClosestPointOnWalls は 'wall' 要素の x1,y1 を期待するため、新しいヘルパー関数をここで定義するか、
+                                    // もしくは getClosestPointOnSegments のような汎用関数を作成するのが理想ですが、
+                                    // ここでは getClosestPointOnWalls のロジックを直接展開して segments に対応させます。
+                                    let tempClosestPoint = null;
+                                    let minDistanceSq = Infinity;
+                                    for (const segment of allWallSegments) {
+                                        const {p1, p2} = segment;
+                                        const dx = p2.x - p1.x;
+                                        const dy = p2.y - p1.y;
+                                        if (dx === 0 && dy === 0) continue;
+                                        const t = ((clickPos.x - p1.x) * dx + (clickPos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                        const clampedT = Math.max(0, Math.min(1, t));
+                                        const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                        const distSq = (clickPos.x - pointOnLine.x) ** 2 + (clickPos.y - pointOnLine.y) ** 2;
+                                        if (distSq < minDistanceSq) {
+                                            minDistanceSq = distSq;
+                                            tempClosestPoint = pointOnLine;
+                                        }
+                                    }
+                                    clickedEndPoint = tempClosestPoint;
                                 }
                             } else {
                                 clickedEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
@@ -3738,10 +3772,7 @@ ${JSON.stringify(exampleData10)}
                         return;
                     }
             
-                    // ▼▼▼ このブロックが修正箇所です ▼▼▼
                     if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
-                        // [修正] snappedInfo（頂点/延長線スナップ）があれば最優先で使い、
-                        // なければグリッドスナップ、それもなければ素のクリック座標を使います。
                         const finalStartPoint = snappedInfo 
                             ? snappedInfo.point 
                             : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
@@ -3749,9 +3780,8 @@ ${JSON.stringify(exampleData10)}
                         if (drawingMode === 'fixture') {
                             setPendingFixture(finalStartPoint);
                         } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
-                            // スナップで決定した最終的な座標を開始点としてセットします
                             setDrawingStartPoint(finalStartPoint);
-                        } else { // textなど1クリックで完結するもの
+                        } else {
                             createItem(finalStartPoint);
                         }
                         setSnappedInfo(null);
@@ -4064,7 +4094,21 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
             
-                const isDrawingShape = (drawingMode === 'space' || drawingMode === 'stairs' || drawingMode === 'wall');
+                // [修正点1] 'space'の辺と'wall'要素から、全ての壁セグメントのリストを作成します
+                const allWallSegments = [];
+                svgElements.forEach(el => {
+                    if (el.type === 'wall') {
+                        allWallSegments.push({ ...el, p1: { x: el.x1, y: el.y1 }, p2: { x: el.x2, y: el.y2 } });
+                    } else if (el.type === 'space') {
+                        const points = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                        for (let i = 0; i < points.length; i++) {
+                            const p1 = points[i];
+                            const p2 = points[(i + 1) % points.length];
+                            allWallSegments.push({ ...el, p1, p2 });
+                        }
+                    }
+                });
+            
                 const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
                 
                 let newGuideLines = [];
@@ -4072,12 +4116,7 @@ ${JSON.stringify(exampleData10)}
                 let minDistance = SNAP_THRESHOLD / zoom;
             
                 if (isSnappingEnabled) {
-                    // ▼▼▼ ここから修正箇所です ▼▼▼
-            
-                    // [修正1] スナップ対象となる全ての頂点を一つの配列に集約します
                     let pointsToSnapAgainst = [];
-            
-                    // 既存の壁と空間の頂点を全てスナップ対象に追加
                     svgElements.forEach(el => {
                         if (el.type === 'wall') {
                             pointsToSnapAgainst.push({x: el.x1, y: el.y1});
@@ -4087,8 +4126,7 @@ ${JSON.stringify(exampleData10)}
                             pointsToSnapAgainst.push(...spacePoints);
                         }
                     });
-                    
-                    // 現在描画中の図形の頂点もスナップ対象に追加
+            
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
                         pointsToSnapAgainst.push(...linePoints);
                     } else if (drawingMode === 'space' && spaceShape === 'rect' && drawingStartPoint) {
@@ -4097,13 +4135,11 @@ ${JSON.stringify(exampleData10)}
                         pointsToSnapAgainst.push(drawingStartPoint);
                     }
             
-                    // [修正2] 集約した頂点に対して、統一されたスナップ処理を実行します
                     if (pointsToSnapAgainst.length > 0) {
                         let bestVerticalSnap = null;
                         let bestHorizontalSnap = null;
                         let minXDist = SNAP_THRESHOLD / zoom;
                         let minYDist = SNAP_THRESHOLD / zoom;
-            
                         pointsToSnapAgainst.forEach(p => {
                             const distX = Math.abs(currentMousePos.x - p.x);
                             if (distX < minXDist) {
@@ -4119,45 +4155,25 @@ ${JSON.stringify(exampleData10)}
             
                         if (bestVerticalSnap && bestHorizontalSnap) {
                             const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
-                            const distToIntersection = Math.sqrt(
-                                Math.pow(currentMousePos.x - intersectionPoint.x, 2) +
-                                Math.pow(currentMousePos.y - intersectionPoint.y, 2)
-                            );
-            
+                            const distToIntersection = Math.sqrt(Math.pow(currentMousePos.x - intersectionPoint.x, 2) + Math.pow(currentMousePos.y - intersectionPoint.y, 2));
                             if (distToIntersection < SNAP_THRESHOLD / zoom) {
                                 minDistance = distToIntersection;
-                                closestSnap = { 
-                                    point: intersectionPoint, 
-                                    type: 'intersection', 
-                                    guide: { 
-                                        vertical: { from: bestVerticalSnap.from },
-                                        horizontal: { from: bestHorizontalSnap.from }
-                                    } 
-                                };
+                                closestSnap = { point: intersectionPoint, type: 'intersection', guide: { vertical: { from: bestVerticalSnap.from }, horizontal: { from: bestHorizontalSnap.from } } };
                             }
                         }
-                        
                         if (!closestSnap) {
                             if (minXDist < minYDist && bestVerticalSnap) {
-                                 closestSnap = { 
-                                    point: { x: bestVerticalSnap.x, y: currentMousePos.y }, 
-                                    type: 'extension', 
-                                    guide: { type: 'vertical', from: bestVerticalSnap.from } 
-                                };
+                                closestSnap = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
                             } else if (bestHorizontalSnap) {
-                                 closestSnap = { 
-                                    point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, 
-                                    type: 'extension', 
-                                    guide: { type: 'horizontal', from: bestHorizontalSnap.from } 
-                                };
+                                closestSnap = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
                             }
                         }
                     }
-                    // ▲▲▲ ここまで修正 ▲▲▲
                     
-                    if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWalls.length > 0) {
-                         for (const wall of allWalls) {
-                            const p1 = { x: wall.x1, y: wall.y1 }, p2 = { x: wall.x2, y: wall.y2 };
+                    // [修正点2] 'allWalls' の代わりに先ほど作成した 'allWallSegments' を使って壁へのスナップを計算します
+                    if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWallSegments.length > 0) {
+                        for (const segment of allWallSegments) {
+                            const { p1, p2 } = segment;
                             const dx = p2.x - p1.x, dy = p2.y - p1.y;
                             if (dx === 0 && dy === 0) continue;
                             const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
@@ -4165,8 +4181,8 @@ ${JSON.stringify(exampleData10)}
                             const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
                             const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
                             if (distSq < minDistance * minDistance) {
-                               minDistance = Math.sqrt(distSq);
-                               closestSnap = { point: pointOnLine, type: 'wall', wall: wall };
+                                minDistance = Math.sqrt(distSq);
+                                closestSnap = { point: pointOnLine, type: 'wall', wall: segment }; // 'wall'プロパティにはセグメント情報全体を渡します
                             }
                         }
                     }
