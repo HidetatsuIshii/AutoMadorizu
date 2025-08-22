@@ -1527,6 +1527,7 @@
             const [originalImageDimensions, setOriginalImageDimensions] = useState(null);
             const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetElement: null });
             const [clipboard, setClipboard] = useState(null);
+            const [stairSnapPreview, setStairSnapPreview] = useState(null);
 
             // --- Ref定義 ---
             const imageRef = useRef(null);
@@ -3666,6 +3667,59 @@ ${JSON.stringify(exampleData10)}
                                     const p1 = points[i];
                                     const p2 = points[(i + 1) % points.length];
                                     allWallSegments.push({ ...el, p1, p2 });
+                                    if (drawingMode === 'stairs' && linePoints.length === 0 && isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
+                                        let closestWall = null;
+                                        let minDistanceSq = Infinity;
+                                        let closestPointOnWall = null;
+                                    
+                                        for (const wall of allWallSegments) {
+                                            const p1 = wall.p1;
+                                            const p2 = wall.p2;
+                                            const dx = p2.x - p1.x;
+                                            const dy = p2.y - p1.y;
+                                    
+                                            if (dx === 0 && dy === 0) continue;
+                                    
+                                            const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                            const clampedT = Math.max(0, Math.min(1, t));
+                                            const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                            const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+                                    
+                                            if (distSq < minDistanceSq) {
+                                                minDistanceSq = distSq;
+                                                closestWall = wall;
+                                                closestPointOnWall = pointOnLine;
+                                            }
+                                        }
+                                    
+                                        if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
+                                            const wallDx = closestWall.p2.x - closestWall.p1.x;
+                                            const wallDy = closestWall.p2.y - closestWall.p1.y;
+                                            const wallAngle = Math.atan2(wallDy, wallDx) * 180 / Math.PI;
+                                    
+                                            // 壁の法線ベクトル（単位ベクトル）
+                                            const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                                            const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
+                                            
+                                            // マウス位置から見て、壁のどちら側に階段を置くかを決める
+                                            const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                                            const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                                            const side = Math.sign(dotProduct) || 1;
+                                    
+                                            // 階段の中心線の位置を計算
+                                            const previewCenter = {
+                                                x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
+                                                y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
+                                            };
+                                            
+                                            setStairSnapPreview({ center: previewCenter, angle: wallAngle });
+                                            setSnappedInfo(null); // 他のスナップ表示を無効化
+                                        } else {
+                                            setStairSnapPreview(null);
+                                        }
+                                    } else if (stairSnapPreview) {
+                                        setStairSnapPreview(null);
+                                    }
                                 }
                             }
                         });
@@ -3749,6 +3803,16 @@ ${JSON.stringify(exampleData10)}
                     }
                     
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
+                        if (drawingMode === 'stairs' && stairSnapPreview) {
+                            // 階段のスナッププレビューがある場合、その中心点を始点とする
+                            const segmentStart = {
+                                x: stairSnapPreview.center.x,
+                                y: stairSnapPreview.center.y
+                            };
+                            setLinePoints(prev => [...prev, segmentStart]);
+                            setStairSnapPreview(null);
+                            return;
+                        }
                         if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
                             const firstPoint = linePoints[0];
                             const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
@@ -5357,6 +5421,43 @@ ${JSON.stringify(exampleData10)}
                 );
             };
 
+            const StairsPrePlacementPreview = ({ previewInfo, width, color }) => {
+                if (!previewInfo) return null;
+            
+                const { center, angle } = previewInfo;
+                const rad = angle * Math.PI / 180;
+            
+                // 階段のプレビュー用の短い線の長さ
+                const previewLength = 50; 
+            
+                // 中心線から両端までのベクトル
+                const perpVec = { x: -Math.sin(rad) * (width / 2), y: Math.cos(rad) * (width / 2) };
+                
+                // 進行方向のベクトル
+                const dirVec = { x: Math.cos(rad) * (previewLength / 2), y: Math.sin(rad) * (previewLength / 2) };
+                
+                // 両端の線の始点と終点
+                const line1_p1 = { x: center.x + perpVec.x - dirVec.x, y: center.y + perpVec.y - dirVec.y };
+                const line1_p2 = { x: center.x + perpVec.x + dirVec.x, y: center.y + perpVec.y + dirVec.y };
+                const line2_p1 = { x: center.x - perpVec.x - dirVec.x, y: center.y - perpVec.y - dirVec.y };
+                const line2_p2 = { x: center.x - perpVec.x + dirVec.x, y: center.y - perpVec.y + dirVec.y };
+            
+                return (
+                    <g style={{ pointerEvents: 'none', opacity: 0.8 }}>
+                        <line 
+                            x1={line1_p1.x} y1={line1_p1.y} 
+                            x2={line1_p2.x} y2={line1_p2.y} 
+                            stroke={color} strokeWidth={2} strokeDasharray="6,4" 
+                        />
+                        <line 
+                            x1={line2_p1.x} y1={line2_p1.y} 
+                            x2={line2_p2.x} y2={line2_p2.y} 
+                            stroke={color} strokeWidth={2} strokeDasharray="6,4" 
+                        />
+                    </g>
+                );
+            };
+
             const StairsRenderer = ({ element, onContextMenu }) => {
                 const { points: pointsStr, width, direction, color, strokeWidth } = element;
 
@@ -6131,6 +6232,12 @@ ${JSON.stringify(exampleData10)}
                                                 style={{ pointerEvents: 'none' }}
                                             />
                                         ))}
+                                        
+                                        <StairsPrePlacementPreview 
+                                            previewInfo={stairSnapPreview} 
+                                            width={stairWidth} 
+                                            color={SELECTED_ELEMENT_COLOR} 
+                                        />
 
                                         {/* スナップされた位置に表示される丸印 */}
                                         {snappedInfo && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
