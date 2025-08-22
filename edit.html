@@ -3621,7 +3621,7 @@ ${JSON.stringify(exampleData10)}
                     setSelectedId(targetId);
                     return;
                 }
-                
+            
                 if (editorMode === 'create' || editorMode === 'continuous-create') {
                     if (pendingFixture) {
                         const startPoint = pendingFixture;
@@ -3637,7 +3637,7 @@ ${JSON.stringify(exampleData10)}
                         }
                         return;
                     }
-                
+            
                     if (pendingWindow) {
                         const center = { x: (pendingWindow.start.x + pendingWindow.end.x) / 2, y: (pendingWindow.start.y + pendingWindow.end.y) / 2 };
                         const dx = clickPos.x - center.x;
@@ -3670,57 +3670,6 @@ ${JSON.stringify(exampleData10)}
                                 }
                             }
                         });
-                        if (drawingMode === 'stairs' && linePoints.length === 0 && isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
-                            let closestWall = null;
-                            let minDistanceSq = Infinity;
-                            let closestPointOnWall = null;
-                    
-                            for (const wall of allWallSegments) {
-                                const p1 = wall.p1;
-                                const p2 = wall.p2;
-                                const dx = p2.x - p1.x;
-                                const dy = p2.y - p1.y;
-                    
-                                if (dx === 0 && dy === 0) continue;
-                    
-                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                const clampedT = Math.max(0, Math.min(1, t));
-                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                    
-                                if (distSq < minDistanceSq) {
-                                    minDistanceSq = distSq;
-                                    closestWall = wall;
-                                    closestPointOnWall = pointOnLine;
-                                }
-                            }
-                    
-                            if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
-                                const wallDx = closestWall.p2.x - closestWall.p1.x;
-                                const wallDy = closestWall.p2.y - closestWall.p1.y;
-                                const wallAngle = Math.atan2(wallDy, wallDx) * 180 / Math.PI;
-                                
-                                const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
-                                const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
-                                
-                                const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
-                                const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
-                                const side = Math.sign(dotProduct) || 1;
-                    
-                                const previewCenter = {
-                                    x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
-                                    y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
-                                };
-                                
-                                setStairSnapPreview({ center: previewCenter, angle: wallAngle });
-                                setSnappedInfo(null);
-                            } else {
-                                setStairSnapPreview(null);
-                            }
-                        } else if (stairSnapPreview) {
-                            setStairSnapPreview(null);
-                        }
-
                         if (drawingStartPoint) {
                             let clickedEndPoint;
                             if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
@@ -3751,13 +3700,12 @@ ${JSON.stringify(exampleData10)}
                         } else {
                             let startPoint = null;
                             let snappedWall = null;
-                
+            
                             if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
-                                // クリック時に改めて最近傍点を計算する
                                 let tempClosestPoint = null;
                                 let minDistanceSq = Infinity;
                                 let closestSegment = null;
-                
+            
                                 for (const segment of allWallSegments) {
                                     const {p1, p2} = segment;
                                     const dx = p2.x - p1.x;
@@ -3767,26 +3715,24 @@ ${JSON.stringify(exampleData10)}
                                     const clampedT = Math.max(0, Math.min(1, t));
                                     const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
                                     const distSq = (clickPos.x - pointOnLine.x) ** 2 + (clickPos.y - pointOnLine.y) ** 2;
-                
+            
                                     if (distSq < minDistanceSq) {
                                         minDistanceSq = distSq;
                                         tempClosestPoint = pointOnLine;
                                         closestSegment = segment;
                                     }
                                 }
-                
-                                // クリック位置が壁に十分近い場合のみ、描画を開始する
+            
                                 if (minDistanceSq < (SNAP_THRESHOLD / zoom) ** 2) {
                                     startPoint = tempClosestPoint;
                                     snappedWall = closestSegment;
                                 } else {
-                                    return; // 壁から遠いので何もしない
+                                    return; 
                                 }
                             } else {
-                                // スナップしない場合は、グリッドか素の座標を使用
                                 startPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
                             }
-                
+            
                             if (startPoint) {
                                 setDrawingStartPoint(startPoint);
                                 if (snappedWall) {
@@ -3798,16 +3744,13 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
+                    // ▼▼▼【ここからが階段プレビューのための追加・修正箇所】▼▼▼
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
                         // 階段モードでプレビューが表示されている状態でクリックされたら、その位置を始点とする
                         if (drawingMode === 'stairs' && stairSnapPreview) {
-                            const segmentStart = {
-                                x: stairSnapPreview.center.x,
-                                y: stairSnapPreview.center.y
-                            };
-                            setLinePoints(prev => [...prev, segmentStart]);
+                            setLinePoints(prev => [...prev, stairSnapPreview.center]);
                             setStairSnapPreview(null);
-                            return;
+                            return; // ★重要：ここで処理を終了
                         }
                         if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
                             const firstPoint = linePoints[0];
@@ -3824,10 +3767,11 @@ ${JSON.stringify(exampleData10)}
                         if (drawingMode === 'stairs' && linePoints.length > 0) {
                             const lastPoint = linePoints[linePoints.length - 1];
                             const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
+                            // 2重描画のバグ修正： finishDrawing() の呼び出しを削除
                             if (distToLast < SNAP_THRESHOLD / zoom) {
                                 createStairs(linePoints);
-                                finishDrawing();
-                                setSnappedInfo(null);
+                                setLinePoints([]); // 状態をリセット
+                                setSnappedInfo(null); // スナップ情報もリセット
                                 return;
                             }
                         }
@@ -3837,7 +3781,8 @@ ${JSON.stringify(exampleData10)}
                         setSnappedInfo(null);
                         return;
                     }
-                    
+                    // ▲▲▲【ここまでが階段プレビューのための追加・修正箇所】▲▲▲
+            
                     if (drawingStartPoint) {
                         const endPoint = getCanvasCoords(e);
                         const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
@@ -3879,7 +3824,8 @@ ${JSON.stringify(exampleData10)}
                 fontSize, fontFamily, textAlign, fixtureTemplateId, fixtureCategory, spaceType,
                 fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom,
                 backgroundPattern, createPolygonSpace, createItem, createStairs,
-                isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown, finishDrawing
+                isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown, finishDrawing,
+                stairSnapPreview // 依存配列に追加
             ]);
 
             const createPolygonSpace = useCallback((points) => {
@@ -4618,59 +4564,6 @@ ${JSON.stringify(exampleData10)}
                 dragInfo.current = null;
                 historyOnActionStart.current = null;
                 mouseDownInfo.current = null;
-            };
-
-            const StairsPreviewRenderer = ({ points, width, color }) => {
-                if (points.length < 2) return null;
-
-                // StairsRendererから、プレビューに必要な計算ロジックのみを抜粋
-                const outlines = [[], []];
-                for (let i = 0; i < points.length; i++) {
-                    const p_curr = points[i];
-                    const p_prev = i > 0 ? points[i - 1] : null;
-                    const p_next = i < points.length - 1 ? points[i + 1] : null;
-                    const getPerp = (p1, p2) => {
-                        const vec = { x: p2.x - p1.x, y: p2.y - p1.y };
-                        const len = Math.sqrt(vec.x ** 2 + vec.y ** 2);
-                        return len > 0 ? { x: -vec.y / len, y: vec.x / len } : { x: 0, y: 0 };
-                    };
-                    if (!p_prev) {
-                        const perp = getPerp(p_curr, p_next);
-                        outlines[0].push({ x: p_curr.x + perp.x * width / 2, y: p_curr.y + perp.y * width / 2 });
-                        outlines[1].push({ x: p_curr.x - perp.x * width / 2, y: p_curr.y - perp.y * width / 2 });
-                    } else if (!p_next) {
-                        const perp = getPerp(p_prev, p_curr);
-                        outlines[0].push({ x: p_curr.x + perp.x * width / 2, y: p_curr.y + perp.y * width / 2 });
-                        outlines[1].push({ x: p_curr.x - perp.x * width / 2, y: p_curr.y - perp.y * width / 2 });
-                    } else {
-                        const getLineIntersection = (p1, p2, p3, p4) => {
-                            const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                            if (Math.abs(d) < 1e-8) { return null; }
-                            const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
-                            return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
-                        };
-                        const perp_in = getPerp(p_prev, p_curr);
-                        const perp_out = getPerp(p_curr, p_next);
-                        [1, -1].forEach(side => {
-                            const outline_index = side === 1 ? 0 : 1;
-                            const p1 = { x: p_prev.x + side * perp_in.x * width / 2, y: p_prev.y + side * perp_in.y * width / 2 };
-                            const p2 = { x: p_curr.x + side * perp_in.x * width / 2, y: p_curr.y + side * perp_in.y * width / 2 };
-                            const p3 = { x: p_curr.x + side * perp_out.x * width / 2, y: p_curr.y + side * perp_out.y * width / 2 };
-                            const p4 = { x: p_next.x + side * perp_out.x * width / 2, y: p_next.y + side * perp_out.y * width / 2 };
-                            let cornerPoint = getLineIntersection(p1, p2, p3, p4);
-                            if (!cornerPoint) { cornerPoint = p2; }
-                            outlines[outline_index].push(cornerPoint);
-                        });
-                    }
-                }
-
-                return (
-                    <g style={{pointerEvents: 'none', opacity: 0.7}}>
-                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
-                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
-                        <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} strokeDasharray="5,5"/>
-                    </g>
-                );
             };
 
             const deleteSelectedElement = useCallback((idToDelete) => {
@@ -5517,22 +5410,109 @@ ${JSON.stringify(exampleData10)}
             };
 
             const StairsRenderer = ({ element, onContextMenu }) => {
-                const { points: pointsStr, width, direction, color, strokeWidth } = element;
-
-                // ヘルパー関数: 2直線の交点を計算
+                const { points: pointsStr, width, color, strokeWidth } = element;
+                
+                // 2直線の交点を計算
+                const getLineIntersection = (p1, p2, p3, p4) => {
+                    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+                    if (Math.abs(d) < 1e-8) return null;
+                    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+                    return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+                };
+            
+                const points = pointsStr.split(' ').map(p => { const [x, y] = p.split(',').map(parseFloat); return { x, y }; });
+                if (points.length < 2) return null;
+            
+                const outlines = [[], []]; // [0] for right side, [1] for left side
+                const halfWidth = width / 2;
+            
+                // アウトラインの頂点を計算
+                for (let i = 0; i < points.length; i++) {
+                    const p_curr = points[i];
+                    const p_prev = i > 0 ? points[i - 1] : null;
+                    const p_next = i < points.length - 1 ? points[i + 1] : null;
+                    
+                    const getPerp = (p1, p2) => {
+                        const vec = { x: p2.x - p1.x, y: p2.y - p1.y };
+                        const len = Math.sqrt(vec.x ** 2 + vec.y ** 2);
+                        return len > 0 ? { x: -vec.y / len, y: vec.x / len } : { x: 0, y: 0 };
+                    };
+            
+                    if (!p_prev) { // 始点
+                        const perp = getPerp(p_curr, p_next);
+                        outlines[0].push({ x: p_curr.x + perp.x * halfWidth, y: p_curr.y + perp.y * halfWidth });
+                        outlines[1].push({ x: p_curr.x - perp.x * halfWidth, y: p_curr.y - perp.y * halfWidth });
+                    } else if (!p_next) { // 終点
+                        const perp = getPerp(p_prev, p_curr);
+                        outlines[0].push({ x: p_curr.x + perp.x * halfWidth, y: p_curr.y + perp.y * halfWidth });
+                        outlines[1].push({ x: p_curr.x - perp.x * halfWidth, y: p_curr.y - perp.y * halfWidth });
+                    } else { // 角
+                        const perp_in = getPerp(p_prev, p_curr);
+                        const perp_out = getPerp(p_curr, p_next);
+                        
+                        [1, -1].forEach(side => {
+                            const outline_index = side === 1 ? 0 : 1;
+                            const p1 = { x: p_prev.x + side * perp_in.x * halfWidth, y: p_prev.y + side * perp_in.y * halfWidth };
+                            const p2 = { x: p_curr.x + side * perp_in.x * halfWidth, y: p_curr.y + side * perp_in.y * halfWidth };
+                            const p3 = { x: p_curr.x + side * perp_out.x * halfWidth, y: p_curr.y + side * perp_out.y * halfWidth };
+                            const p4 = { x: p_next.x + side * perp_out.x * halfWidth, y: p_next.y + side * perp_out.y * halfWidth };
+                            let cornerPoint = getLineIntersection(p1, p2, p3, p4);
+                            if (!cornerPoint) { cornerPoint = p2; }
+                            outlines[outline_index].push(cornerPoint);
+                        });
+                    }
+                }
+            
+                const steps = [];
+                const stepInterval = 15;
+                let accumulatedLength = 0;
+            
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = points[i], p2 = points[i + 1];
+                    const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
+                    const segmentLen = Math.sqrt(segmentVec.x ** 2 + segmentVec.y ** 2);
+                    if (segmentLen < 1) continue;
+            
+                    const segmentDir = { x: segmentVec.x / segmentLen, y: segmentVec.y / segmentLen };
+                    const perp = { x: -segmentDir.y, y: segmentDir.x };
+                    let nextStepDist = Math.ceil(accumulatedLength / stepInterval) * stepInterval;
+                    if(nextStepDist <= accumulatedLength) nextStepDist += stepInterval;
+            
+                    while (nextStepDist < accumulatedLength + segmentLen) {
+                        const l = nextStepDist - accumulatedLength;
+                        const stepCenter = { x: p1.x + segmentDir.x * l, y: p1.y + segmentDir.y * l };
+                        const s1 = { x: stepCenter.x + perp.x * halfWidth, y: stepCenter.y + perp.y * halfWidth };
+                        const s2 = { x: stepCenter.x - perp.x * halfWidth, y: stepCenter.y - perp.y * halfWidth };
+                        steps.push(<line key={`step-${i}-${l}`} x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={color} strokeWidth={1} />);
+                        nextStepDist += stepInterval;
+                    }
+                    accumulatedLength += segmentLen;
+                }
+                
+                return (
+                    <g data-id={element.id} onContextMenu={onContextMenu} style={{ pointerEvents: 'all', cursor: 'grab' }}>
+                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
+                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
+                        {steps}
+                        <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} markerEnd="url(#arrowhead)" />
+                    </g>
+                );
+            };
+            
+            const StairsPreviewRenderer = ({ points, width, color }) => {
+                if (points.length < 2) return null;
+            
+                // 上のStairsRendererと全く同じロジックを使用
                 const getLineIntersection = (p1, p2, p3, p4) => {
                     const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
                     if (Math.abs(d) < 1e-8) { return null; }
                     const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
                     return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
                 };
-
-                const points = pointsStr.split(' ').map(p => { const [x, y] = p.split(',').map(parseFloat); return { x, y }; });
-                if (points.length < 2) return null;
-
+            
                 const outlines = [[], []];
-
-                // アウトラインの頂点を計算
+                const halfWidth = width / 2;
+            
                 for (let i = 0; i < points.length; i++) {
                     const p_curr = points[i];
                     const p_prev = i > 0 ? points[i - 1] : null;
@@ -5542,130 +5522,35 @@ ${JSON.stringify(exampleData10)}
                         const len = Math.sqrt(vec.x ** 2 + vec.y ** 2);
                         return len > 0 ? { x: -vec.y / len, y: vec.x / len } : { x: 0, y: 0 };
                     };
-
-                    if (!p_prev) { // 始点
+                    if (!p_prev) {
                         const perp = getPerp(p_curr, p_next);
-                        outlines[0].push({ x: p_curr.x + perp.x * width / 2, y: p_curr.y + perp.y * width / 2 });
-                        outlines[1].push({ x: p_curr.x - perp.x * width / 2, y: p_curr.y - perp.y * width / 2 });
-                    } else if (!p_next) { // 終点
+                        outlines[0].push({ x: p_curr.x + perp.x * halfWidth, y: p_curr.y + perp.y * halfWidth });
+                        outlines[1].push({ x: p_curr.x - perp.x * halfWidth, y: p_curr.y - perp.y * halfWidth });
+                    } else if (!p_next) {
                         const perp = getPerp(p_prev, p_curr);
-                        outlines[0].push({ x: p_curr.x + perp.x * width / 2, y: p_curr.y + perp.y * width / 2 });
-                        outlines[1].push({ x: p_curr.x - perp.x * width / 2, y: p_curr.y - perp.y * width / 2 });
-                    } else { // 角
+                        outlines[0].push({ x: p_curr.x + perp.x * halfWidth, y: p_curr.y + perp.y * halfWidth });
+                        outlines[1].push({ x: p_curr.x - perp.x * halfWidth, y: p_curr.y - perp.y * halfWidth });
+                    } else {
                         const perp_in = getPerp(p_prev, p_curr);
                         const perp_out = getPerp(p_curr, p_next);
                         [1, -1].forEach(side => {
                             const outline_index = side === 1 ? 0 : 1;
-                            const p1 = { x: p_prev.x + side * perp_in.x * width / 2, y: p_prev.y + side * perp_in.y * width / 2 };
-                            const p2 = { x: p_curr.x + side * perp_in.x * width / 2, y: p_curr.y + side * perp_in.y * width / 2 };
-                            const p3 = { x: p_curr.x + side * perp_out.x * width / 2, y: p_curr.y + side * perp_out.y * width / 2 };
-                            const p4 = { x: p_next.x + side * perp_out.x * width / 2, y: p_next.y + side * perp_out.y * width / 2 };
+                            const p1 = { x: p_prev.x + side * perp_in.x * halfWidth, y: p_prev.y + side * perp_in.y * halfWidth };
+                            const p2 = { x: p_curr.x + side * perp_in.x * halfWidth, y: p_curr.y + side * perp_in.y * halfWidth };
+                            const p3 = { x: p_curr.x + side * perp_out.x * halfWidth, y: p_curr.y + side * perp_out.y * halfWidth };
+                            const p4 = { x: p_next.x + side * perp_out.x * halfWidth, y: p_next.y + side * perp_out.y * halfWidth };
                             let cornerPoint = getLineIntersection(p1, p2, p3, p4);
                             if (!cornerPoint) { cornerPoint = p2; }
                             outlines[outline_index].push(cornerPoint);
                         });
                     }
                 }
-
-                const steps = [];
-                const stepInterval = 15;
-                let accumulatedLength = 0;
-
-                const cornerMargins = new Array(points.length).fill(0);
-                for (let i = 1; i < points.length - 1; i++) {
-                    const p_prev = points[i-1], p_curr = points[i], p_next = points[i+1];
-                    const vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
-                    const vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
-                    const len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
-                    const len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
-                    const dir_in = len_in > 0 ? {x: vec_in.x/len_in, y: vec_in.y/len_in} : {x:0, y:0};
-                    const dir_out = len_out > 0 ? {x: vec_out.x/len_out, y: vec_out.y/len_out} : {x:0, y:0};
-                    let dot = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
-                    dot = Math.max(-1, Math.min(1, dot));
-                    const angle = Math.acos(dot);
-
-                    if (angle >= Math.PI / 4) {
-                        cornerMargins[i] = Math.min(width / 2, len_in / 2, len_out / 2);
-                    }
-                }
-
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p1 = points[i], p2 = points[i+1];
-                    const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
-                    const segmentLen = Math.sqrt(segmentVec.x**2 + segmentVec.y**2);
-                    if (segmentLen < 1) continue;
-                    
-                    const startMargin = cornerMargins[i];
-                    const endMargin = cornerMargins[i+1];
-
-                    const segmentDir = { x: segmentVec.x / segmentLen, y: segmentVec.y / segmentLen };
-                    const perp = { x: -segmentDir.y, y: segmentDir.x };
-                    let nextStepDist = Math.ceil((accumulatedLength + startMargin) / stepInterval) * stepInterval;
-                    
-                    while(nextStepDist < accumulatedLength + segmentLen - endMargin) {
-                        const l = nextStepDist - accumulatedLength;
-                        if (l >= startMargin) {
-                            const stepCenter = { x: p1.x + segmentDir.x * l, y: p1.y + segmentDir.y * l };
-                            const s1 = { x: stepCenter.x + perp.x * width / 2, y: stepCenter.y + perp.y * width / 2 };
-                            const s2 = { x: stepCenter.x - perp.x * width / 2, y: stepCenter.y - perp.y * width / 2 };
-                            steps.push(<line key={`step-s-${i}-${l}`} x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={color} strokeWidth={1} />);
-                        }
-                        nextStepDist += stepInterval;
-                    }
-                    accumulatedLength += segmentLen;
-                }
-
-                for (let i = 1; i < points.length - 1; i++) {
-                    const margin = cornerMargins[i];
-                    const crossProduct = (points[i].x - points[i-1].x) * (points[i+1].y - points[i].y) - (points[i].y - points[i-1].y) * (points[i+1].x - points[i].x);
-
-                    if (margin === 0) {
-                        const innerCornerPoint = outlines[(crossProduct > 0) ? 1 : 0][i];
-                        const outerCornerPoint = outlines[(crossProduct > 0) ? 0 : 1][i];
-                        steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
-                    } else {
-                        const innerOutlineIndex = (crossProduct > 0) ? 1 : 0;
-                        const outerOutlineIndex = (crossProduct > 0) ? 0 : 1;
-                        
-                        const innerCornerPoint = outlines[innerOutlineIndex][i];
-                        const outerCornerPoint = outlines[outerOutlineIndex][i];
-
-                        const prevInnerPoint = outlines[innerOutlineIndex][i-1];
-                        const nextInnerPoint = outlines[innerOutlineIndex][i+1];
-                        const vecInnerIn = { x: prevInnerPoint.x - innerCornerPoint.x, y: prevInnerPoint.y - innerCornerPoint.y };
-                        const lenInnerIn = Math.sqrt(vecInnerIn.x**2 + vecInnerIn.y**2);
-                        const dirInnerIn = { x: vecInnerIn.x / lenInnerIn, y: vecInnerIn.y / lenInnerIn };
-                        const innerP1 = { x: innerCornerPoint.x + dirInnerIn.x * margin, y: innerCornerPoint.y + dirInnerIn.y * margin };
-                        const vecInnerOut = { x: nextInnerPoint.x - innerCornerPoint.x, y: nextInnerPoint.y - innerCornerPoint.y };
-                        const lenInnerOut = Math.sqrt(vecInnerOut.x**2 + vecInnerOut.y**2);
-                        const dirInnerOut = { x: vecInnerOut.x / lenInnerOut, y: vecInnerOut.y / lenInnerOut };
-                        const innerP2 = { x: innerCornerPoint.x + dirInnerOut.x * margin, y: innerCornerPoint.y + dirInnerOut.y * margin };
-                        
-                        steps.push(<line key={`step-c-${i}-1`} x1={innerP1.x} y1={innerP1.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
-                        steps.push(<line key={`step-c-${i}-2`} x1={innerP2.x} y1={innerP2.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
-                    }
-                }
-
-                // ▼▼▼ 修正点: 矢印とテキストの基準点を始点に変更 ▼▼▼
-                const startPoint = points[0];
-                const nextPoint = points[1];
-                const arrowVec = { x: nextPoint.x - startPoint.x, y: nextPoint.y - startPoint.y };
-                const arrowLen = Math.sqrt(arrowVec.x**2 + arrowVec.y**2);
-                const arrowDir = arrowLen > 0 ? { x: arrowVec.x / arrowLen, y: arrowVec.y / arrowLen } : { x: 0, y: 0 };
-                const arrowText = direction ? direction.toUpperCase() : '';
-                const arrowAngle = Math.atan2(arrowDir.y, arrowDir.x) * 180 / Math.PI;
-
-                // テキストと矢印のオフセット
-                const textOffsetX = -arrowDir.x * 20;
-                const textOffsetY = -arrowDir.y * 20;
-
+            
                 return (
-                    <g data-id={element.id} onContextMenu={onContextMenu} style={{ pointerEvents: 'all', cursor: 'grab' }}>
-                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
-                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
-                        {steps}
-                        {/* ▼▼▼ テキスト描画を削除し、矢印(中心線)は常に表示 ▼▼▼ */}
-                        <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} markerEnd="url(#arrowhead)" />
+                    <g style={{pointerEvents: 'none', opacity: 0.7}}>
+                        <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
+                        <path d={`M ${outlines[1].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={DEFAULT_STROKE_WIDTH} strokeDasharray="5,5" />
+                        <path d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={1} strokeDasharray="5,5"/>
                     </g>
                 );
             };
