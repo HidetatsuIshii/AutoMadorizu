@@ -4228,26 +4228,19 @@ ${JSON.stringify(exampleData10)}
                                 newSnappedInfo = { point: previewEndPoint, type: 'wall' };
                             }
                         }
+                        
                     } else {
-                        // ★★ 0クリック目の処理 (整形済み・エラー修正済み) ★★
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
-                            let minDistanceSq = Infinity;
-                            let closestPointOnWall = null;
-                            let closestWall = null;
-            
+                            let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
                             for (const wall of allWallSegments) {
-                                const p1 = wall.p1; const p2 = wall.p2; const dx = p2.x - p1.x; const dy = p2.y - p1.y;
+                                const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
                                 if (dx === 0 && dy === 0) continue;
                                 const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
                                 const clampedT = Math.max(0, Math.min(1, t));
                                 const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
                                 const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                if (distSq < minDistanceSq) {
-                                    minDistanceSq = distSq;
-                                    closestWall = wall;
-                                    closestPointOnWall = pointOnLine;
-                                }
+                                if (distSq < minDistanceSq) { minDistanceSq = distSq; closestWall = wall; closestPointOnWall = pointOnLine; }
                             }
             
                             if (closestWall && minDistanceSq < (snapThreshold * 5) ** 2) {
@@ -4267,7 +4260,6 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                 } else if (isSnappingEnabled) {
-                    // ★★★★★ 階段以外のツールのための汎用スナップロジック (変更なし) ★★★★★
                     let closestSnap = null;
                     let pointsToSnapAgainst = [];
                     svgElements.forEach(el=>{if(el.type==='wall'||el.type==='door'||el.type==='window'){pointsToSnapAgainst.push({x:el.x1,y:el.y1},{x:el.x2,y:el.y2})}else if(el.type==='space'||el.type==='stairs'){pointsToSnapAgainst.push(...el.points.split(' ').map(p_str=>({x:parseFloat(p_str.split(',')[0]),y:parseFloat(p_str.split(',')[1])})))}});if(drawingStartPoint)pointsToSnapAgainst.push(drawingStartPoint);if(linePoints.length>0)pointsToSnapAgainst.push(...linePoints);
