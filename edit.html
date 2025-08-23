@@ -5446,7 +5446,6 @@ ${JSON.stringify(exampleData10)}
                     } else {
                         const perp_in = getPerp(p_prev, p_curr);
                         const perp_out = getPerp(p_curr, p_next);
-            
                         const vec_in_dir = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
                         const vec_out_dir = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
                         const len_in_dir = Math.sqrt(vec_in_dir.x**2 + vec_in_dir.y**2);
@@ -5454,7 +5453,6 @@ ${JSON.stringify(exampleData10)}
                         const dir_in = { x: vec_in_dir.x / len_in_dir, y: vec_in_dir.y / len_in_dir };
                         const dir_out = { x: vec_out_dir.x / len_out_dir, y: vec_out_dir.y / len_out_dir };
                         const dotProduct = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
-            
                         if (dotProduct < -0.985) { 
                              [1, -1].forEach(side => {
                                 const outline_index = side === 1 ? 0 : 1;
@@ -5479,7 +5477,6 @@ ${JSON.stringify(exampleData10)}
                 const steps = [];
                 const stepInterval = 15;
                 let accumulatedLength = 0;
-                const cornerAngles = new Array(points.length).fill(0);
                 const cornerMargins = new Array(points.length).fill(0);
             
                 for (let i = 1; i < points.length - 1; i++) {
@@ -5493,22 +5490,16 @@ ${JSON.stringify(exampleData10)}
                     let dot = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
                     dot = Math.max(-1, Math.min(1, dot));
                     const angle = Math.acos(dot);
-                    cornerAngles[i] = angle;
             
                     let margin = 0;
-                    if (angle >= Math.PI / 18) { // 10度以上の角でマージンを確保
+                    if (angle >= Math.PI / 18) {
                         margin = Math.min(width / 1.5, len_in / 2, len_out / 2);
                     }
-                    
-                    // ▼▼▼【ここが今回の修正点】▼▼▼
-                    // 直線部分が十分に長い場合、マージンを1ステップ分減らして直線的な段差を追加する余地を作る
                     const threshold = margin + stepInterval * 1.5;
                     if (len_in > threshold && len_out > threshold) {
                         margin -= stepInterval;
                     }
-                    margin = Math.max(0, margin); // マージンが負にならないように
-                    // ▲▲▲【ここまで】▲▲▲
-            
+                    margin = Math.max(0, margin);
                     cornerMargins[i] = margin;
                 }
             
@@ -5517,13 +5508,11 @@ ${JSON.stringify(exampleData10)}
                     const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
                     const segmentLen = Math.sqrt(segmentVec.x**2 + segmentVec.y**2);
                     if (segmentLen < 1) continue;
-                    
                     const startMargin = cornerMargins[i];
                     const endMargin = cornerMargins[i+1];
                     const segmentDir = { x: segmentVec.x / segmentLen, y: segmentVec.y / segmentLen };
                     const perp = { x: -segmentDir.y, y: segmentDir.x };
                     let nextStepDist = Math.ceil((accumulatedLength + startMargin) / stepInterval) * stepInterval;
-                    
                     while(nextStepDist < accumulatedLength + segmentLen - endMargin) {
                         const l = nextStepDist - accumulatedLength;
                         if (l >= startMargin) {
@@ -5539,23 +5528,21 @@ ${JSON.stringify(exampleData10)}
                 
                 for (let i = 1; i < points.length - 1; i++) {
                     const margin = cornerMargins[i];
-                    const angle = cornerAngles[i];
                     const crossProduct = (points[i].x - points[i-1].x) * (points[i+1].y - points[i].y) - (points[i].y - points[i-1].y) * (points[i+1].x - points[i].x);
-                
                     const innerOutlineIndex = (crossProduct > 0) ? 0 : 1;
                     const outerOutlineIndex = (crossProduct > 0) ? 1 : 0;
-                
                     const innerCornerPoint = outlines[innerOutlineIndex][i];
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
-                
+            
                     if (margin === 0) {
-                        if (angle > 0.01) { // ほぼ直線でない場合のみ線を描画
+                        const angle = cornerAngles[i];
+                        if (angle > 0.01) {
                            steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
                         }
                     } else {
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
-                
+            
                         const vecToPrev = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenToPrev = Math.sqrt(vecToPrev.x**2 + vecToPrev.y**2);
                         const dirToPrev = lenToPrev > 0 ? { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev } : {x:0, y:0};
@@ -5566,14 +5553,9 @@ ${JSON.stringify(exampleData10)}
                         const dirToNext = lenToNext > 0 ? { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext } : {x:0, y:0};
                         const outerP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
                         
-                        if (angle > Math.PI / 4) { // 45度より大きい場合
-                            steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
-                            steps.push(<line key={`step-c-${i}-mid`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
-                            steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
-                        } else {
-                            steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
-                            steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
-                        }
+                        // ▼▼▼【修正点】角度に関わらず、常に2本の斜め線を描画するよう修正 ▼▼▼
+                        steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
+                        steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
                     }
                 }
             
@@ -5927,7 +5909,7 @@ ${JSON.stringify(exampleData10)}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
                                     <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown} onContextMenu={handleCanvasContextMenu}>
                                         <defs>
-                                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
                                                 <polygon points="0 0, 10 3.5, 0 7" />
                                             </marker>
                                         </defs>
