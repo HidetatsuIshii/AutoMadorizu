@@ -5447,7 +5447,6 @@ ${JSON.stringify(exampleData10)}
                         const perp_in = getPerp(p_prev, p_curr);
                         const perp_out = getPerp(p_curr, p_next);
             
-                        // ▼▼▼【修正点1】浅い角度で角がズレる問題の対策 ▼▼▼
                         const vec_in_dir = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
                         const vec_out_dir = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
                         const len_in_dir = Math.sqrt(vec_in_dir.x**2 + vec_in_dir.y**2);
@@ -5456,14 +5455,13 @@ ${JSON.stringify(exampleData10)}
                         const dir_out = { x: vec_out_dir.x / len_out_dir, y: vec_out_dir.y / len_out_dir };
                         const dotProduct = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
             
-                        // 角度が170度以上（ほぼ直線）の場合、交点計算をせずにシンプルな角を形成する
                         if (dotProduct < -0.985) { 
                              [1, -1].forEach(side => {
                                 const outline_index = side === 1 ? 0 : 1;
                                 const p2 = { x: p_curr.x + side * perp_in.x * halfWidth, y: p_curr.y + side * perp_in.y * halfWidth };
                                 outlines[outline_index].push(p2);
                             });
-                        } else { // それ以外の角度では、これまで通り交点を計算して鋭い角を形成
+                        } else {
                             [1, -1].forEach(side => {
                                 const outline_index = side === 1 ? 0 : 1;
                                 const p1 = { x: p_prev.x + side * perp_in.x * halfWidth, y: p_prev.y + side * perp_in.y * halfWidth };
@@ -5495,11 +5493,23 @@ ${JSON.stringify(exampleData10)}
                     let dot = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
                     dot = Math.max(-1, Math.min(1, dot));
                     const angle = Math.acos(dot);
-                    cornerAngles[i] = angle; // 角度を保存
+                    cornerAngles[i] = angle;
             
-                    if (angle >= Math.PI / 18) { // 10度以上の角で斜め線マージンを確保
-                        cornerMargins[i] = Math.min(width, len_in / 2, len_out / 2);
+                    let margin = 0;
+                    if (angle >= Math.PI / 18) { // 10度以上の角でマージンを確保
+                        margin = Math.min(width / 1.5, len_in / 2, len_out / 2);
                     }
+                    
+                    // ▼▼▼【ここが今回の修正点】▼▼▼
+                    // 直線部分が十分に長い場合、マージンを1ステップ分減らして直線的な段差を追加する余地を作る
+                    const threshold = margin + stepInterval * 1.5;
+                    if (len_in > threshold && len_out > threshold) {
+                        margin -= stepInterval;
+                    }
+                    margin = Math.max(0, margin); // マージンが負にならないように
+                    // ▲▲▲【ここまで】▲▲▲
+            
+                    cornerMargins[i] = margin;
                 }
             
                 for (let i = 0; i < points.length - 1; i++) {
@@ -5539,29 +5549,28 @@ ${JSON.stringify(exampleData10)}
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
                 
                     if (margin === 0) {
-                        steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
+                        if (angle > 0.01) { // ほぼ直線でない場合のみ線を描画
+                           steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
+                        }
                     } else {
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
                 
                         const vecToPrev = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenToPrev = Math.sqrt(vecToPrev.x**2 + vecToPrev.y**2);
-                        const dirToPrev = { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev };
+                        const dirToPrev = lenToPrev > 0 ? { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev } : {x:0, y:0};
                         const outerP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
                         
                         const vecToNext = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
                         const lenToNext = Math.sqrt(vecToNext.x**2 + vecToNext.y**2);
-                        const dirToNext = { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext };
+                        const dirToNext = lenToNext > 0 ? { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext } : {x:0, y:0};
                         const outerP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
                         
-                        // ▼▼▼【修正点2】角度に応じて斜め線の本数を変更 ▼▼▼
                         if (angle > Math.PI / 4) { // 45度より大きい場合
-                            // 3本の線を描画（角の中間点も使用）
                             steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
                             steps.push(<line key={`step-c-${i}-mid`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
                             steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
-                        } else { // 45度以下の場合
-                            // 2本の線を描画 (これまで通り)
+                        } else {
                             steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
                             steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
                         }
