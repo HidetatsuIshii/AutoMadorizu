@@ -4327,9 +4327,7 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
             }, [
-                getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart,
-                drawingMode, spaceShape, linePoints, zoom, svgElements, isSnapToWall, isModifierKeyDown,
-                dragTarget, mouseDownInfo, selectedId, editorMode, imagePosition, stairWidth, stairSnapPreview, getIntersectionWithAllWalls // getIntersectionWithAllWalls を依存配列に追加
+                getCanvasCoords, zoom, isDisplaySettingsOpen, imagePosition, svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, historyState.present, isGridVisible, getGridSnappedPoint, drawingMode, spaceShape, linePoints, isSnapToWall, isModifierKeyDown, stairWidth, stairSnapPreview, strokeColor, dimensions
             ]);
 
 
