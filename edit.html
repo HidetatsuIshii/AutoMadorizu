@@ -4182,6 +4182,7 @@ ${JSON.stringify(exampleData10)}
                     let minDistanceSq = Infinity;
                     let closestPointOnWall = null;
             
+                    // 1. マウスに最も近い壁上の点を探す
                     for (const wall of allWallSegments) {
                         const p1 = wall.p1;
                         const p2 = wall.p2;
@@ -4199,6 +4200,7 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
+                    // 2. スナップ範囲内であれば、オフセットしたプレビュー位置を計算
                     if (closestWall && minDistanceSq < (SNAP_THRESHOLD * 5 / zoom) ** 2) {
                         const wallDx = closestWall.p2.x - closestWall.p1.x;
                         const wallDy = closestWall.p2.y - closestWall.p1.y;
@@ -4206,25 +4208,21 @@ ${JSON.stringify(exampleData10)}
                         const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
                         
                         if (wallLen > 0) {
+                            // 壁の法線ベクトル（オフセット方向）
                             const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
             
-                            // 壁の両側に、それぞれ中心線をオフセットした位置を計算
-                            const center1 = {
-                                x: closestPointOnWall.x + perp.x * (stairWidth / 2),
-                                y: closestPointOnWall.y + perp.y * (stairWidth / 2)
-                            };
-                            const center2 = {
-                                x: closestPointOnWall.x - perp.x * (stairWidth / 2),
-                                y: closestPointOnWall.y - perp.y * (stairWidth / 2)
-                            };
+                            // マウスが壁のどちら側にあるかを判定
+                            const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                            const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                            const side = Math.sign(dotProduct) || 1;
             
-                            // マウスカーソルの現在位置に近い方をプレビューの中心として採用
-                            const distToCenter1Sq = (currentMousePos.x - center1.x)**2 + (currentMousePos.y - center1.y)**2;
-                            const distToCenter2Sq = (currentMousePos.x - center2.x)**2 + (currentMousePos.y - center2.y)**2;
-                            const finalPreviewCenter = distToCenter1Sq < distToCenter2Sq ? center1 : center2;
+                            // 壁上の点から、マウスのある側へ、階段幅の半分だけオフセットした位置をプレビューの中心とする
+                            const finalPreviewCenter = {
+                                x: closestPointOnWall.x + side * perp.x * (stairWidth / 2),
+                                y: closestPointOnWall.y + side * perp.y * (stairWidth / 2)
+                            };
             
                             setStairSnapPreview({ center: finalPreviewCenter, angle: wallAngle });
-            
                         } else {
                              setStairSnapPreview(null);
                         }
@@ -4235,84 +4233,46 @@ ${JSON.stringify(exampleData10)}
                 } else if (stairSnapPreview) {
                     setStairSnapPreview(null);
                 }
-                // ▲▲▲【ここまでが修正箇所】▲▲▲
+                // ▲▲▲【ここまでが新しいプレビューロジック】▲▲▲
             
                 let newGuideLines = [];
                 let closestSnap = null;
                 const snapThreshold = SNAP_THRESHOLD / zoom;
             
-                if (((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') && linePoints.length > 0) {
-                    const lastPoint = linePoints[linePoints.length - 1];
-                    let snapCandidates = [];
-                    const vSnapPoint = { x: lastPoint.x, y: currentMousePos.y };
-                    const hSnapPoint = { x: currentMousePos.x, y: lastPoint.y };
-                    const vDist = Math.abs(currentMousePos.x - lastPoint.x);
-                    const hDist = Math.abs(currentMousePos.y - lastPoint.y);
-                    if (vDist < snapThreshold) {
-                        snapCandidates.push({ dist: vDist, point: vSnapPoint, guide: { type: 'vertical', from: lastPoint, to: vSnapPoint } });
-                    }
-                    if (hDist < snapThreshold) {
-                        snapCandidates.push({ dist: hDist, point: hSnapPoint, guide: { type: 'horizontal', from: lastPoint, to: hSnapPoint } });
-                    }
-                    const { intersection, distanceSq } = getIntersectionWithAllWalls(lastPoint, currentMousePos, allWallSegments);
-                    if (intersection && distanceSq < snapThreshold**2) {
-                         snapCandidates.push({
-                            dist: Math.sqrt(distanceSq),
-                            point: intersection.point,
-                            guide: { type: 'intersection', from: lastPoint, wall: intersection.wall }
+                // 2クリック目以降のスナップは、一度シンプルな頂点スナップのみに戻します
+                const isSnappingEnabled = (drawingMode !== 'none') && isSnapToWall && !isModifierKeyDown;
+                if (isSnappingEnabled) {
+                     let pointsToSnapAgainst = [];
+                    svgElements.forEach(el => {
+                        if (el.type === 'wall' || el.type === 'space') {
+                            const elPoints = el.type === 'wall' ? [{x: el.x1, y: el.y1}, {x: el.x2, y: el.y2}] : el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
+                            pointsToSnapAgainst.push(...elPoints);
+                        }
+                    });
+                    if (drawingStartPoint) pointsToSnapAgainst.push(drawingStartPoint);
+                    if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints); // 描画中の点もスナップ対象に
+            
+                    if (pointsToSnapAgainst.length > 0) {
+                        let bestVerticalSnap = null, bestHorizontalSnap = null;
+                        let minXDist = snapThreshold, minYDist = snapThreshold;
+                        pointsToSnapAgainst.forEach(p => {
+                            const distX = Math.abs(currentMousePos.x - p.x);
+                            if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
+                            const distY = Math.abs(currentMousePos.y - p.y);
+                            if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
                         });
-                    }
-                    if (snapCandidates.length > 0) {
-                        const bestSnap = snapCandidates.reduce((best, current) => (current.dist < best.dist) ? current : best);
-                        closestSnap = { point: bestSnap.point, type: 'extension', guide: bestSnap.guide };
-                    }
-                } else {
-                    const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
-                    if (isSnappingEnabled) {
-                         let pointsToSnapAgainst = [];
-                        svgElements.forEach(el => {
-                            if (el.type === 'wall' || el.type === 'space') {
-                                const elPoints = el.type === 'wall' ? [{x: el.x1, y: el.y1}, {x: el.x2, y: el.y2}] : el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
-                                pointsToSnapAgainst.push(...elPoints);
-                            }
-                        });
-                        if (drawingStartPoint) pointsToSnapAgainst.push(drawingStartPoint);
-                        if (pointsToSnapAgainst.length > 0) {
-                            let bestVerticalSnap = null, bestHorizontalSnap = null;
-                            let minXDist = snapThreshold, minYDist = snapThreshold;
-                            pointsToSnapAgainst.forEach(p => {
-                                const distX = Math.abs(currentMousePos.x - p.x);
-                                if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
-                                const distY = Math.abs(currentMousePos.y - p.y);
-                                if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
-                            });
-                            if (bestVerticalSnap && bestHorizontalSnap) {
-                                const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
-                                const distToIntersection = Math.sqrt(Math.pow(currentMousePos.x - intersectionPoint.x, 2) + Math.pow(currentMousePos.y - intersectionPoint.y, 2));
-                                if (distToIntersection < snapThreshold) {
-                                    closestSnap = { point: intersectionPoint, type: 'intersection', guide: { vertical: { from: bestVerticalSnap.from }, horizontal: { from: bestHorizontalSnap.from } } };
-                                }
-                            }
-                            if (!closestSnap) {
-                                if (minXDist < minYDist && bestVerticalSnap) {
-                                    closestSnap = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
-                                } else if (bestHorizontalSnap) {
-                                    closestSnap = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
-                                }
+                        if (bestVerticalSnap && bestHorizontalSnap) {
+                            const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
+                            const distToIntersection = Math.sqrt(Math.pow(currentMousePos.x - intersectionPoint.x, 2) + Math.pow(currentMousePos.y - intersectionPoint.y, 2));
+                            if (distToIntersection < snapThreshold) {
+                                closestSnap = { point: intersectionPoint, type: 'intersection', guide: { vertical: { from: bestVerticalSnap.from }, horizontal: { from: bestHorizontalSnap.from } } };
                             }
                         }
-                        if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWallSegments.length > 0) {
-                             for (const segment of allWallSegments) {
-                                const { p1, p2 } = segment;
-                                const dx = p2.x - p1.x, dy = p2.y - p1.y;
-                                if (dx === 0 && dy === 0) continue;
-                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                const clampedT = Math.max(0, Math.min(1, t));
-                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                if (distSq < snapThreshold * snapThreshold) {
-                                    closestSnap = { point: pointOnLine, type: 'wall', wall: segment }; 
-                                }
+                        if (!closestSnap) {
+                            if (minXDist < minYDist && bestVerticalSnap) {
+                                closestSnap = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
+                            } else if (bestHorizontalSnap) {
+                                closestSnap = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
                             }
                         }
                     }
@@ -4327,9 +4287,9 @@ ${JSON.stringify(exampleData10)}
                 if (closestSnap?.guide) {
                     if(closestSnap.guide.type === 'vertical' || closestSnap.guide.type === 'horizontal') {
                         newGuideLines.push({ x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
-                    } else if (closestSnap.guide.type === 'intersection') {
-                        newGuideLines.push({ x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
-                        newGuideLines.push({ x1: closestSnap.guide.wall.p1.x, y1: closestSnap.guide.wall.p1.y, x2: closestSnap.guide.wall.p2.x, y2: closestSnap.guide.wall.p2.y, highlight: true });
+                    } else if (closestSnap.type === 'intersection') {
+                        newGuideLines.push({ x1: closestSnap.guide.vertical.from.x, y1: closestSnap.guide.vertical.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
+                        newGuideLines.push({ x1: closestSnap.guide.horizontal.from.x, y1: closestSnap.guide.horizontal.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                     }
                 }
                 setGuideLines(newGuideLines);
@@ -4337,19 +4297,14 @@ ${JSON.stringify(exampleData10)}
                 // ...以降のドラッグやリサイズ処理は変更ありません...
                 if (editorMode === 'edit' && dragTarget.current && dragInfo.current && mouseDownInfo.current) {
                     const dist = Math.sqrt(Math.pow(e.clientX - mouseDownInfo.current.x, 2) + Math.pow(e.clientY - mouseDownInfo.current.y, 2));
-                    if (!isDragging && dist > 5) {
-                        setIsDragging(true);
-                        setSelectedId(dragTarget.current.id);
-                    }
+                    if (!isDragging && dist > 5) { setIsDragging(true); setSelectedId(dragTarget.current.id); }
                 }
-                
                 if (resizingHandleInfo) {
                     const { id, handleIndex, type } = resizingHandleInfo;
                     const snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : currentMousePos;
                     let newElements = [...historyOnActionStart.current.svgElements];
                     const elementIndex = newElements.findIndex(el => el.id === id);
                     if (elementIndex === -1) return;
-            
                     if (type === 'fixtureCorner' || type === 'fixtureEdge') {
                         const originalElement = { ...newElements[elementIndex] };
                         const cx = originalElement.x / 100 * dimensions.width;
@@ -4381,11 +4336,7 @@ ${JSON.stringify(exampleData10)}
                         newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
                         const newElement = { ...newElements[elementIndex] };
-                        if (handleIndex === 0) {
-                            newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y;
-                        } else {
-                            newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y;
-                        }
+                        if (handleIndex === 0) { newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y; } else { newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y; }
                         if (type === 'door' || type === 'window') {
                             const dx = newElement.x2 - newElement.x1;
                             const dy = newElement.y2 - newElement.y1;
@@ -4426,8 +4377,7 @@ ${JSON.stringify(exampleData10)}
                         const spaceEl = groupElements.find(el => el.type === 'space');
                         if (!spaceEl) return;
                         const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
-                        const xs = originalPoints.map(p => p.x);
-                        const ys = originalPoints.map(p => p.y);
+                        const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y);
                         const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
                         let newPoints;
                         if (type === 'spaceCorner') {
@@ -4441,7 +4391,7 @@ ${JSON.stringify(exampleData10)}
                             newPoints = originalPoints.map(p => {
                                 let newP = {...p};
                                 if (handleIndex === 0 && p.y === originalBbox.minY) newP.y = snappedPos.y;
-                                if (handleIndex === 1 && p.x === originalBbox.maxX) newP.x = snappedPos.y;
+                                if (handleIndex === 1 && p.x === originalBbox.maxX) newP.x = snappedPos.x;
                                 if (handleIndex === 2 && p.y === originalBbox.maxY) newP.y = snappedPos.y;
                                 if (handleIndex === 3 && p.x === originalBbox.minX) newP.x = snappedPos.x;
                                 return newP;
@@ -4464,7 +4414,6 @@ ${JSON.stringify(exampleData10)}
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
                 }
-                
                 if (isDragging) {
                     const startMouseCanvasX = dragInfo.current.startMouseX;
                     const startMouseCanvasY = dragInfo.current.startMouseY;
@@ -4480,9 +4429,7 @@ ${JSON.stringify(exampleData10)}
                     if(!elementToDragOriginal) return;
                     const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null);
                     const isGroupDrag = !!groupId; 
-                    const elementsToUpdate = isGroupDrag
-                        ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId)
-                        : [elementToDragOriginal];
+                    const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
                     const newElements = historyOnActionStart.current.svgElements.map(el => {
                         const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
                         if (originalEl) {
@@ -4512,7 +4459,7 @@ ${JSON.stringify(exampleData10)}
             }, [
                 getCanvasCoords, resizingHandleInfo, isDragging, isGridVisible, getGridSnappedPoint, dimensions, dragInfo, historyOnActionStart,
                 drawingMode, spaceShape, linePoints, zoom, svgElements, isSnapToWall, isModifierKeyDown,
-                dragTarget, mouseDownInfo, selectedId, editorMode, imagePosition, stairWidth, stairSnapPreview
+                dragTarget, mouseDownInfo, selectedId, editorMode, imagePosition, stairWidth, stairSnapPreview, getIntersectionWithAllWalls // getIntersectionWithAllWalls を依存配列に追加
             ]);
 
 
