@@ -5425,6 +5425,7 @@ ${JSON.stringify(exampleData10)}
                 const outlines = [[], []];
                 const halfWidth = width / 2;
             
+                // 輪郭計算（これは安定しているため維持）
                 for (let i = 0; i < points.length; i++) {
                     const p_curr = points[i];
                     const p_prev = i > 0 ? points[i - 1] : null;
@@ -5446,7 +5447,6 @@ ${JSON.stringify(exampleData10)}
                     } else {
                         const perp_in = getPerp(p_prev, p_curr);
                         const perp_out = getPerp(p_curr, p_next);
-                        
                         [1, -1].forEach(side => {
                             const outline_index = side === 1 ? 0 : 1;
                             const p1 = { x: p_prev.x + side * perp_in.x * halfWidth, y: p_prev.y + side * perp_in.y * halfWidth };
@@ -5460,6 +5460,7 @@ ${JSON.stringify(exampleData10)}
                     }
                 }
             
+                // ▼▼▼ 段差線と角の斜め線の描画ロジックを、元の動作に戻しつつエラーを修正 ▼▼▼
                 const steps = [];
                 const stepInterval = 15;
                 let accumulatedLength = 0;
@@ -5477,11 +5478,12 @@ ${JSON.stringify(exampleData10)}
                     dot = Math.max(-1, Math.min(1, dot));
                     const angle = Math.acos(dot);
             
-                    if (angle >= Math.PI / 4) {
-                        cornerMargins[i] = Math.min(width / 2, len_in / 2, len_out / 2);
+                    if (angle >= Math.PI / 4) { // 45度以上の角で斜め線を描画
+                        cornerMargins[i] = Math.min(width / 1.5, len_in / 2, len_out / 2);
                     }
                 }
             
+                // 直線部分の段差線
                 for (let i = 0; i < points.length - 1; i++) {
                     const p1 = points[i], p2 = points[i+1];
                     const segmentVec = { x: p2.x - p1.x, y: p2.y - p1.y };
@@ -5508,7 +5510,7 @@ ${JSON.stringify(exampleData10)}
                     accumulatedLength += segmentLen;
                 }
                 
-                // ▼▼▼【ここから下がエラー修正箇所】▼▼▼
+                // 角部分の段差線（斜め線）
                 for (let i = 1; i < points.length - 1; i++) {
                     const margin = cornerMargins[i];
                     const crossProduct = (points[i].x - points[i-1].x) * (points[i+1].y - points[i].y) - (points[i].y - points[i-1].y) * (points[i+1].x - points[i].x);
@@ -5516,24 +5518,21 @@ ${JSON.stringify(exampleData10)}
                     const innerOutlineIndex = (crossProduct > 0) ? 1 : 0;
                     const outerOutlineIndex = (crossProduct > 0) ? 0 : 1;
                 
-                    // 角に対応する outline 配列のインデックスを修正
+                    // エラーの原因だったインデックス参照を修正
                     const innerCornerPoint = outlines[innerOutlineIndex][i];
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
                 
                     if (margin === 0) {
                         steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
                     } else {
-                        // 角の前後の点を安全に取得
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
                 
-                        // 角から前の点へのベクトル
                         const vecOuterIn = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenOuterIn = Math.sqrt(vecOuterIn.x**2 + vecOuterIn.y**2);
                         const dirOuterIn = { x: vecOuterIn.x / lenOuterIn, y: vecOuterIn.y / lenOuterIn };
                         const outerP1 = { x: outerCornerPoint.x + dirOuterIn.x * margin, y: outerCornerPoint.y + dirOuterIn.y * margin };
                         
-                        // 角から次の点へのベクトル
                         const vecOuterOut = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
                         const lenOuterOut = Math.sqrt(vecOuterOut.x**2 + vecOuterOut.y**2);
                         const dirOuterOut = { x: vecOuterOut.x / lenOuterOut, y: vecOuterOut.y / lenOuterOut };
@@ -5543,8 +5542,7 @@ ${JSON.stringify(exampleData10)}
                         steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
                     }
                 }
-                // ▲▲▲【ここまでがエラー修正箇所】▲▲▲
-            
+                
                 return (
                     <g data-id={element.id} onContextMenu={onContextMenu} style={{ pointerEvents: 'all', cursor: 'grab' }}>
                         <path d={`M ${outlines[0].map(p => `${p.x} ${p.y}`).join(' L ')}`} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="miter" strokeLinecap="square" />
