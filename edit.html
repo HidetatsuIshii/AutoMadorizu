@@ -4194,74 +4194,76 @@ ${JSON.stringify(exampleData10)}
             
                 let newGuideLines = [];
                 let closestSnap = null;
-                let minDistance = SNAP_THRESHOLD / zoom;
+                const snapThreshold = SNAP_THRESHOLD / zoom;
             
-                // ▼▼▼【ここからが壁スナップを修正したロジック】▼▼▼
+                // ▼▼▼【ここからが全面的に書き直した新しいスナップロジック】▼▼▼
                 if (((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') && linePoints.length > 0) {
                     const lastPoint = linePoints[linePoints.length - 1];
-                    
-                    // 垂直方向(X軸)と水平方向(Y軸)で、それぞれ最も近いスナップ候補を探す
-                    let bestVSnap = { dist: minDistance, point: null, guide: null };
-                    let bestHSnap = { dist: minDistance, point: null, guide: null };
+                    let snapCandidates = [];
             
-                    // 候補1: 直前の点からの延長線
-                    const distToLastX = Math.abs(currentMousePos.x - lastPoint.x);
-                    if (distToLastX < bestVSnap.dist) {
-                        bestVSnap = { 
-                            dist: distToLastX, 
-                            point: { x: lastPoint.x, y: currentMousePos.y }, 
-                            guide: { type: 'vertical', from: lastPoint } 
-                        };
-                    }
-                    const distToLastY = Math.abs(currentMousePos.y - lastPoint.y);
-                    if (distToLastY < bestHSnap.dist) {
-                        bestHSnap = { 
-                            dist: distToLastY, 
-                            point: { x: currentMousePos.x, y: lastPoint.y }, 
-                            guide: { type: 'horizontal', from: lastPoint } 
-                        };
-                    }
+                    // --- 候補1: 直前の点からの水平・垂直延長線 ---
+                    snapCandidates.push({
+                        type: 'extension',
+                        dist: Math.abs(currentMousePos.x - lastPoint.x),
+                        point: { x: lastPoint.x, y: currentMousePos.y },
+                        guide: { type: 'vertical', from: lastPoint, to: {x: lastPoint.x, y: currentMousePos.y}}
+                    });
+                    snapCandidates.push({
+                        type: 'extension',
+                        dist: Math.abs(currentMousePos.y - lastPoint.y),
+                        point: { x: currentMousePos.x, y: lastPoint.y },
+                        guide: { type: 'horizontal', from: lastPoint, to: {x: currentMousePos.x, y: lastPoint.y}}
+                    });
             
-                    // 候補2: 既存の壁への平行線
+                    // --- 候補2: 既存の壁への平行・垂直線 ---
                     allWallSegments.forEach(wall => {
                         const wallDx = wall.p2.x - wall.p1.x;
                         const wallDy = wall.p2.y - wall.p1.y;
-                        const isHorizontal = Math.abs(wallDy) < 1e-6;
-                        const isVertical = Math.abs(wallDx) < 1e-6;
+                        const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                        if (wallLen < 1e-6) return;
+                        const wallDir = { x: wallDx / wallLen, y: wallDy / wallLen };
+                        const wallPerp = { x: -wallDir.y, y: wallDir.x };
             
-                        if (isVertical) {
-                            const dist = Math.abs(currentMousePos.x - wall.p1.x);
-                            if (dist < bestVSnap.dist) {
-                                bestVSnap = {
-                                    dist: dist,
-                                    point: { x: wall.p1.x, y: currentMousePos.y },
-                                    guide: { type: 'vertical', from: {x: wall.p1.x, y: lastPoint.y} }
-                                };
-                            }
-                        }
-                        if (isHorizontal) {
-                            const dist = Math.abs(currentMousePos.y - wall.p1.y);
-                            if (dist < bestHSnap.dist) {
-                                bestHSnap = {
-                                    dist: dist,
-                                    point: { x: currentMousePos.x, y: wall.p1.y },
-                                    guide: { type: 'horizontal', from: {x: lastPoint.x, y: wall.p1.y} }
-                                };
-                            }
-                        }
+                        // 壁に平行な線 (lastPointを通り、壁と同じ方向の線)
+                        const projectedPara = (currentMousePos.x - lastPoint.x) * wallDir.x + (currentMousePos.y - lastPoint.y) * wallDir.y;
+                        const pointOnParaLine = { x: lastPoint.x + projectedPara * wallDir.x, y: lastPoint.y + projectedPara * wallDir.y };
+                        const distToPara = Math.sqrt((currentMousePos.x - pointOnParaLine.x)**2 + (currentMousePos.y - pointOnParaLine.y)**2);
+                        snapCandidates.push({
+                            type: 'parallel',
+                            dist: distToPara,
+                            point: pointOnParaLine,
+                            guide: { type: 'parallel', from: lastPoint, wall: wall }
+                        });
+            
+                        // 壁に垂直な線 (lastPointを通り、壁と90度をなす線)
+                        const projectedPerp = (currentMousePos.x - lastPoint.x) * wallPerp.x + (currentMousePos.y - lastPoint.y) * wallPerp.y;
+                        const pointOnPerpLine = { x: lastPoint.x + projectedPerp * wallPerp.x, y: lastPoint.y + projectedPerp * wallPerp.y };
+                        const distToPerp = Math.sqrt((currentMousePos.x - pointOnPerpLine.x)**2 + (currentMousePos.y - pointOnPerpLine.y)**2);
+                        snapCandidates.push({
+                            type: 'perpendicular',
+                            dist: distToPerp,
+                            point: pointOnPerpLine,
+                            guide: { type: 'perpendicular', from: lastPoint, wall: wall }
+                        });
                     });
             
-                    // 垂直と水平のうち、より近い方を最終的なスナップとして採用
-                    if (bestVSnap.dist < bestHSnap.dist) {
-                        closestSnap = { point: bestVSnap.point, type: 'extension', guide: bestVSnap.guide };
-                    } else if (bestHSnap.dist < minDistance) {
-                        closestSnap = { point: bestHSnap.point, type: 'extension', guide: bestHSnap.guide };
+                    // --- 全ての候補の中から最も近いものを選択 ---
+                    const bestSnap = snapCandidates.reduce((best, current) => {
+                        return (current.dist < best.dist) ? current : best;
+                    }, { dist: snapThreshold, point: null });
+            
+                    if (bestSnap.point) {
+                        closestSnap = {
+                            point: bestSnap.point,
+                            type: bestSnap.type,
+                            guide: bestSnap.guide
+                        };
                     }
             
                 } else { // 従来のその他のスナップ処理
                     const isSnappingEnabled = (drawingMode === 'window' || drawingMode === 'door' || drawingMode === 'space' || drawingMode === 'wall') && isSnapToWall && !isModifierKeyDown;
                     if (isSnappingEnabled) {
-                        let pointsToSnapAgainst = [];
+                         let pointsToSnapAgainst = [];
                         svgElements.forEach(el => {
                             if (el.type === 'wall') {
                                 pointsToSnapAgainst.push({x: el.x1, y: el.y1});
@@ -4276,8 +4278,8 @@ ${JSON.stringify(exampleData10)}
                         if (pointsToSnapAgainst.length > 0) {
                             let bestVerticalSnap = null;
                             let bestHorizontalSnap = null;
-                            let minXDist = SNAP_THRESHOLD / zoom;
-                            let minYDist = SNAP_THRESHOLD / zoom;
+                            let minXDist = snapThreshold;
+                            let minYDist = snapThreshold;
                             pointsToSnapAgainst.forEach(p => {
                                 const distX = Math.abs(currentMousePos.x - p.x);
                                 if (distX < minXDist) {
@@ -4294,8 +4296,7 @@ ${JSON.stringify(exampleData10)}
                             if (bestVerticalSnap && bestHorizontalSnap) {
                                 const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
                                 const distToIntersection = Math.sqrt(Math.pow(currentMousePos.x - intersectionPoint.x, 2) + Math.pow(currentMousePos.y - intersectionPoint.y, 2));
-                                if (distToIntersection < SNAP_THRESHOLD / zoom) {
-                                    minDistance = distToIntersection;
+                                if (distToIntersection < snapThreshold) {
                                     closestSnap = { point: intersectionPoint, type: 'intersection', guide: { vertical: { from: bestVerticalSnap.from }, horizontal: { from: bestHorizontalSnap.from } } };
                                 }
                             }
@@ -4307,9 +4308,8 @@ ${JSON.stringify(exampleData10)}
                                 }
                             }
                         }
-                        
                         if (!closestSnap && (drawingMode === 'door' || drawingMode === 'window') && allWallSegments.length > 0) {
-                            for (const segment of allWallSegments) {
+                             for (const segment of allWallSegments) {
                                 const { p1, p2 } = segment;
                                 const dx = p2.x - p1.x, dy = p2.y - p1.y;
                                 if (dx === 0 && dy === 0) continue;
@@ -4317,15 +4317,14 @@ ${JSON.stringify(exampleData10)}
                                 const clampedT = Math.max(0, Math.min(1, t));
                                 const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
                                 const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                if (distSq < minDistance * minDistance) {
-                                    minDistance = Math.sqrt(distSq);
+                                if (distSq < snapThreshold * snapThreshold) {
                                     closestSnap = { point: pointOnLine, type: 'wall', wall: segment }; 
                                 }
                             }
                         }
                     }
                 }
-                // ▲▲▲【ここまでが壁スナップを修正したロジック】▲▲▲
+                // ▲▲▲【ここまでが新しいスナップロジック】▲▲▲
                 
                 if (stairSnapPreview) {
                   setSnappedInfo(null);
@@ -4333,14 +4332,18 @@ ${JSON.stringify(exampleData10)}
                   setSnappedInfo(closestSnap);
                 }
                 
+                // ガイド線の描画ロジックを更新
                 if (closestSnap?.guide) {
-                    if(closestSnap.guide.type === 'vertical') {
-                        newGuideLines.push({ x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
-                    } else if (closestSnap.guide.type === 'horizontal') {
+                    if(closestSnap.guide.type === 'vertical' || closestSnap.guide.type === 'horizontal') {
                         newGuideLines.push({ x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                     } else if (closestSnap.type === 'intersection') {
                         newGuideLines.push({ x1: closestSnap.guide.vertical.from.x, y1: closestSnap.guide.vertical.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
                         newGuideLines.push({ x1: closestSnap.guide.horizontal.from.x, y1: closestSnap.guide.horizontal.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
+                    } else if (closestSnap.guide.type === 'parallel' || closestSnap.guide.type === 'perpendicular') {
+                        // 始点からスナップ点へのガイド線
+                        newGuideLines.push({ x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y });
+                        // スナップ元の壁をハイライト表示
+                        newGuideLines.push({ x1: closestSnap.guide.wall.p1.x, y1: closestSnap.guide.wall.p1.y, x2: closestSnap.guide.wall.p2.x, y2: closestSnap.guide.wall.p2.y, highlight: true });
                     }
                 }
                 setGuideLines(newGuideLines);
@@ -4384,25 +4387,17 @@ ${JSON.stringify(exampleData10)}
                             }
                         } else if (type === 'fixtureEdge') {
                             switch (handleIndex) {
-                                case 0:
-                                case 2:
-                                    newHeight = Math.abs(unrotatedMouseY) * 2;
-                                    break;
-                                case 1:
-                                case 3:
-                                    newWidth = Math.abs(unrotatedMouseX) * 2;
-                                    break;
+                                case 0: case 2: newHeight = Math.abs(unrotatedMouseY) * 2; break;
+                                case 1: case 3: newWidth = Math.abs(unrotatedMouseX) * 2; break;
                             }
                         }
                         newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
                         const newElement = { ...newElements[elementIndex] };
                         if (handleIndex === 0) {
-                            newElement.x1 = snappedPos.x;
-                            newElement.y1 = snappedPos.y;
+                            newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y;
                         } else {
-                            newElement.x2 = snappedPos.x;
-                            newElement.y2 = snappedPos.y;
+                            newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y;
                         }
                         if (type === 'door' || type === 'window') {
                             const dx = newElement.x2 - newElement.x1;
@@ -4449,18 +4444,12 @@ ${JSON.stringify(exampleData10)}
                         const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
                         let newPoints;
                         if (type === 'spaceCorner') {
-                            const corners = [
-                                {x: originalBbox.minX, y: originalBbox.minY}, {x: originalBbox.maxX, y: originalBbox.minY},
-                                {x: originalBbox.maxX, y: originalBbox.maxY}, {x: originalBbox.minX, y: originalBbox.maxY}
-                            ];
+                            const corners = [ {x: originalBbox.minX, y: originalBbox.minY}, {x: originalBbox.maxX, y: originalBbox.minY}, {x: originalBbox.maxX, y: originalBbox.maxY}, {x: originalBbox.minX, y: originalBbox.maxY} ];
                             const anchor = corners[(handleIndex + 2) % 4];
                             const originalCorner = corners[handleIndex];
                             const scaleX = (originalCorner.x - anchor.x) === 0 ? 1 : (snappedPos.x - anchor.x) / (originalCorner.x - anchor.x);
                             const scaleY = (originalCorner.y - anchor.y) === 0 ? 1 : (snappedPos.y - anchor.y) / (originalCorner.y - anchor.y);
-                            newPoints = originalPoints.map(p => ({
-                                x: Math.round(anchor.x + (p.x - anchor.x) * scaleX),
-                                y: Math.round(anchor.y + (p.y - anchor.y) * scaleY)
-                            }));
+                            newPoints = originalPoints.map(p => ({ x: Math.round(anchor.x + (p.x - anchor.x) * scaleX), y: Math.round(anchor.y + (p.y - anchor.y) * scaleY) }));
                         } else {
                             newPoints = originalPoints.map(p => {
                                 let newP = {...p};
@@ -4512,22 +4501,15 @@ ${JSON.stringify(exampleData10)}
                         if (originalEl) {
                             const newEl = { ...el };
                             switch (originalEl.type) {
-                                case 'text':
-                                case 'fixture':
-                                case 'compass':
+                                case 'text': case 'fixture': case 'compass':
                                     newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100;
                                     newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100;
                                     break;
-                                case 'door':
-                                case 'window':
-                                case 'wall':
-                                    newEl.x1 = originalEl.x1 + finalDeltaX;
-                                    newEl.y1 = originalEl.y1 + finalDeltaY;
-                                    newEl.x2 = originalEl.x2 + finalDeltaX;
-                                    newEl.y2 = originalEl.y2 + finalDeltaY;
+                                case 'door': case 'window': case 'wall':
+                                    newEl.x1 = originalEl.x1 + finalDeltaX; newEl.y1 = originalEl.y1 + finalDeltaY;
+                                    newEl.x2 = originalEl.x2 + finalDeltaX; newEl.y2 = originalEl.y2 + finalDeltaY;
                                     break;
-                                case 'space':
-                                case 'stairs':
+                                case 'space': case 'stairs':
                                     const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
                                     const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY }));
                                     newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
