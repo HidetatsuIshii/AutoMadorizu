@@ -3812,7 +3812,7 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
             
-                        const clickedPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                        const clickedPoint = mousePos; 
                         setLinePoints(prev => [...prev, clickedPoint]);
                         setSnappedInfo(null);
                         return;
