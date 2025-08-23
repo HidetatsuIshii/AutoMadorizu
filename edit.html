@@ -5410,7 +5410,7 @@ ${JSON.stringify(exampleData10)}
             };
 
             const StairsRenderer = ({ element, onContextMenu }) => {
-                const { points: pointsStr, width, direction, color, strokeWidth } = element;
+                const { points: pointsStr, width, color, strokeWidth } = element;
             
                 const getLineIntersection = (p1, p2, p3, p4) => {
                     const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
@@ -5476,8 +5476,8 @@ ${JSON.stringify(exampleData10)}
                     dot = Math.max(-1, Math.min(1, dot));
                     const angle = Math.acos(dot);
             
-                    if (angle >= Math.PI / 4) {
-                        cornerMargins[i] = Math.min(width / 1.5, len_in / 2, len_out / 2); // 以前は width/2 だったのを少し広げました
+                    if (angle >= Math.PI / 4) { // 45度以上の角で斜め線を描画
+                        cornerMargins[i] = Math.min(width / 1.5, len_in / 2, len_out / 2);
                     }
                 }
             
@@ -5515,29 +5515,32 @@ ${JSON.stringify(exampleData10)}
                     const innerOutlineIndex = (crossProduct > 0) ? 1 : 0;
                     const outerOutlineIndex = (crossProduct > 0) ? 0 : 1;
                 
-                    // 角の頂点は outlines 配列の `i` 番目に対応します
+                    // 角の頂点は outlines 配列の `i` 番目に対応
                     const innerCornerPoint = outlines[innerOutlineIndex][i];
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
                 
                     if (margin === 0) {
                         steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
                     } else {
-                        // 元のロジックを尊重しつつ、安全なインデックス参照に修正
+                        // 角の前後の点を安全に取得
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
                 
-                        // 角から前の点へのベクトル
+                        // 角から「前の点」へ向かうベクトル
                         const vecToPrev = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenToPrev = Math.sqrt(vecToPrev.x**2 + vecToPrev.y**2);
                         const dirToPrev = { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev };
+                        // 外側の線上、角からマージン分だけ手前の点
                         const outerP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
                         
-                        // 角から次の点へのベクトル
+                        // 角から「次の点」へ向かうベクトル
                         const vecToNext = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
                         const lenToNext = Math.sqrt(vecToNext.x**2 + vecToNext.y**2);
                         const dirToNext = { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext };
+                        // 外側の線上、角からマージン分だけ先の点
                         const outerP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
                         
+                        // ★★【重要】内角の1点から、外側の2点へ線を引く
                         steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
                         steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
                     }
