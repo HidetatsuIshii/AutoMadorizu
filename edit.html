@@ -4367,7 +4367,19 @@ ${JSON.stringify(exampleData10)}
                             closestSnap = { point: snappedPoint, type: 'axisAlignment', guide: guide };
                         }
                     }
-                    if (closestSnap) { previewEndPoint = closestSnap.point; newSnappedInfo = closestSnap; if(closestSnap.guide?.type==='vertical'||closestSnap.guide?.type==='horizontal'){newGuideLines.push({x1:closestSnap.guide.from.x,y1:closestSnap.guide.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y})}else if(closestSnap.type==='intersection'){newGuideLines.push({x1:closestSnap.guide.vertical.from.x,y1:closestSnap.guide.vertical.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y});newGuideLines.push({x1:closestSnap.guide.horizontal.from.x,y1:closestSnap.guide.horizontal.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y})}}
+                    if (closestSnap) { 
+                        previewEndPoint = closestSnap.point; 
+                        newSnappedInfo = closestSnap; 
+                        if (closestSnap.guide?.type === 'vertical' || closestSnap.guide?.type === 'horizontal') {
+                            newGuideLines.push({
+                                x1: closestSnap.guide.from.x, 
+                                y1: closestSnap.guide.from.y, 
+                                x2: closestSnap.point.x, 
+                                y2: closestSnap.point.y,
+                                snapType: closestSnap.type // snapTypeを渡すのを忘れないように
+                            })
+                        }
+                    } else if(closestSnap.type==='intersection'){newGuideLines.push({x1:closestSnap.guide.vertical.from.x,y1:closestSnap.guide.vertical.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y});newGuideLines.push({x1:closestSnap.guide.horizontal.from.x,y1:closestSnap.guide.horizontal.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y})}}
                 }
             
                 setMousePos(previewEndPoint);
