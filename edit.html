@@ -5528,33 +5528,25 @@ ${JSON.stringify(exampleData10)}
                                 <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
                                 <div className="my-1 border-t border-gray-200"></div>
     
-                                {/* --- 修正箇所 --- */}
                                 <div className="relative group">
                                     <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center">
-                                        <span>最前面へ移動</span>
+                                        <span>重ね順</span>
                                         <span className="text-gray-400">▶</span>
                                     </button>
-                                    {/* top-0と-mt-1で親要素に少し重ね、隙間をなくす */}
-                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block z-10">
+                                    
+                                    {/* 修正点: hidden/blockの代わりにopacity/visibilityで表示を制御し、遷移効果を追加 */}
+                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 
+                                                   opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                                                   transition-opacity duration-100 z-10">
                                         <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
                                         <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
                                     </div>
                                 </div>
-                                <div className="relative group">
-                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center">
-                                        <span>最背面へ移動</span>
-                                        <span className="text-gray-400">▶</span>
-                                    </button>
-                                    {/* こちらも同様に-mt-1で位置を調整 */}
-                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block z-10">
-                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
-                                    </div>
-                                </div>
-                                {/* --- 修正ここまで --- */}
     
                                 <div className="my-1 border-t border-gray-200"></div>
-                                <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
+                                <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
                             </div>
                         );
     
