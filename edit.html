@@ -4196,79 +4196,47 @@ ${JSON.stringify(exampleData10)}
                     if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints);
             
                     if (linePoints.length > 0) {
-                        setStairSnapPreview(null);
-                        const lastPoint = linePoints[linePoints.length - 1];
-                        const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
-                        const firstPoint = linePoints[0];
-
-                        let uTurnSnapped = false;
-
-                        // --- 1. 最優先：U字折り返しスナップを試みる ---
-                        const distToFirstX = Math.abs(currentMousePos.x - firstPoint.x);
-                        const distToFirstY = Math.abs(currentMousePos.y - firstPoint.y);
-
-                        // 垂直方向(X軸が同じ)へのU字スナップが近いか？
-                        if (distToFirstX < snapThreshold && distToFirstX < distToFirstY) {
-                            previewEndPoint.x = firstPoint.x;
-                            newGuideLines.push({ x1: firstPoint.x, y1: firstPoint.y, x2: previewEndPoint.x, y2: currentMousePos.y });
-                            newSnappedInfo = { point: { x: previewEndPoint.x, y: currentMousePos.y }, type: 'extension' };
-                            uTurnSnapped = true;
-                        } 
-                        // 水平方向(Y軸が同じ)へのU字スナップが近いか？
-                        else if (distToFirstY < snapThreshold) {
-                            previewEndPoint.y = firstPoint.y;
-                            newGuideLines.push({ x1: firstPoint.x, y1: firstPoint.y, x2: currentMousePos.x, y2: previewEndPoint.y });
-                            newSnappedInfo = { point: { x: currentMousePos.x, y: previewEndPoint.y }, type: 'extension' };
-                            uTurnSnapped = true;
-                        }
-
-                        // --- 2. U字でなければ、壁スナップまたはL字スナップを試みる ---
-                        if (!uTurnSnapped) {
-                            let snapCandidate = null;
-                            
-                            // 2-a. 既存の壁に沿ったスナップ処理
-                            if (allWallSegments.length > 0) {
-                                let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
-                                for (const wall of allWallSegments) {
-                                    const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
-                                    if (dx === 0 && dy === 0) continue;
-                                    const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                    const clampedT = Math.max(0, Math.min(1, t));
-                                    const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                    const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                    if (distSq < minDistanceSq) { minDistanceSq = distSq; tempClosestWall = wall; tempClosestPointOnWall = pointOnLine; }
-                                }
-                            
-                                if (minDistanceSq < (snapThreshold * 5) ** 2) {
-                                    const { closestPointOnWall, closestWall } = { closestPointOnWall: tempClosestPointOnWall, closestWall: tempClosestWall };
-                                    const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
-                                    const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
-                                    if (wallLen > 0) {
-                                        const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
-                                        const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
-                                        const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
-                                        const side = Math.sign(dotProduct) || 1;
-                                        const offsetPoint = { x: closestPointOnWall.x + side * perp.x * (stairWidth / 2), y: closestPointOnWall.y + side * perp.y * (stairWidth / 2) };
-                                        const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
-                                        snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
-                                    }
-                                }
-                            }
-                            
-                            // 2-b. 壁スナップが有効なら適用、そうでなければL字（直角）スナップを適用
-                            if (snapCandidate && Math.hypot(currentMousePos.x - snapCandidate.x, currentMousePos.y - snapCandidate.y) < snapThreshold * 2) {
-                                 previewEndPoint = snapCandidate;
-                                 newSnappedInfo = { point: previewEndPoint, type: 'wall' };
-                            } else {
-                                 // L字 (直角) スナップ
-                                 if (Math.abs(currentMousePos.x - lastPoint.x) < Math.abs(currentMousePos.y - lastPoint.y)) {
-                                     previewEndPoint.x = lastPoint.x;
-                                 } else {
-                                     previewEndPoint.y = lastPoint.y;
-                                 }
-                            }
-                        }
-                    }else {
+                        setStairSnapPreview(null);
+                        const lastPoint = linePoints[linePoints.length - 1];
+                        const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
+                        let snapCandidate = null;
+           
+                        if (allWallSegments.length > 0) {
+                            let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
+                            for (const wall of allWallSegments) {
+                                const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                if (dx === 0 && dy === 0) continue;
+                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                const clampedT = Math.max(0, Math.min(1, t));
+                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+                                if (distSq < minDistanceSq) { minDistanceSq = distSq; tempClosestWall = wall; tempClosestPointOnWall = pointOnLine; }
+                            }
+            
+                            if (minDistanceSq < (snapThreshold * 5) ** 2) {
+                                const { closestPointOnWall, closestWall } = { closestPointOnWall: tempClosestPointOnWall, closestWall: tempClosestWall };
+                                const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
+                                const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                                if (wallLen > 0) {
+                                    const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
+                                    const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                                    const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                                    const side = Math.sign(dotProduct) || 1;
+                                    const offsetPoint = { x: closestPointOnWall.x + side * perp.x * (stairWidth / 2), y: closestPointOnWall.y + side * perp.y * (stairWidth / 2) };
+                                    const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
+                                    snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
+                                }
+                            }
+                        }
+            
+                        if (snapCandidate) {
+                            const distToSnap = Math.sqrt(Math.pow(currentMousePos.x - snapCandidate.x, 2) + Math.pow(currentMousePos.y - snapCandidate.y, 2));
+                            if (distToSnap < snapThreshold * 2) {
+                                previewEndPoint = snapCandidate;
+                                newSnappedInfo = { point: previewEndPoint, type: 'wall' };
+                            }
+                        }
+                    }else {
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
                             let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
