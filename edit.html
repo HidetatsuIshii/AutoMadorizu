@@ -4175,7 +4175,6 @@ ${JSON.stringify(exampleData10)}
                 const snapThreshold = SNAP_THRESHOLD / zoom;
                 const isSnappingEnabled = (drawingMode !== 'none') && isSnapToWall && !isModifierKeyDown;
             
-                // 階段描画中のスナップ処理
                 if (drawingMode === 'stairs' && isSnappingEnabled) {
                     const allWallSegments = [];
                     const pointsToSnapAgainst = [];
@@ -4195,14 +4194,13 @@ ${JSON.stringify(exampleData10)}
                         }
                     });
                     if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints);
-                    
+            
                     if (linePoints.length > 0) {
                         setStairSnapPreview(null);
                         const lastPoint = linePoints[linePoints.length - 1];
                         const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
                         let uShapeSnapApplied = false;
-            
-                        // Uターン階段用のスナップ処理
+                        
                         if (linePoints.length === 2) {
                             const p1 = linePoints[0];
                             const p2 = linePoints[1];
@@ -4232,47 +4230,58 @@ ${JSON.stringify(exampleData10)}
                                     previewEndPoint = previewOnLine;
                                 }
                             }
-                            uShapeSnapApplied = true; 
+                            uShapeSnapApplied = true;
                         }
                         
-                        // 壁へのスナップ処理
                         if (!uShapeSnapApplied) {
                             let snapCandidate = null;
-                            if (allWallSegments.length > 0) {
-                                let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
-                                for (const wall of allWallSegments) {
-                                    const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
-                                    if (dx === 0 && dy === 0) continue;
-                                    const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                    const clampedT = Math.max(0, Math.min(1, t));
-                                    const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                    const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                    if (distSq < minDistanceSq) { minDistanceSq = distSq; tempClosestWall = wall; tempClosestPointOnWall = pointOnLine; }
-                                }
-                                if (minDistanceSq < (snapThreshold * 5) ** 2) {
-                                    const { closestPointOnWall, closestWall } = { closestPointOnWall: tempClosestPointOnWall, closestWall: tempClosestWall };
-                                    const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
-                                    const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
-                                    if (wallLen > 0) {
-                                        const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
-                                        const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
-                                        const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
-                                        const side = Math.sign(dotProduct) || 1;
-                                        const offsetPoint = { x: closestPointOnWall.x + side * perp.x * (stairWidth / 2), y: closestPointOnWall.y + side * perp.y * (stairWidth / 2) };
-                                        const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
-                                        snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
-                                    }
+                            if (pointsToSnapAgainst.length > 0) {
+                                let minXDist = snapThreshold, minYDist = snapThreshold;
+                                let bestVerticalSnap = null, bestHorizontalSnap = null;
+                                
+                                pointsToSnapAgainst.forEach(p => {
+                                    const distX = Math.abs(currentMousePos.x - p.x);
+                                    if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
+                                    const distY = Math.abs(currentMousePos.y - p.y);
+                                    if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
+                                });
+                                
+                                if (minXDist < minYDist && bestVerticalSnap) {
+                                     snapCandidate = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
+                                } else if (bestHorizontalSnap) {
+                                     snapCandidate = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
                                 }
                             }
-                            if (snapCandidate) {
-                                const distToSnap = Math.sqrt(Math.pow(currentMousePos.x - snapCandidate.x, 2) + Math.pow(currentMousePos.y - snapCandidate.y, 2));
-                                if (distToSnap < snapThreshold * 2) {
-                                    previewEndPoint = snapCandidate;
-                                    newSnappedInfo = { point: previewEndPoint, type: 'wall' };
+                             if (snapCandidate) {
+                                 previewEndPoint = snapCandidate.point;
+                                 newSnappedInfo = snapCandidate;
+                             }
+                        }
+                        
+                        // ▼▼▼【ここが修正箇所】▼▼▼
+                        // 他のスナップが効かなかった場合に、始点の軸へのスナップを試みる
+                        if (!newSnappedInfo) { 
+                            const startPoint = linePoints[0];
+                            const distXToStart = Math.abs(currentMousePos.x - startPoint.x);
+                            const distYToStart = Math.abs(currentMousePos.y - startPoint.y);
+            
+                            if (!isModifierKeyDown && (distXToStart < snapThreshold || distYToStart < snapThreshold)) {
+                                let snappedPoint = { ...currentMousePos };
+                                let guide = {};
+                                if (distXToStart < distYToStart) {
+                                    snappedPoint.x = startPoint.x;
+                                    guide = { type: 'vertical', from: startPoint };
+                                } else {
+                                    snappedPoint.y = startPoint.y;
+                                    guide = { type: 'horizontal', from: startPoint };
                                 }
+                                previewEndPoint = snappedPoint;
+                                newSnappedInfo = { point: snappedPoint, type: 'axisAlignment', guide: guide };
                             }
                         }
-                    } else { // 階段の1点目を打つ前のプレビュー処理
+                        // ▲▲▲【ここまで修正】▲▲▲
+            
+                    } else { // 階段の1点目を打つ前のプレビュー
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
                             let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
@@ -4301,81 +4310,22 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
                     }
-                } 
-                // その他の図形描画中の汎用スナップ処理
-                else if (isSnappingEnabled) {
+                } else if (isSnappingEnabled) {
                     let closestSnap = null;
                     let pointsToSnapAgainst = [];
-                    svgElements.forEach(el => {
-                        if (el.type === 'wall' || el.type === 'door' || el.type === 'window') {
-                            pointsToSnapAgainst.push({ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 });
-                        } else if (el.type === 'space' || el.type === 'stairs') {
-                            pointsToSnapAgainst.push(...el.points.split(' ').map(p_str => ({ x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1]) })));
-                        }
-                    });
-                    if (drawingStartPoint) pointsToSnapAgainst.push(drawingStartPoint);
-                    if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints);
-            
+                    svgElements.forEach(el=>{if(el.type==='wall'||el.type==='door'||el.type==='window'){pointsToSnapAgainst.push({x:el.x1,y:el.y1},{x:el.x2,y:el.y2})}else if(el.type==='space'||el.type==='stairs'){pointsToSnapAgainst.push(...el.points.split(' ').map(p_str=>({x:parseFloat(p_str.split(',')[0]),y:parseFloat(p_str.split(',')[1])})))}});if(drawingStartPoint)pointsToSnapAgainst.push(drawingStartPoint);if(linePoints.length>0)pointsToSnapAgainst.push(...linePoints);
                     if (pointsToSnapAgainst.length > 0) {
                         let bestVerticalSnap = null, bestHorizontalSnap = null, minXDist = snapThreshold, minYDist = snapThreshold;
-                        pointsToSnapAgainst.forEach(p => {
-                            const distX = Math.abs(currentMousePos.x - p.x);
-                            if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
-                            const distY = Math.abs(currentMousePos.y - p.y);
-                            if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
-                        });
-                        if (bestVerticalSnap && bestHorizontalSnap) {
-                            const intersectionPoint = { x: bestVerticalSnap.x, y: bestHorizontalSnap.y };
-                            const distToIntersection = Math.sqrt(Math.pow(currentMousePos.x - intersectionPoint.x, 2) + Math.pow(currentMousePos.y - intersectionPoint.y, 2));
-                            if (distToIntersection < snapThreshold) {
-                                closestSnap = { point: intersectionPoint, type: 'intersection', guide: { vertical: { from: bestVerticalSnap.from }, horizontal: { from: bestHorizontalSnap.from } } };
-                            }
-                        }
-                        if (!closestSnap) {
-                            if (minXDist < minYDist && bestVerticalSnap) {
-                                closestSnap = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
-                            } else if (bestHorizontalSnap) {
-                                closestSnap = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
-                            }
-                        }
-                    }
-                    
-                    // ▼▼▼【ここが修正箇所】▼▼▼
-                    // 既存のスナップが効かなかった場合に、始点の軸へのスナップを試みる
-                    if (!closestSnap && drawingMode === 'stairs' && linePoints.length > 0) {
-                        const startPoint = linePoints[0];
-                        const distXToStart = Math.abs(currentMousePos.x - startPoint.x);
-                        const distYToStart = Math.abs(currentMousePos.y - startPoint.y);
-                        
-                        if (!isModifierKeyDown && (distXToStart < snapThreshold || distYToStart < snapThreshold)) {
-                            let snappedPoint = { ...currentMousePos };
-                            let guide = {};
-                            if (distXToStart < distYToStart) {
-                                snappedPoint.x = startPoint.x;
-                                guide = { type: 'vertical', from: startPoint };
-                            } else {
-                                snappedPoint.y = startPoint.y;
-                                guide = { type: 'horizontal', from: startPoint };
-                            }
-                            closestSnap = { point: snappedPoint, type: 'axisAlignment', guide: guide };
-                        }
+                        pointsToSnapAgainst.forEach(p=>{const distX=Math.abs(currentMousePos.x-p.x);if(distX<minXDist){minXDist=distX;bestVerticalSnap={x:p.x,from:p}}const distY=Math.abs(currentMousePos.y-p.y);if(distY<minYDist){minYDist=distY;bestHorizontalSnap={y:p.y,from:p}}});
+                        if(bestVerticalSnap&&bestHorizontalSnap){const intersectionPoint={x:bestVerticalSnap.x,y:bestHorizontalSnap.y};const distToIntersection=Math.sqrt(Math.pow(currentMousePos.x-intersectionPoint.x,2)+Math.pow(currentMousePos.y-intersectionPoint.y,2));if(distToIntersection<snapThreshold){closestSnap={point:intersectionPoint,type:'intersection',guide:{vertical:{from:bestVerticalSnap.from},horizontal:{from:bestHorizontalSnap.from}}}}}
+                        if(!closestSnap){if(minXDist<minYDist&&bestVerticalSnap){closestSnap={point:{x:bestVerticalSnap.x,y:currentMousePos.y},type:'extension',guide:{type:'vertical',from:bestVerticalSnap.from}}}else if(bestHorizontalSnap){closestSnap={point:{x:currentMousePos.x,y:bestHorizontalSnap.y},type:'extension',guide:{type:'horizontal',from:bestHorizontalSnap.from}}}}
                     }
                     
                     if (closestSnap) {
                         previewEndPoint = closestSnap.point;
                         newSnappedInfo = closestSnap;
-                        if (closestSnap.guide?.type === 'vertical' || closestSnap.guide?.type === 'horizontal') {
-                            newGuideLines.push({
-                                x1: closestSnap.guide.from.x,
-                                y1: closestSnap.guide.from.y,
-                                x2: closestSnap.point.x,
-                                y2: closestSnap.point.y,
-                                snapType: closestSnap.type
-                            });
-                        } else if (closestSnap.type === 'intersection') {
-                            newGuideLines.push({ x1: closestSnap.guide.vertical.from.x, y1: closestSnap.guide.vertical.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y, snapType: 'intersection' });
-                            newGuideLines.push({ x1: closestSnap.guide.horizontal.from.x, y1: closestSnap.guide.horizontal.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y, snapType: 'intersection' });
-                        }
+                        if(closestSnap.guide?.type==='vertical'||closestSnap.guide?.type==='horizontal'){newGuideLines.push({x1:closestSnap.guide.from.x,y1:closestSnap.guide.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: closestSnap.type })}
+                        else if(closestSnap.type==='intersection'){newGuideLines.push({x1:closestSnap.guide.vertical.from.x,y1:closestSnap.guide.vertical.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: 'intersection'});newGuideLines.push({x1:closestSnap.guide.horizontal.from.x,y1:closestSnap.guide.horizontal.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: 'intersection'})}
                     }
                 }
                 
@@ -4384,7 +4334,7 @@ ${JSON.stringify(exampleData10)}
                 if (!stairSnapPreview) {
                     setSnappedInfo(newSnappedInfo);
                 }
-            
+                
                 if (editorMode === 'edit' && dragTarget.current && dragInfo.current && mouseDownInfo.current) {
                     const dist = Math.sqrt(Math.pow(e.clientX - mouseDownInfo.current.x, 2) + Math.pow(e.clientY - mouseDownInfo.current.y, 2));
                     if (!isDragging && dist > 5) { setIsDragging(true); setSelectedId(dragTarget.current.id); }
@@ -4396,145 +4346,25 @@ ${JSON.stringify(exampleData10)}
                     const elementIndex = newElements.findIndex(el => el.id === id);
                     if (elementIndex === -1) return;
                     if (type === 'fixtureCorner' || type === 'fixtureEdge') {
-                        const originalElement = { ...newElements[elementIndex] };
-                        const cx = originalElement.x / 100 * dimensions.width;
-                        const cy = originalElement.y / 100 * dimensions.height;
-                        const rad = (originalElement.rotation || 0) * Math.PI / 180;
-                        const mouseDx = snappedPos.x - cx;
-                        const mouseDy = snappedPos.y - cy;
-                        const unrotatedMouseX = mouseDx * Math.cos(-rad) - mouseDy * Math.sin(-rad);
-                        const unrotatedMouseY = mouseDx * Math.sin(-rad) + mouseDy * Math.cos(-rad);
-                        let newWidth = originalElement.width;
-                        let newHeight = originalElement.height;
-                        if (type === 'fixtureCorner') {
-                            const originalAspectRatio = originalElement.width / originalElement.height;
-                            const newHalfWidth = Math.abs(unrotatedMouseX);
-                            const newHalfHeight = Math.abs(unrotatedMouseY);
-                            if (newHalfWidth / originalAspectRatio > newHalfHeight) {
-                                newWidth = newHalfWidth * 2;
-                                newHeight = newWidth / originalAspectRatio;
-                            } else {
-                                newHeight = newHalfHeight * 2;
-                                newWidth = newHeight * originalAspectRatio;
-                            }
-                        } else if (type === 'fixtureEdge') {
-                            switch (handleIndex) {
-                                case 0:
-                                case 2:
-                                    newHeight = Math.abs(unrotatedMouseY) * 2;
-                                    break;
-                                case 1:
-                                case 3:
-                                    newWidth = Math.abs(unrotatedMouseX) * 2;
-                                    break;
-                            }
-                        }
+                        const originalElement = { ...newElements[elementIndex] }; const cx = originalElement.x / 100 * dimensions.width; const cy = originalElement.y / 100 * dimensions.height; const rad = (originalElement.rotation || 0) * Math.PI / 180; const mouseDx = snappedPos.x - cx; const mouseDy = snappedPos.y - cy; const unrotatedMouseX = mouseDx * Math.cos(-rad) - mouseDy * Math.sin(-rad); const unrotatedMouseY = mouseDx * Math.sin(-rad) + mouseDy * Math.cos(-rad); let newWidth = originalElement.width; let newHeight = originalElement.height;
+                        if(type==='fixtureCorner'){const originalAspectRatio=originalElement.width/originalElement.height;const newHalfWidth=Math.abs(unrotatedMouseX);const newHalfHeight=Math.abs(unrotatedMouseY);if(newHalfWidth/originalAspectRatio>newHalfHeight){newWidth=newHalfWidth*2;newHeight=newWidth/originalAspectRatio}else{newHeight=newHalfHeight*2;newWidth=newHeight*originalAspectRatio}}else if(type==='fixtureEdge'){switch(handleIndex){case 0:case 2:newHeight=Math.abs(unrotatedMouseY)*2;break;case 1:case 3:newWidth=Math.abs(unrotatedMouseX)*2;break;}}
                         newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
-                        const newElement = { ...newElements[elementIndex] };
-                        if (handleIndex === 0) {
-                            newElement.x1 = snappedPos.x;
-                            newElement.y1 = snappedPos.y;
-                        } else {
-                            newElement.x2 = snappedPos.x;
-                            newElement.y2 = snappedPos.y;
-                        }
-                        if (type === 'door' || type === 'window') {
-                            const dx = newElement.x2 - newElement.x1;
-                            const dy = newElement.y2 - newElement.y1;
-                            newElement.length = Math.sqrt(dx * dx + dy * dy);
-                            newElement.baseAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                        }
+                        const newElement = { ...newElements[elementIndex] }; if (handleIndex === 0) { newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y; } else { newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y; }
+                        if(type==='door'||type==='window'){const dx=newElement.x2-newElement.x1;const dy=newElement.y2-newElement.y1;newElement.length=Math.sqrt(dx*dx+dy*dy);newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI}
                         newElements[elementIndex] = newElement;
                     } else if (type === 'spaceCorner' || type === 'spaceEdge') {
-                        const groupElements = newElements.filter(el => el.groupId === id);
-                        const spaceEl = groupElements.find(el => el.type === 'space');
-                        if (!spaceEl) return;
-                        const originalPoints = spaceEl.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
-                        const xs = originalPoints.map(p => p.x);
-                        const ys = originalPoints.map(p => p.y);
-                        const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
-                        let newPoints;
-                        if (type === 'spaceCorner') {
-                            const corners = [{ x: originalBbox.minX, y: originalBbox.minY }, { x: originalBbox.maxX, y: originalBbox.minY }, { x: originalBbox.maxX, y: originalBbox.maxY }, { x: originalBbox.minX, y: originalBbox.maxY }];
-                            const anchor = corners[(handleIndex + 2) % 4];
-                            const originalCorner = corners[handleIndex];
-                            const scaleX = (originalCorner.x - anchor.x) === 0 ? 1 : (snappedPos.x - anchor.x) / (originalCorner.x - anchor.x);
-                            const scaleY = (originalCorner.y - anchor.y) === 0 ? 1 : (snappedPos.y - anchor.y) / (originalCorner.y - anchor.y);
-                            newPoints = originalPoints.map(p => ({ x: Math.round(anchor.x + (p.x - anchor.x) * scaleX), y: Math.round(anchor.y + (p.y - anchor.y) * scaleY) }))
-                        } else {
-                            newPoints = originalPoints.map(p => {
-                                let newP = { ...p };
-                                if (handleIndex === 0 && p.y === originalBbox.minY) newP.y = snappedPos.y;
-                                if (handleIndex === 1 && p.x === originalBbox.maxX) newP.x = snappedPos.x;
-                                if (handleIndex === 2 && p.y === originalBbox.maxY) newP.y = snappedPos.y;
-                                if (handleIndex === 3 && p.x === originalBbox.minX) newP.x = snappedPos.x;
-                                return newP
-                            })
-                        }
-                        const newPointsStr = newPoints.map(p => `${p.x},${p.y}`).join(' ');
-                        const newCentroid = getPolygonCentroid([...newPoints]);
-                        newElements = newElements.map(el => {
-                            if (el.groupId !== id) return el;
-                            if (el.type === 'space') return { ...el, points: newPointsStr };
-                            if (el.type === 'text') return { ...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
-                            if (el.type === 'wall') {
-                                const p1 = newPoints[el.edgeIndex];
-                                const p2 = newPoints[(el.edgeIndex + 1) % newPoints.length];
-                                return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y }
-                            }
-                            return el
-                        });
+                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
+                        if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
+                        const newPointsStr=newPoints.map(p=>`${p.x},${p.y}`).join(' ');const newCentroid=getPolygonCentroid([...newPoints]);newElements=newElements.map(el=>{if(el.groupId!==id)return el;if(el.type==='space')return{...el,points:newPointsStr};if(el.type==='text')return{...el,x:(newCentroid.x/dimensions.width)*100,y:(newCentroid.y/dimensions.height)*100};if(el.type==='wall'){const p1=newPoints[el.edgeIndex];const p2=newPoints[(el.edgeIndex+1)%newPoints.length];return{...el,x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y}}return el});
                     }
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
                 }
                 if (isDragging) {
-                    const startMouseCanvasX = dragInfo.current.startMouseX;
-                    const startMouseCanvasY = dragInfo.current.startMouseY;
-                    const mouseMoveDx = currentMousePos.x - startMouseCanvasX;
-                    const mouseMoveDy = currentMousePos.y - startMouseCanvasY;
-                    let finalDeltaX = mouseMoveDx;
-                    let finalDeltaY = mouseMoveDy;
-                    if (isGridVisible) {
-                        finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize;
-                        finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize;
-                    }
-                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId);
-                    if (!elementToDragOriginal) return;
-                    const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null);
-                    const isGroupDrag = !!groupId;
-                    const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
-                    const newElements = historyOnActionStart.current.svgElements.map(el => {
-                        const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
-                        if (originalEl) {
-                            const newEl = { ...el };
-                            switch (originalEl.type) {
-                                case 'text':
-                                case 'fixture':
-                                case 'compass':
-                                    newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100;
-                                    newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100;
-                                    break;
-                                case 'door':
-                                case 'window':
-                                case 'wall':
-                                    newEl.x1 = originalEl.x1 + finalDeltaX;
-                                    newEl.y1 = originalEl.y1 + finalDeltaY;
-                                    newEl.x2 = originalEl.x2 + finalDeltaX;
-                                    newEl.y2 = originalEl.y2 + finalDeltaY;
-                                    break;
-                                case 'space':
-                                case 'stairs':
-                                    const originalPoints = originalEl.points.split(' ').map(p_str => ({ x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1]) }));
-                                    const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY }));
-                                    newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
-                                    break;
-                            }
-                            return newEl;
-                        }
-                        return el;
-                    });
+                    const startMouseCanvasX = dragInfo.current.startMouseX; const startMouseCanvasY = dragInfo.current.startMouseY; const mouseMoveDx = currentMousePos.x - startMouseCanvasX; const mouseMoveDy = currentMousePos.y - startMouseCanvasY; let finalDeltaX = mouseMoveDx; let finalDeltaY = mouseMoveDy; if (isGridVisible) { finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize; finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize; }
+                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId); if(!elementToDragOriginal) return; const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null); const isGroupDrag = !!groupId; const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
+                    const newElements = historyOnActionStart.current.svgElements.map(el => { const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id); if (originalEl) { const newEl = { ...el }; switch (originalEl.type) { case 'text': case 'fixture': case 'compass': newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100; newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100; break; case 'door': case 'window': case 'wall': newEl.x1 = originalEl.x1 + finalDeltaX; newEl.y1 = originalEl.y1 + finalDeltaY; newEl.x2 = originalEl.x2 + finalDeltaX; newEl.y2 = originalEl.y2 + finalDeltaY; break; case 'space': case 'stairs': const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])})); const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY })); newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' '); break; } return newEl; } return el; });
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
                 }
