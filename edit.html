@@ -3780,44 +3780,52 @@ ${JSON.stringify(exampleData10)}
                         }
                     }
                     
-                    // ▼▼▼【ここからが階段プレビューのための追加・修正箇所】▼▼▼
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
-                        // 階段モードでプレビューが表示されている状態でクリックされたら、その位置を始点とする
-                        if (drawingMode === 'stairs' && stairSnapPreview) {
-                            setLinePoints(prev => [...prev, stairSnapPreview.center]);
-                            setStairSnapPreview(null);
-                            return; // ★重要：ここで処理を終了
-                        }
-                        if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length >= 2) {
-                            const firstPoint = linePoints[0];
-                            const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
-                            
-                            if (distToStart < SNAP_THRESHOLD / zoom) {
-                                createPolygonSpace([...linePoints, firstPoint]); 
-                                setLinePoints([]);
-                                setSnappedInfo(null);
-                                return;
-                            }
-                        }
-                        
-                        if (drawingMode === 'stairs' && linePoints.length > 0) {
-                            const lastPoint = linePoints[linePoints.length - 1];
-                            const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
-                            // 2重描画のバグ修正： finishDrawing() の呼び出しを削除
-                            if (distToLast < SNAP_THRESHOLD / zoom) {
-                                createStairs(linePoints);
-                                setLinePoints([]); // 状態をリセット
-                                setSnappedInfo(null); // スナップ情報もリセット
-                                return;
-                            }
-                        }
-            
-                        const clickedPoint = mousePos; 
-                        setLinePoints(prev => [...prev, clickedPoint]);
-                        setSnappedInfo(null);
-                        return;
-                    }
-                    // ▲▲▲【ここまでが階段プレビューのための追加・修正箇所】▲▲▲
+                        const clickPos = getCanvasCoords(e);
+                        const clickedPoint = mousePos;
+
+                        // [修正点] 描画終了判定を先に行う
+                        if (linePoints.length > 1) { // 始点と折れ点が最低1つないと終了できない
+                            const lastPoint = linePoints[linePoints.length - 1];
+                            const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
+
+                            // 最後の点を再度クリックした場合
+                            if (distToLast < SNAP_THRESHOLD / zoom) {
+                                if (drawingMode === 'stairs') {
+                                    createStairs(linePoints); // 現在の点で階段を作成
+                                } else { // スペース描画は終了（閉じない）
+                                    createPolygonSpace(linePoints);
+                                }
+                                setLinePoints([]);
+                                setSnappedInfo(null);
+                                return; // 処理を終了
+                            }
+
+                            // スペース描画時に始点をクリックした場合
+                            if (drawingMode === 'space' && spaceShape === 'line') {
+                                const firstPoint = linePoints[0];
+                                const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
+                                if (distToStart < SNAP_THRESHOLD / zoom) {
+                                    createPolygonSpace([...linePoints, firstPoint]);
+                                    setLinePoints([]);
+                                    setSnappedInfo(null);
+                                    return;
+                                }
+                            }
+                        }
+
+                        // 階段モードで壁スナッププレビューが表示されている場合
+                        if (drawingMode === 'stairs' && stairSnapPreview && linePoints.length === 0) {
+                            setLinePoints([stairSnapPreview.center]); // プレビュー位置を始点として追加
+                            setStairSnapPreview(null);
+                            return;
+                        }
+
+                        // [修正点] 終了条件に合致しない場合は、点を追加する
+                        setLinePoints(prev => [...prev, clickedPoint]);
+                        setSnappedInfo(null);
+                        return;
+                    }
             
                     if (drawingStartPoint) {
                         const endPoint = getCanvasCoords(e);
