@@ -5277,6 +5277,7 @@ ${JSON.stringify(exampleData10)}
                 const stepInterval = 15;
                 let accumulatedLength = 0;
                 const cornerMargins = new Array(points.length).fill(0);
+                const cornerAngles = new Array(points.length).fill(0); 
             
                 for (let i = 1; i < points.length - 1; i++) {
                     const p_prev = points[i-1], p_curr = points[i], p_next = points[i+1];
@@ -5289,6 +5290,7 @@ ${JSON.stringify(exampleData10)}
                     let dot = dir_in.x * dir_out.x + dir_in.y * dir_out.y;
                     dot = Math.max(-1, Math.min(1, dot));
                     const angle = Math.acos(dot);
+                    cornerAngles[i] = angle;
             
                     let margin = 0;
                     if (angle >= Math.PI / 18) {
