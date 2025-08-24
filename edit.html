@@ -4205,20 +4205,32 @@ ${JSON.stringify(exampleData10)}
                         // 3クリック目のために、linePointsの数が2つの場合のみ動作します。
                         if (linePoints.length === 2) {
                             const p1 = linePoints[0];
+                            const p2 = linePoints[1]; // 2点目も取得
                             const stairW = stairWidth;
-    
-                            // 1クリック目の点(p1)を基準に、0, 90, 180, 270度の4方向へ階段幅分離れたスナップ候補点を計算
-                            const snapCandidates = [
-                                { x: p1.x + stairW, y: p1.y }, // 右 (0度)
-                                { x: p1.x, y: p1.y + stairW }, // 下 (90度)
-                                { x: p1.x - stairW, y: p1.y }, // 左 (180度)
-                                { x: p1.x, y: p1.y - stairW }  // 上 (270度)
-                            ];
+            
+                            // 1本目の線(p1 -> p2)が水平か垂直かを判断
+                            const isHorizontal = Math.abs(p2.x - p1.x) > Math.abs(p2.y - p1.y);
+                            
+                            let snapCandidates = [];
+            
+                            if (isHorizontal) {
+                                // 線が水平の場合、スナップ候補はp1の上下のみ（90度と270度方向）
+                                snapCandidates = [
+                                    { x: p1.x, y: p1.y + stairW }, // 下
+                                    { x: p1.x, y: p1.y - stairW }  // 上
+                                ];
+                            } else {
+                                // 線が垂直の場合、スナップ候補はp1の左右のみ（0度と180度方向）
+                                snapCandidates = [
+                                    { x: p1.x + stairW, y: p1.y }, // 右
+                                    { x: p1.x - stairW, y: p1.y }  // 左
+                                ];
+                            }
                             
                             let bestSnap = null;
                             let minSnapDistSq = snapThreshold * snapThreshold;
-    
-                            // 4つの候補点のうち、マウスカーソルに最も近いものを探す
+            
+                            // 候補点の中から、マウスカーソルに最も近いものを探す
                             snapCandidates.forEach(candidate => {
                                 const distSq = (currentMousePos.x - candidate.x)**2 + (currentMousePos.y - candidate.y)**2;
                                 if (distSq < minSnapDistSq) {
@@ -4226,12 +4238,12 @@ ${JSON.stringify(exampleData10)}
                                     bestSnap = candidate;
                                 }
                             });
-    
+            
                             // スナップ可能な候補が見つかった場合
                             if (bestSnap) {
                                 previewEndPoint = bestSnap;
-                                newSnappedInfo = { point: bestSnap, type: 'vertex' }; // スナップ表示を頂点と同じにする
-                                uShapeSnapApplied = true; // フラグを立てて、後続の通常スナップ処理をスキップ
+                                newSnappedInfo = { point: bestSnap, type: 'vertex' };
+                                uShapeSnapApplied = true; // フラグを立てて、後続の通常スナップをスキップ
                             }
                         }
                         // ★ 新規追加: U型階段用スナップ機能ここまで
