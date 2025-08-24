@@ -4157,6 +4157,7 @@ ${JSON.stringify(exampleData10)}
             ]);
 
             const handleMouseMove = useCallback((e) => {
+                if (contextMenu.visible) return;
                 const currentMousePos = getCanvasCoords(e);
             
                 if (imageDragInfo.current) {
