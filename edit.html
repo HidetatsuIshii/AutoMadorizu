@@ -5391,28 +5391,55 @@ ${JSON.stringify(exampleData10)}
                     const innerCornerPoint = outlines[innerOutlineIndex][i];
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
             
-                    if (margin === 0) {
-                        const angle = cornerAngles[i];
-                        if (angle > 0.01) {
-                           steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
-                        }
-                    } else {
+                    if (margin > 0) {
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
-            
+                    
+                        // 外側の角の円弧の始点と終点を計算
                         const vecToPrev = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenToPrev = Math.sqrt(vecToPrev.x**2 + vecToPrev.y**2);
                         const dirToPrev = lenToPrev > 0 ? { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev } : {x:0, y:0};
-                        const outerP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
+                        const arcP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
                         
                         const vecToNext = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
                         const lenToNext = Math.sqrt(vecToNext.x**2 + vecToNext.y**2);
                         const dirToNext = lenToNext > 0 ? { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext } : {x:0, y:0};
-                        const outerP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
-                        
-                        // ▼▼▼【修正点】角度に関わらず、常に2本の斜め線を描画するよう修正 ▼▼▼
-                        steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
-                        steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
+                        const arcP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
+                    
+                        // 円弧の始点と終点のベクトルを計算
+                        const startVec = { x: arcP1.x - innerCornerPoint.x, y: arcP1.y - innerCornerPoint.y };
+                        const endVec = { x: arcP2.x - innerCornerPoint.x, y: arcP2.y - innerCornerPoint.y };
+                    
+                        // 2つのベクトルのなす角を計算
+                        const startAngle = Math.atan2(startVec.y, startVec.x);
+                        let endAngle = Math.atan2(endVec.y, endVec.x);
+                    
+                        // 角度の差が180度を超えないように調整
+                        while (endAngle - startAngle > Math.PI) endAngle -= 2 * Math.PI;
+                        while (endAngle - startAngle < -Math.PI) endAngle += 2 * Math.PI;
+                    
+                        const angleDiff = endAngle - startAngle;
+                        const numStepsInCorner = Math.max(2, Math.floor(Math.abs(angleDiff) / (Math.PI / 8))); // 角度に応じて分割数を調整
+                    
+                        // 扇形に放射状の線を描画
+                        for (let j = 0; j <= numStepsInCorner; j++) {
+                            const ratio = j / numStepsInCorner;
+                            const currentAngle = startAngle + angleDiff * ratio;
+                            
+                            // 始点(内側の角)から、外側の円弧上の点に向かう線を描画
+                            // 長さはマージンとほぼ同じになるように調整
+                            const outerPointX = innerCornerPoint.x + Math.cos(currentAngle) * margin * 1.5;
+                            const outerPointY = innerCornerPoint.y + Math.sin(currentAngle) * margin * 1.5;
+                    
+                            steps.push(
+                                <line 
+                                    key={`step-c-${i}-${j}`} 
+                                    x1={innerCornerPoint.x} y1={innerCornerPoint.y} 
+                                    x2={outerPointX} y2={outerPointY} 
+                                    stroke={color} strokeWidth={1} 
+                                />
+                            );
+                        }
                     }
                 }
             
