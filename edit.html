@@ -4199,56 +4199,53 @@ ${JSON.stringify(exampleData10)}
                         setStairSnapPreview(null);
                         const lastPoint = linePoints[linePoints.length - 1];
                         const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
-                        let uShapeSnapApplied = false; // ★ 新規追加: U字スナップが適用されたかどうかのフラグ
+                        let uShapeSnapApplied = false;
     
-                        // ★ 新規追加: ここからU型階段用のスナップ機能です。
-                        // 3クリック目のために、linePointsの数が2つの場合のみ動作します。
                         if (linePoints.length === 2) {
                             const p1 = linePoints[0];
-                            const p2 = linePoints[1]; // 2点目も取得
+                            const p2 = linePoints[1];
                             const stairW = stairWidth;
             
-                            // 1本目の線(p1 -> p2)が水平か垂直かを判断
                             const isHorizontal = Math.abs(p2.x - p1.x) > Math.abs(p2.y - p1.y);
                             
-                            let snapCandidates = [];
+                            let previewOnLine;
             
                             if (isHorizontal) {
-                                // 線が水平の場合、スナップ候補はp1の上下のみ（90度と270度方向）
-                                snapCandidates = [
-                                    { x: p1.x, y: p1.y + stairW }, // 下
-                                    { x: p1.x, y: p1.y - stairW }  // 上
-                                ];
+                                previewOnLine = { x: p2.x, y: currentMousePos.y };
                             } else {
-                                // 線が垂直の場合、スナップ候補はp1の左右のみ（0度と180度方向）
-                                snapCandidates = [
-                                    { x: p1.x + stairW, y: p1.y }, // 右
-                                    { x: p1.x - stairW, y: p1.y }  // 左
-                                ];
+                                previewOnLine = { x: currentMousePos.x, y: p2.y };
                             }
                             
-                            let bestSnap = null;
-                            let minSnapDistSq = snapThreshold * snapThreshold;
+                            const vec_p2_to_mouse = { x: previewOnLine.x - p2.x, y: previewOnLine.y - p2.y };
+                            const distance = Math.sqrt(vec_p2_to_mouse.x**2 + vec_p2_to_mouse.y**2);
             
-                            // 候補点の中から、マウスカーソルに最も近いものを探す
-                            snapCandidates.forEach(candidate => {
-                                const distSq = (currentMousePos.x - candidate.x)**2 + (currentMousePos.y - candidate.y)**2;
-                                if (distSq < minSnapDistSq) {
-                                    minSnapDistSq = distSq;
-                                    bestSnap = candidate;
+                            if (distance > 0) {
+                                const multiple = Math.round(distance / stairW);
+            
+                                if (multiple > 0) {
+                                    const snappedDistance = multiple * stairW;
+                                    
+                                    const snappedPoint = {
+                                        x: p2.x + (vec_p2_to_mouse.x / distance) * snappedDistance,
+                                        y: p2.y + (vec_p2_to_mouse.y / distance) * snappedDistance
+                                    };
+            
+                                    const distToSnap = Math.sqrt((previewOnLine.x - snappedPoint.x)**2 + (previewOnLine.y - snappedPoint.y)**2);
+            
+                                    if (distToSnap < snapThreshold) {
+                                        previewEndPoint = snappedPoint;
+                                        newSnappedInfo = { point: snappedPoint, type: 'vertex' };
+                                        uShapeSnapApplied = true;
+                                    } else {
+                                        previewEndPoint = previewOnLine;
+                                    }
+                                } else {
+                                    previewEndPoint = previewOnLine;
                                 }
-                            });
-            
-                            // スナップ可能な候補が見つかった場合
-                            if (bestSnap) {
-                                previewEndPoint = bestSnap;
-                                newSnappedInfo = { point: bestSnap, type: 'vertex' };
-                                uShapeSnapApplied = true; // フラグを立てて、後続の通常スナップをスキップ
                             }
+                            uShapeSnapApplied = true;
                         }
-                        // ★ 新規追加: U型階段用スナップ機能ここまで
-    
-                        // ★ 変更: U字スナップが適用されなかった場合にのみ、既存のL字階段等のスナップ処理を実行
+                        
                         if (!uShapeSnapApplied) {
                             let snapCandidate = null;
                             if (allWallSegments.length > 0) {
@@ -4287,7 +4284,7 @@ ${JSON.stringify(exampleData10)}
                                 }
                             }
                         }
-                    }else {
+                    } else {
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
                             let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
@@ -4355,7 +4352,7 @@ ${JSON.stringify(exampleData10)}
                         if(type==='door'||type==='window'){const dx=newElement.x2-newElement.x1;const dy=newElement.y2-newElement.y1;newElement.length=Math.sqrt(dx*dx+dy*dy);newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI}
                         newElements[elementIndex] = newElement;
                     } else if (type === 'spaceCorner' || type === 'spaceEdge') {
-                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = points.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
+                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
                         if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
                         const newPointsStr=newPoints.map(p=>`${p.x},${p.y}`).join(' ');const newCentroid=getPolygonCentroid([...newPoints]);newElements=newElements.map(el=>{if(el.groupId!==id)return el;if(el.type==='space')return{...el,points:newPointsStr};if(el.type==='text')return{...el,x:(newCentroid.x/dimensions.width)*100,y:(newCentroid.y/dimensions.height)*100};if(el.type==='wall'){const p1=newPoints[el.edgeIndex];const p2=newPoints[(el.edgeIndex+1)%newPoints.length];return{...el,x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y}}return el});
                     }
@@ -4371,7 +4368,7 @@ ${JSON.stringify(exampleData10)}
                 }
             }, [
                 getCanvasCoords, zoom, isDisplaySettingsOpen, imagePosition, svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, historyState.present, isGridVisible, getGridSnappedPoint, drawingMode, spaceShape, linePoints, isSnapToWall, isModifierKeyDown,
-                stairWidth, // ★ 新規追加: 依存配列にstairWidthを追加
+                stairWidth,
                 stairSnapPreview, strokeColor, dimensions
             ]);
 
