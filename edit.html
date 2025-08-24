@@ -4200,46 +4200,73 @@ ${JSON.stringify(exampleData10)}
                         const lastPoint = linePoints[linePoints.length - 1];
                         const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
                         let uShapeSnapApplied = false;
+                        const startPoint = linePoints[0];
+                        const distXToStart = Math.abs(currentMousePos.x - startPoint.x);
+                        const distYToStart = Math.abs(currentMousePos.y - startPoint.y);
+                        const snapThreshold = SNAP_THRESHOLD / zoom;
+
+                        // 始点のX軸またはY軸へのスナップをチェック
+                        if (!isModifierKeyDown && (distXToStart < snapThreshold || distYToStart < snapThreshold)) {
+                            if (distXToStart < distYToStart) {
+                                // X軸にスナップ
+                                previewEndPoint.x = startPoint.x;
+                                newSnappedInfo = { point: { ...previewEndPoint }, type: 'startPoint' }; // スナップ情報を設定
+                                // 始点からの垂直ガイド線を描画
+                                newGuideLines.push({ x1: startPoint.x, y1: startPoint.y, x2: previewEndPoint.x, y2: previewEndPoint.y, type: 'vertical' });
+                                uShapeSnapApplied = true; // 他のスナップ処理を抑制
+                            } else {
+                                // Y軸にスナップ
+                                previewEndPoint.y = startPoint.y;
+                                newSnappedInfo = { point: { ...previewEndPoint }, type: 'startPoint' }; // スナップ情報を設定
+                                // 始点からの水平ガイド線を描画
+                                newGuideLines.push({ x1: startPoint.x, y1: startPoint.y, x2: previewEndPoint.x, y2: previewEndPoint.y, type: 'horizontal' });
+                                uShapeSnapApplied = true; // 他のスナップ処理を抑制
+                            }
+                        }
     
-                        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-                        // ★ U型階段用のスナップ機能 (3クリック目) - 修正版
-                        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                         if (linePoints.length === 2) {
-                            const p1 = linePoints[0]; // 始点
-                            const p2 = linePoints[1]; // 直前のクリック点
-                            uShapeSnapApplied = true; // このブロックで処理するので、後の通常スナップはスキップ
-                
-                            // 1本目の線(p1 -> p2)が水平か垂直かを判断
+                            const p1 = linePoints[0];
+                            const p2 = linePoints[1];
+                            const stairW = stairWidth;
+            
                             const isHorizontal = Math.abs(p2.x - p1.x) > Math.abs(p2.y - p1.y);
                             
-                            let previewOnLine;    // マウスを投影する、P2を通る垂直/水平な直線上の点
-                            let snapCandidate = null; // スナップ先の唯一の候補点
-                
+                            let previewOnLine;
+            
                             if (isHorizontal) {
-                                // 線が水平だったので、次の線は垂直に固定。P2を通る垂直線(x=p2.x)上で考える。
                                 previewOnLine = { x: p2.x, y: currentMousePos.y };
-                                // スナップ候補は、この垂直線と、P1を通る水平線(y=p1.y)との交点。
-                                snapCandidate = { x: p2.x, y: p1.y };
                             } else {
-                                // 線が垂直だったので、次の線は水平に固定。P2を通る水平線(y=p2.y)上で考える。
                                 previewOnLine = { x: currentMousePos.x, y: p2.y };
-                                // スナップ候補は、この水平線と、P1を通る垂直線(x=p1.x)との交点。
-                                snapCandidate = { x: p1.x, y: p2.y };
                             }
                             
-                            // マウス(の投影点)とスナップ候補点の距離を計算
-                            const distSq = (previewOnLine.x - snapCandidate.x)**2 + (previewOnLine.y - snapCandidate.y)**2;
-                
-                            if (distSq < snapThreshold * snapThreshold) {
-                                // 距離が閾値以下ならスナップを適用
-                                previewEndPoint = snapCandidate;
-                                newSnappedInfo = { point: snapCandidate, type: 'vertex' };
-                                // スナップ元（P1）からのガイドラインを描画
-                                newGuideLines.push({x1: p1.x, y1: p1.y, x2: snapCandidate.x, y2: snapCandidate.y});
-                            } else {
-                                // スナップしない場合は、単純に直交する線上の点をプレビュー終点とする
-                                previewEndPoint = previewOnLine;
+                            const vec_p2_to_mouse = { x: previewOnLine.x - p2.x, y: previewOnLine.y - p2.y };
+                            const distance = Math.sqrt(vec_p2_to_mouse.x**2 + vec_p2_to_mouse.y**2);
+            
+                            if (distance > 0) {
+                                const multiple = Math.round(distance / stairW);
+            
+                                if (multiple > 0) {
+                                    const snappedDistance = multiple * stairW;
+                                    
+                                    const snappedPoint = {
+                                        x: p2.x + (vec_p2_to_mouse.x / distance) * snappedDistance,
+                                        y: p2.y + (vec_p2_to_mouse.y / distance) * snappedDistance
+                                    };
+            
+                                    const distToSnap = Math.sqrt((previewOnLine.x - snappedPoint.x)**2 + (previewOnLine.y - snappedPoint.y)**2);
+            
+                                    if (distToSnap < snapThreshold) {
+                                        previewEndPoint = snappedPoint;
+                                        newSnappedInfo = { point: snappedPoint, type: 'vertex' };
+                                        uShapeSnapApplied = true;
+                                    } else {
+                                        previewEndPoint = previewOnLine;
+                                    }
+                                } else {
+                                    previewEndPoint = previewOnLine;
+                                }
                             }
+                            uShapeSnapApplied = true;
                         }
                         
                         if (!uShapeSnapApplied) {
