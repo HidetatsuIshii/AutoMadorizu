@@ -4199,31 +4199,34 @@ ${JSON.stringify(exampleData10)}
                         setStairSnapPreview(null);
                         const lastPoint = linePoints[linePoints.length - 1];
                         const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
-
-                        // --- 1. U字折り返し用のスナップ（始点へのスナップ）を最優先 ---
                         const firstPoint = linePoints[0];
-                        let snappedToFirstPoint = false;
-                        
-                        // 始点のX座標（垂直ガイド）へのスナップを試みる
-                        if (Math.abs(currentMousePos.x - firstPoint.x) < snapThreshold) {
+
+                        let uTurnSnapped = false;
+
+                        // --- 1. 最優先：U字折り返しスナップを試みる ---
+                        const distToFirstX = Math.abs(currentMousePos.x - firstPoint.x);
+                        const distToFirstY = Math.abs(currentMousePos.y - firstPoint.y);
+
+                        // 垂直方向(X軸が同じ)へのU字スナップが近いか？
+                        if (distToFirstX < snapThreshold && distToFirstX < distToFirstY) {
                             previewEndPoint.x = firstPoint.x;
                             newGuideLines.push({ x1: firstPoint.x, y1: firstPoint.y, x2: previewEndPoint.x, y2: currentMousePos.y });
                             newSnappedInfo = { point: { x: previewEndPoint.x, y: currentMousePos.y }, type: 'extension' };
-                            snappedToFirstPoint = true;
+                            uTurnSnapped = true;
                         } 
-                        // 始点のY座標（水平ガイド）へのスナップを試みる
-                        else if (Math.abs(currentMousePos.y - firstPoint.y) < snapThreshold) {
+                        // 水平方向(Y軸が同じ)へのU字スナップが近いか？
+                        else if (distToFirstY < snapThreshold) {
                             previewEndPoint.y = firstPoint.y;
                             newGuideLines.push({ x1: firstPoint.x, y1: firstPoint.y, x2: currentMousePos.x, y2: previewEndPoint.y });
                             newSnappedInfo = { point: { x: currentMousePos.x, y: previewEndPoint.y }, type: 'extension' };
-                            snappedToFirstPoint = true;
+                            uTurnSnapped = true;
                         }
 
-                        // --- 2. 始点にスナップしなかった場合、既存のスナップ処理を実行 ---
-                        if (!snappedToFirstPoint) {
+                        // --- 2. U字でなければ、壁スナップまたはL字スナップを試みる ---
+                        if (!uTurnSnapped) {
                             let snapCandidate = null;
-
-                            // 既存の壁に沿ったスナップ処理
+                            
+                            // 2-a. 既存の壁に沿ったスナップ処理
                             if (allWallSegments.length > 0) {
                                 let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
                                 for (const wall of allWallSegments) {
@@ -4252,25 +4255,20 @@ ${JSON.stringify(exampleData10)}
                                 }
                             }
                             
-                            if (snapCandidate) {
-                                const distToSnap = Math.sqrt(Math.pow(currentMousePos.x - snapCandidate.x, 2) + Math.pow(currentMousePos.y - snapCandidate.y, 2));
-                                if (distToSnap < snapThreshold * 2) {
-                                    previewEndPoint = snapCandidate;
-                                    newSnappedInfo = { point: previewEndPoint, type: 'wall' };
-                                }
-                            } 
-                            // 壁スナップもされなかった場合、直前の点との直角スナップを適用
-                            else {
-                                const dx = Math.abs(currentMousePos.x - lastPoint.x);
-                                const dy = Math.abs(currentMousePos.y - lastPoint.y);
-                                if (dx < dy) {
-                                    previewEndPoint.x = lastPoint.x;
-                                } else {
-                                    previewEndPoint.y = lastPoint.y;
-                                }
+                            // 2-b. 壁スナップが有効なら適用、そうでなければL字（直角）スナップを適用
+                            if (snapCandidate && Math.hypot(currentMousePos.x - snapCandidate.x, currentMousePos.y - snapCandidate.y) < snapThreshold * 2) {
+                                 previewEndPoint = snapCandidate;
+                                 newSnappedInfo = { point: previewEndPoint, type: 'wall' };
+                            } else {
+                                 // L字 (直角) スナップ
+                                 if (Math.abs(currentMousePos.x - lastPoint.x) < Math.abs(currentMousePos.y - lastPoint.y)) {
+                                     previewEndPoint.x = lastPoint.x;
+                                 } else {
+                                     previewEndPoint.y = lastPoint.y;
+                                 }
                             }
-                        }                        
-                    } else {
+                        }
+                    }else {
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
                             let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
