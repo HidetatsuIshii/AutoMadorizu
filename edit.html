@@ -6168,26 +6168,29 @@ ${JSON.stringify(exampleData10)}
                                         {snappedInfo && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
                                             let snapStrokeColor;
                                             let snapStrokeWidth;
-
-                                            if (snappedInfo.type === 'vertex' || snappedInfo.type === 'startPoint') { // 'startPoint' を追加
-                                                snapStrokeColor = '#FF0000'; // 赤色に統一
-                                                snapStrokeWidth = 4 / zoom; // 太めの線
+                    
+                                            if (snappedInfo.type === 'vertex' || snappedInfo.type === 'startPoint') {
+                                                snapStrokeColor = '#FF0000'; // 頂点スナップ: 赤色
+                                                snapStrokeWidth = 4 / zoom;
                                             } else if (snappedInfo.type === 'wall') {
-                                                snapStrokeColor = '#FF0000'; // 赤色に統一
-                                                snapStrokeWidth = 2 / zoom; // 通常の線
-                                            } else { // 'grid' の場合
-                                                snapStrokeColor = SELECTED_ELEMENT_COLOR; // グリッドスナップはデフォルトの青色
+                                                snapStrokeColor = '#FF0000'; // 壁スナップ: 赤色
+                                                snapStrokeWidth = 2 / zoom;
+                                            } else if (snappedInfo.type === 'axisAlignment') { // 軸スナップ用の条件を追加
+                                                snapStrokeColor = '#22c55e'; // 軸スナップ: 緑色
+                                                snapStrokeWidth = 2 / zoom;
+                                            } else { // 'grid' や 'intersection' の場合
+                                                snapStrokeColor = SELECTED_ELEMENT_COLOR; // その他スナップ: 青色
                                                 snapStrokeWidth = 2 / zoom;
                                             }
-
+                                    
                                             return (
                                                 <circle
                                                     cx={snappedInfo.point.x}
                                                     cy={snappedInfo.point.y}
-                                                    r={8 / zoom} // ズームによってサイズを調整
+                                                    r={8 / zoom}
                                                     fill="none"
-                                                    stroke={snapStrokeColor}
-                                                    strokeWidth={snapStrokeWidth}
+                                                    stroke={snapStrokeColor} // ⇦ 修正された変数を適用
+                                                    strokeWidth={snapStrokeWidth} // ⇦ 修正された変数を適用
                                                     style={{ pointerEvents: 'none' }}
                                                 />
                                             );
