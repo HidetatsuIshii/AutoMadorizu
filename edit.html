@@ -5391,55 +5391,28 @@ ${JSON.stringify(exampleData10)}
                     const innerCornerPoint = outlines[innerOutlineIndex][i];
                     const outerCornerPoint = outlines[outerOutlineIndex][i];
             
-                    if (margin > 0) {
+                    if (margin === 0) {
+                        const angle = cornerAngles[i];
+                        if (angle > 0.01) {
+                           steps.push(<line key={`step-c-${i}`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerCornerPoint.x} y2={outerCornerPoint.y} stroke={color} strokeWidth={1} />);
+                        }
+                    } else {
                         const prevOuterPoint = outlines[outerOutlineIndex][i - 1];
                         const nextOuterPoint = outlines[outerOutlineIndex][i + 1];
-                    
-                        // 外側の角の円弧の始点と終点を計算
+            
                         const vecToPrev = { x: prevOuterPoint.x - outerCornerPoint.x, y: prevOuterPoint.y - outerCornerPoint.y };
                         const lenToPrev = Math.sqrt(vecToPrev.x**2 + vecToPrev.y**2);
                         const dirToPrev = lenToPrev > 0 ? { x: vecToPrev.x / lenToPrev, y: vecToPrev.y / lenToPrev } : {x:0, y:0};
-                        const arcP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
+                        const outerP1 = { x: outerCornerPoint.x + dirToPrev.x * margin, y: outerCornerPoint.y + dirToPrev.y * margin };
                         
                         const vecToNext = { x: nextOuterPoint.x - outerCornerPoint.x, y: nextOuterPoint.y - outerCornerPoint.y };
                         const lenToNext = Math.sqrt(vecToNext.x**2 + vecToNext.y**2);
                         const dirToNext = lenToNext > 0 ? { x: vecToNext.x / lenToNext, y: vecToNext.y / lenToNext } : {x:0, y:0};
-                        const arcP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
-                    
-                        // 円弧の始点と終点のベクトルを計算
-                        const startVec = { x: arcP1.x - innerCornerPoint.x, y: arcP1.y - innerCornerPoint.y };
-                        const endVec = { x: arcP2.x - innerCornerPoint.x, y: arcP2.y - innerCornerPoint.y };
-                    
-                        // 2つのベクトルのなす角を計算
-                        const startAngle = Math.atan2(startVec.y, startVec.x);
-                        let endAngle = Math.atan2(endVec.y, endVec.x);
-                    
-                        // 角度の差が180度を超えないように調整
-                        while (endAngle - startAngle > Math.PI) endAngle -= 2 * Math.PI;
-                        while (endAngle - startAngle < -Math.PI) endAngle += 2 * Math.PI;
-                    
-                        const angleDiff = endAngle - startAngle;
-                        const numStepsInCorner = Math.max(2, Math.floor(Math.abs(angleDiff) / (Math.PI / 8))); // 角度に応じて分割数を調整
-                    
-                        // 扇形に放射状の線を描画
-                        for (let j = 0; j <= numStepsInCorner; j++) {
-                            const ratio = j / numStepsInCorner;
-                            const currentAngle = startAngle + angleDiff * ratio;
-                            
-                            // 始点(内側の角)から、外側の円弧上の点に向かう線を描画
-                            // 長さはマージンとほぼ同じになるように調整
-                            const outerPointX = innerCornerPoint.x + Math.cos(currentAngle) * margin * 1.5;
-                            const outerPointY = innerCornerPoint.y + Math.sin(currentAngle) * margin * 1.5;
-                    
-                            steps.push(
-                                <line 
-                                    key={`step-c-${i}-${j}`} 
-                                    x1={innerCornerPoint.x} y1={innerCornerPoint.y} 
-                                    x2={outerPointX} y2={outerPointY} 
-                                    stroke={color} strokeWidth={1} 
-                                />
-                            );
-                        }
+                        const outerP2 = { x: outerCornerPoint.x + dirToNext.x * margin, y: outerCornerPoint.y + dirToNext.y * margin };
+                        
+                        // ▼▼▼【修正点】角度に関わらず、常に2本の斜め線を描画するよう修正 ▼▼▼
+                        steps.push(<line key={`step-c-${i}-1`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP1.x} y2={outerP1.y} stroke={color} strokeWidth={1} />);
+                        steps.push(<line key={`step-c-${i}-2`} x1={innerCornerPoint.x} y1={innerCornerPoint.y} x2={outerP2.x} y2={outerP2.y} stroke={color} strokeWidth={1} />);
                     }
                 }
             
@@ -5515,7 +5488,6 @@ ${JSON.stringify(exampleData10)}
     
                 const { x, y, targetId, targetElement } = contextMenu;
                 const menuStyle = { top: y, left: x, position: 'fixed', zIndex: 1000 };
-                const isSpaceOrWall = targetElement?.type === 'space' || targetElement?.type === 'wall';
                 
                 const handleAction = (action, option) => {
                     switch (action) {
@@ -5549,25 +5521,18 @@ ${JSON.stringify(exampleData10)}
                         <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
                         <div className="my-1 border-t border-gray-200"></div>
     
-                        {isSpaceOrWall && (
-                            <>
-                                <div className="relative group">
-                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center"><span>最前面へ移動</span><span>▶</span></button>
-                                    <div className="absolute left-full top-0 w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
-                                        <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
-                                    </div>
+                        <>
+                            <div className="relative group">
+                                <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center"><span>重ね順</span><span>▶</span></button>
+                                <div className="absolute left-full top-0 w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
+                                    <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
+                                    <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
+                                    <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
+                                    <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
                                 </div>
-                                <div className="relative group">
-                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center"><span>最背面へ移動</span><span>▶</span></button>
-                                    <div className="absolute left-full top-0 w-40 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
-                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
-                                    </div>
-                                </div>
-                                <div className="my-1 border-t border-gray-200"></div>
-                            </>
-                        )}
+                            </div>
+                            <div className="my-1 border-t border-gray-200"></div>
+                        </>
     
                         <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
                     </div>
@@ -5674,49 +5639,77 @@ ${JSON.stringify(exampleData10)}
             const reorderElements = (direction) => {
                 const { targetId } = contextMenu;
                 if (!targetId) return;
-    
-                const elementToMove = svgElements.find(el => el.id === targetId);
-                const groupId = elementToMove?.groupId || (elementToMove?.type === 'space' ? targetId : null);
+            
+                // 現在の要素配列のコピーを作成
+                const currentElements = [...svgElements];
+                const elementToMove = currentElements.find(el => el.id === targetId);
+                if (!elementToMove) return;
+            
+                // グループ化されている要素（部屋、階段など）か、単体の要素かを判断
+                const groupId = elementToMove.groupId || (['space', 'stairs'].includes(elementToMove.type) ? targetId : null);
+            
+                // 移動対象となる要素（単体またはグループ全体）を取得
+                const itemsToMove = groupId
+                    ? currentElements.filter(el => el.groupId === groupId)
+                    : [elementToMove];
                 
-                let itemsToMoveIds = [];
-                if (groupId) {
-                    itemsToMoveIds = svgElements.filter(el => el.groupId === groupId).map(el => el.id);
-                } else {
-                    itemsToMoveIds = [targetId];
-                }
-                
-                let others = svgElements.filter(el => !itemsToMoveIds.includes(el.id));
-                let items = svgElements.filter(el => itemsToMoveIds.includes(el.id));
-                
-                let newSvgElements = [];
-    
-                switch(direction) {
-                    case 'front': newSvgElements = [...others, ...items]; break;
-                    case 'back': newSvgElements = [...items, ...others]; break;
+                const itemsToMoveIds = new Set(itemsToMove.map(el => el.id));
+                // 移動対象「以外」の要素
+                const others = currentElements.filter(el => !itemsToMoveIds.has(el.id));
+            
+                let newSvgElements;
+            
+                switch (direction) {
+                    case 'front':
+                        // 配列の最後に移動対象を追加
+                        newSvgElements = [...others, ...itemsToMove];
+                        break;
+                    case 'back':
+                        // 配列の先頭に移動対象を追加
+                        newSvgElements = [...itemsToMove, ...others];
+                        break;
                     case 'forward': {
-                        const firstItemIndex = svgElements.findIndex(el => el.id === items[0].id);
-                        if (firstItemIndex < svgElements.length - items.length) {
-                            const targetIndex = firstItemIndex + items.length;
-                            const elementAfter = svgElements[targetIndex];
-                            const othersWithoutAfter = others.filter(el => el.id !== elementAfter.id);
-                            newSvgElements = [...othersWithoutAfter.slice(0, firstItemIndex), ...items, elementAfter, ...othersWithoutAfter.slice(firstItemIndex)];
-                        } else { newSvgElements = svgElements; }
+                        // 移動対象の最後の要素のインデックスを取得
+                        const lastItemOriginalIndex = currentElements.map(el => el.id).lastIndexOf(itemsToMove[itemsToMove.length - 1].id);
+                        // 既に最前面の場合は何もしない
+                        if (lastItemOriginalIndex >= currentElements.length - 1) return;
+                        
+                        // 移動対象を一旦削除
+                        const tempArray = currentElements.filter(el => !itemsToMoveIds.has(el.id));
+                        // 1つ手前の要素のインデックスを見つける
+                        const insertAtIndex = tempArray.findIndex(el => el.id === currentElements[lastItemOriginalIndex + 1].id);
+                        
+                        // 1つ手前の要素の「後」に挿入
+                        tempArray.splice(insertAtIndex + 1, 0, ...itemsToMove);
+                        newSvgElements = tempArray;
                         break;
                     }
                     case 'backward': {
-                        const firstItemIndex = svgElements.findIndex(el => el.id === items[0].id);
-                         if (firstItemIndex > 0) {
-                            const elementBefore = svgElements[firstItemIndex - 1];
-                            const othersWithoutBefore = others.filter(el => el.id !== elementBefore.id);
-                            const insertIndex = othersWithoutBefore.findIndex(el => el.id === svgElements[firstItemIndex - 2]?.id) + 1;
-                            newSvgElements = [...othersWithoutBefore.slice(0, insertIndex), elementBefore, ...items, ...othersWithoutBefore.slice(insertIndex)];
-                        } else { newSvgElements = svgElements; }
+                        // 移動対象の最初の要素のインデックスを取得
+                        const firstItemOriginalIndex = currentElements.findIndex(el => el.id === itemsToMove[0].id);
+                        // 既に最背面の場会は何もしない
+                        if (firstItemOriginalIndex <= 0) return;
+    
+                        // 移動対象を一旦削除
+                        const tempArray = currentElements.filter(el => !itemsToMoveIds.has(el.id));
+                        // 1つ奥の要素のインデックスを見つける
+                        const insertAtIndex = tempArray.findIndex(el => el.id === currentElements[firstItemOriginalIndex - 1].id);
+    
+                        // 1つ奥の要素の「前」に挿入
+                        tempArray.splice(insertAtIndex, 0, ...itemsToMove);
+                        newSvgElements = tempArray;
                         break;
                     }
-                    default: newSvgElements = svgElements;
+                    default:
+                        return; // 何もしない
                 }
-                
-                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: newSvgElements }, future: [] }));
+            
+                // 履歴を更新
+                setHistoryState(prev => ({
+                    past: [...prev.past, prev.present],
+                    present: { ...prev.present, svgElements: newSvgElements },
+                    future: []
+                }));
             };
 
             return (                    
