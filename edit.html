@@ -4175,6 +4175,7 @@ ${JSON.stringify(exampleData10)}
                 const snapThreshold = SNAP_THRESHOLD / zoom;
                 const isSnappingEnabled = (drawingMode !== 'none') && isSnapToWall && !isModifierKeyDown;
             
+                // 階段描画中のスナップ処理
                 if (drawingMode === 'stairs' && isSnappingEnabled) {
                     const allWallSegments = [];
                     const pointsToSnapAgainst = [];
@@ -4194,13 +4195,12 @@ ${JSON.stringify(exampleData10)}
                         }
                     });
                     if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints);
-            
+                    
                     if (linePoints.length > 0) {
                         setStairSnapPreview(null);
                         const lastPoint = linePoints[linePoints.length - 1];
-                        const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
-                        let uShapeSnapApplied = false;
                         
+                        // --- スナップ優先度 1: Uターンスナップ ---
                         if (linePoints.length === 2) {
                             const p1 = linePoints[0];
                             const p2 = linePoints[1];
@@ -4222,7 +4222,6 @@ ${JSON.stringify(exampleData10)}
                                     if (distToSnap < snapThreshold) {
                                         previewEndPoint = snappedPoint;
                                         newSnappedInfo = { point: snappedPoint, type: 'vertex' };
-                                        uShapeSnapApplied = true;
                                     } else {
                                         previewEndPoint = previewOnLine;
                                     }
@@ -4230,36 +4229,66 @@ ${JSON.stringify(exampleData10)}
                                     previewEndPoint = previewOnLine;
                                 }
                             }
-                            uShapeSnapApplied = true;
                         }
-                        
-                        if (!uShapeSnapApplied) {
+            
+                        // --- スナップ優先度 2: 壁際スナップ ---
+                        if (!newSnappedInfo && allWallSegments.length > 0) {
+                            const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
+                            let minDistanceSq = Infinity;
                             let snapCandidate = null;
-                            if (pointsToSnapAgainst.length > 0) {
-                                let minXDist = snapThreshold, minYDist = snapThreshold;
-                                let bestVerticalSnap = null, bestHorizontalSnap = null;
+            
+                            for (const wall of allWallSegments) {
+                                const p1 = wall.p1, p2 = wall.p2;
+                                const dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                if (dx === 0 && dy === 0) continue;
+            
+                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                const clampedT = Math.max(0, Math.min(1, t));
+                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                const distSq = (currentMousePos.x - pointOnLine.x)**2 + (currentMousePos.y - pointOnLine.y)**2;
                                 
-                                pointsToSnapAgainst.forEach(p => {
-                                    const distX = Math.abs(currentMousePos.x - p.x);
-                                    if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
-                                    const distY = Math.abs(currentMousePos.y - p.y);
-                                    if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
-                                });
-                                
-                                if (minXDist < minYDist && bestVerticalSnap) {
-                                     snapCandidate = { point: { x: bestVerticalSnap.x, y: currentMousePos.y }, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
-                                } else if (bestHorizontalSnap) {
-                                     snapCandidate = { point: { x: currentMousePos.x, y: bestHorizontalSnap.y }, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
+                                if (distSq < minDistanceSq) {
+                                    minDistanceSq = distSq;
+                                    const wallLen = Math.sqrt(dx**2 + dy**2);
+                                    if (wallLen > 0) {
+                                        const perp = { x: -dy / wallLen, y: dx / wallLen };
+                                        const vecToMouse = { x: currentMousePos.x - pointOnLine.x, y: currentMousePos.y - pointOnLine.y };
+                                        const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                                        const side = Math.sign(dotProduct) || 1;
+                                        const offsetPoint = { x: pointOnLine.x + side * perp.x * (stairWidth / 2), y: pointOnLine.y + side * perp.y * (stairWidth / 2) };
+                                        const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
+                                        snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
+                                    }
                                 }
                             }
-                             if (snapCandidate) {
-                                 previewEndPoint = snapCandidate.point;
-                                 newSnappedInfo = snapCandidate;
-                             }
+                            
+                            if (minDistanceSq < (snapThreshold * 5)**2 && snapCandidate) {
+                                 previewEndPoint = snapCandidate;
+                                 newSnappedInfo = { point: previewEndPoint, type: 'wall' };
+                            }
+                        }
+            
+                        // --- スナップ優先度 3: 頂点/延長線スナップ ---
+                        if (!newSnappedInfo) {
+                            let bestVerticalSnap = null, bestHorizontalSnap = null;
+                            let minXDist = snapThreshold, minYDist = snapThreshold;
+                            pointsToSnapAgainst.forEach(p => {
+                                const distX = Math.abs(currentMousePos.x - p.x);
+                                if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
+                                const distY = Math.abs(currentMousePos.y - p.y);
+                                if (distY < minYDist) { minYDist = distY; bestHorizontalSnap = { y: p.y, from: p }; }
+                            });
+            
+                            if (minXDist < minYDist && bestVerticalSnap) {
+                                previewEndPoint = { x: bestVerticalSnap.x, y: currentMousePos.y };
+                                newSnappedInfo = { point: previewEndPoint, type: 'extension', guide: { type: 'vertical', from: bestVerticalSnap.from } };
+                            } else if (bestHorizontalSnap) {
+                                previewEndPoint = { x: currentMousePos.x, y: bestHorizontalSnap.y };
+                                newSnappedInfo = { point: previewEndPoint, type: 'extension', guide: { type: 'horizontal', from: bestHorizontalSnap.from } };
+                            }
                         }
                         
-                        // ▼▼▼【ここが修正箇所】▼▼▼
-                        // 他のスナップが効かなかった場合に、始点の軸へのスナップを試みる
+                        // --- スナップ優先度 4: 始点の軸へのスナップ (フォールバック) ---
                         if (!newSnappedInfo) { 
                             const startPoint = linePoints[0];
                             const distXToStart = Math.abs(currentMousePos.x - startPoint.x);
@@ -4279,7 +4308,6 @@ ${JSON.stringify(exampleData10)}
                                 newSnappedInfo = { point: snappedPoint, type: 'axisAlignment', guide: guide };
                             }
                         }
-                        // ▲▲▲【ここまで修正】▲▲▲
             
                     } else { // 階段の1点目を打つ前のプレビュー
                         setStairSnapPreview(null);
@@ -4291,10 +4319,10 @@ ${JSON.stringify(exampleData10)}
                                 const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
                                 const clampedT = Math.max(0, Math.min(1, t));
                                 const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+                                const distSq = (currentMousePos.x - pointOnLine.x)**2 + (currentMousePos.y - pointOnLine.y)**2;
                                 if (distSq < minDistanceSq) { minDistanceSq = distSq; closestWall = wall; closestPointOnWall = pointOnLine; }
                             }
-                            if (closestWall && minDistanceSq < (snapThreshold * 5) ** 2) {
+                            if (closestWall && minDistanceSq < (snapThreshold * 5)**2) {
                                 const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
                                 const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
                                 if (wallLen > 0) {
@@ -4310,10 +4338,13 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
                     }
-                } else if (isSnappingEnabled) {
+                } else if (isSnappingEnabled) { // 階段以外のスナップ処理
                     let closestSnap = null;
                     let pointsToSnapAgainst = [];
-                    svgElements.forEach(el=>{if(el.type==='wall'||el.type==='door'||el.type==='window'){pointsToSnapAgainst.push({x:el.x1,y:el.y1},{x:el.x2,y:el.y2})}else if(el.type==='space'||el.type==='stairs'){pointsToSnapAgainst.push(...el.points.split(' ').map(p_str=>({x:parseFloat(p_str.split(',')[0]),y:parseFloat(p_str.split(',')[1])})))}});if(drawingStartPoint)pointsToSnapAgainst.push(drawingStartPoint);if(linePoints.length>0)pointsToSnapAgainst.push(...linePoints);
+                    svgElements.forEach(el=>{if(el.type==='wall'||el.type==='door'||el.type==='window'){pointsToSnapAgainst.push({x:el.x1,y:el.y1},{x:el.x2,y:el.y2})}else if(el.type==='space'||el.type==='stairs'){pointsToSnapAgainst.push(...el.points.split(' ').map(p_str=>({x:parseFloat(p_str.split(',')[0]),y:parseFloat(p_str.split(',')[1])})))}});
+                    if(drawingStartPoint)pointsToSnapAgainst.push(drawingStartPoint);
+                    if(linePoints.length>0)pointsToSnapAgainst.push(...linePoints);
+                    
                     if (pointsToSnapAgainst.length > 0) {
                         let bestVerticalSnap = null, bestHorizontalSnap = null, minXDist = snapThreshold, minYDist = snapThreshold;
                         pointsToSnapAgainst.forEach(p=>{const distX=Math.abs(currentMousePos.x-p.x);if(distX<minXDist){minXDist=distX;bestVerticalSnap={x:p.x,from:p}}const distY=Math.abs(currentMousePos.y-p.y);if(distY<minYDist){minYDist=distY;bestHorizontalSnap={y:p.y,from:p}}});
@@ -4324,8 +4355,12 @@ ${JSON.stringify(exampleData10)}
                     if (closestSnap) {
                         previewEndPoint = closestSnap.point;
                         newSnappedInfo = closestSnap;
-                        if(closestSnap.guide?.type==='vertical'||closestSnap.guide?.type==='horizontal'){newGuideLines.push({x1:closestSnap.guide.from.x,y1:closestSnap.guide.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: closestSnap.type })}
-                        else if(closestSnap.type==='intersection'){newGuideLines.push({x1:closestSnap.guide.vertical.from.x,y1:closestSnap.guide.vertical.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: 'intersection'});newGuideLines.push({x1:closestSnap.guide.horizontal.from.x,y1:closestSnap.guide.horizontal.from.y,x2:closestSnap.point.x,y2:closestSnap.point.y, snapType: 'intersection'})}
+                        if (closestSnap.guide?.type === 'vertical' || closestSnap.guide?.type === 'horizontal') {
+                            newGuideLines.push({x1: closestSnap.guide.from.x, y1: closestSnap.guide.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y, snapType: closestSnap.type});
+                        } else if (closestSnap.type === 'intersection') {
+                            newGuideLines.push({x1: closestSnap.guide.vertical.from.x, y1: closestSnap.guide.vertical.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y, snapType: 'intersection'});
+                            newGuideLines.push({x1: closestSnap.guide.horizontal.from.x, y1: closestSnap.guide.horizontal.from.y, x2: closestSnap.point.x, y2: closestSnap.point.y, snapType: 'intersection'});
+                        }
                     }
                 }
                 
