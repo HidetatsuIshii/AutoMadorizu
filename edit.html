@@ -5488,7 +5488,7 @@ ${JSON.stringify(exampleData10)}
     
                 const { x, y, targetId, targetElement } = contextMenu;
                 const menuStyle = { top: y, left: x, position: 'fixed', zIndex: 1000 };
-                
+    
                 const handleAction = (action, option) => {
                     switch (action) {
                         case 'cut': handleCut(); break;
@@ -5501,11 +5501,11 @@ ${JSON.stringify(exampleData10)}
                     setContextMenu({ visible: false });
                 };
     
-                // ▼▼▼ targetElementの有無で表示するメニューを分岐 ▼▼▼
+                // 要素がない場所（キャンバス）で右クリックした場合のメニュー
                 if (!targetElement) {
-                    // キャンバス上での右クリックメニュー
                     return (
                         <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" onContextMenu={(e) => e.preventDefault()}>
+                            {/* 変更なし */}
                             <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
                             <div className="my-1 border-t border-gray-200"></div>
                             <button onClick={() => handleAction('toggleGrid')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>{isGridVisible ? 'グリッド線を非表示' : 'グリッド線を表示'}</span></button>
@@ -5513,42 +5513,41 @@ ${JSON.stringify(exampleData10)}
                     );
                 }
     
-                // 図形上での右クリックメニュー
-                // 図形上での右クリックメニュー
-                return (
-                    <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm" onContextMenu={(e) => e.preventDefault()}>
-                        {/* 縦幅を詰めるため、ボタンのpy-1.5をpy-1に変更 */}
-                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
-                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
-                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
-                        
-                        {/* 区切り線の上下マージン(my-1)を削除 */}
-                        <div className="border-t border-gray-200"></div>
-
-                        {/* --- サブメニュー修正の最終版 --- */}
-                        {/* p-1と-m-1で親要素に透明なホバー領域を作り、カーソルが外れるのを防ぐ */}
-                        <div className="relative group p-1 -m-1">
-                            <button className="w-full text-left px-3 py-1 hover:bg-gray-100 flex justify-between items-center rounded-sm">
-                                <span>重ね順</span>
-                                <span className="text-gray-400">▶</span>
-                            </button>
-                            {/* hiddenの代わりにopacityとvisibilityを使用し、ちらつきを防止 */}
-                            <div className="absolute left-full top-0 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 
-                                           opacity-0 invisible group-hover:opacity-100 group-hover:visible 
-                                           transition-opacity duration-100 z-10">
-                                <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
-                                <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
-                                <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
-                                <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
-                            </div>
-                        </div>
-                        {/* --- 修正ここまで --- */}
-    
-                        {/* 区切り線の上下マージン(my-1)を削除 */}
-                        <div className="border-t border-gray-200"></div>
-                        <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
-                    </div>
-                );
+                // 要素の上で右クリックした場合のメニュー
+                return (
+                    <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm" onContextMenu={(e) => e.preventDefault()}>
+                        {/* ▼▼▼ UI改善: 上下の余白を詰める (py-1.5 -> py-1) ▼▼▼ */}
+                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
+                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
+                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
+                        
+                        {/* ▼▼▼ UI改善: 区切り線の上下余白を詰める (my-1を削除) ▼▼▼ */}
+                        <div className="border-t border-gray-200"></div>
+    
+                        {/* ▼▼▼ サブメニュー修正 ▼▼▼ */}
+                        {/* 親要素に group と p-1 -m-1 を追加し、ホバー領域を確保 */}
+                        <div className="relative group p-1 -m-1">
+                            {/* ボタンのクラスを調整 */}
+                            <button className="w-full text-left px-3 py-1 hover:bg-gray-100 flex justify-between items-center rounded-sm">
+                                <span>重ね順</span>
+                                <span className="text-gray-400">▶</span>
+                            </button>
+                            {/* hidden の代わりに group-hover を使って表示を制御 */}
+                            <div className="absolute left-full top-0 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 
+                                          opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+                                          transition-opacity duration-100 z-10">
+                                <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
+                                <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
+                                <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
+                                <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
+                            </div>
+                        </div>
+                        {/* ▲▲▲ 修正ここまで ▲▲▲ */}
+                        
+                        <div className="border-t border-gray-200"></div>
+                        <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
+                    </div>
+                );
             };
 
             // 右クリックされたのが図形の上ではない（SVGキャンバス自体）の場合のみメニューを表示
