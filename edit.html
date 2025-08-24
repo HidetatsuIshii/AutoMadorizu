@@ -4202,70 +4202,42 @@ ${JSON.stringify(exampleData10)}
                         let uShapeSnapApplied = false;
     
                         // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-                        // ★ U型階段用のスナップ機能 (3クリック目)
+                        // ★ U型階段用のスナップ機能 (3クリック目) - 修正版
                         // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                         if (linePoints.length === 2) {
                             const p1 = linePoints[0]; // 始点
                             const p2 = linePoints[1]; // 直前のクリック点
-                            const stairW = stairWidth;
                             uShapeSnapApplied = true; // このブロックで処理するので、後の通常スナップはスキップ
-    
-                            // --- 候補点リストの準備 ---
-                            const allSnapCandidates = [];
-    
-                            // --- 候補1: P2を基準とした、階段幅の整数倍スナップ ---
+                
+                            // 1本目の線(p1 -> p2)が水平か垂直かを判断
                             const isHorizontal = Math.abs(p2.x - p1.x) > Math.abs(p2.y - p1.y);
-                            let previewOnLine; 
                             
+                            let previewOnLine;    // マウスを投影する、P2を通る垂直/水平な直線上の点
+                            let snapCandidate = null; // スナップ先の唯一の候補点
+                
                             if (isHorizontal) {
+                                // 線が水平だったので、次の線は垂直に固定。P2を通る垂直線(x=p2.x)上で考える。
                                 previewOnLine = { x: p2.x, y: currentMousePos.y };
+                                // スナップ候補は、この垂直線と、P1を通る水平線(y=p1.y)との交点。
+                                snapCandidate = { x: p2.x, y: p1.y };
                             } else {
+                                // 線が垂直だったので、次の線は水平に固定。P2を通る水平線(y=p2.y)上で考える。
                                 previewOnLine = { x: currentMousePos.x, y: p2.y };
+                                // スナップ候補は、この水平線と、P1を通る垂直線(x=p1.x)との交点。
+                                snapCandidate = { x: p1.x, y: p2.y };
                             }
                             
-                            const vec_p2_to_mouse = { x: previewOnLine.x - p2.x, y: previewOnLine.y - p2.y };
-                            const distance = Math.sqrt(vec_p2_to_mouse.x**2 + vec_p2_to_mouse.y**2);
-    
-                            if (distance > (stairW / 2)) {
-                                const multiple = Math.round(distance / stairW);
-                                if (multiple > 0) {
-                                    const snappedDistance = multiple * stairW;
-                                    const uShapeSnapPoint = {
-                                        x: p2.x + (vec_p2_to_mouse.x / distance) * snappedDistance,
-                                        y: p2.y + (vec_p2_to_mouse.y / distance) * snappedDistance
-                                    };
-                                    allSnapCandidates.push(uShapeSnapPoint);
-                                }
-                            }
-    
-                            // ★ 新規追加: 候補2: P1(始点)を基準とした、水平・垂直スナップ
-                            const horizontalAlignSnap = { x: currentMousePos.x, y: p1.y };
-                            const verticalAlignSnap = { x: p1.x, y: currentMousePos.y };
-                            allSnapCandidates.push(horizontalAlignSnap, verticalAlignSnap);
-                            
-                            // --- 全ての候補点から最適なスナップ点を探す ---
-                            let bestSnap = null;
-                            let minSnapDistSq = snapThreshold * snapThreshold;
-    
-                            allSnapCandidates.forEach(candidate => {
-                                const distSq = (currentMousePos.x - candidate.x)**2 + (currentMousePos.y - candidate.y)**2;
-                                if (distSq < minSnapDistSq) {
-                                    minSnapDistSq = distSq;
-                                    bestSnap = candidate;
-                                }
-                            });
-    
-                            // --- スナップを適用 ---
-                            if (bestSnap) {
-                                previewEndPoint = bestSnap;
-                                newSnappedInfo = { point: bestSnap, type: 'vertex' };
-    
-                                // スナップ元がP1の場合、ガイドラインを描画
-                                if (bestSnap === horizontalAlignSnap || bestSnap === verticalAlignSnap) {
-                                    newGuideLines.push({x1: p1.x, y1: p1.y, x2: bestSnap.x, y2: bestSnap.y});
-                                }
+                            // マウス(の投影点)とスナップ候補点の距離を計算
+                            const distSq = (previewOnLine.x - snapCandidate.x)**2 + (previewOnLine.y - snapCandidate.y)**2;
+                
+                            if (distSq < snapThreshold * snapThreshold) {
+                                // 距離が閾値以下ならスナップを適用
+                                previewEndPoint = snapCandidate;
+                                newSnappedInfo = { point: snapCandidate, type: 'vertex' };
+                                // スナップ元（P1）からのガイドラインを描画
+                                newGuideLines.push({x1: p1.x, y1: p1.y, x2: snapCandidate.x, y2: snapCandidate.y});
                             } else {
-                                // スナップしない場合は、P2からの垂線上にマウスを追従させる
+                                // スナップしない場合は、単純に直交する線上の点をプレビュー終点とする
                                 previewEndPoint = previewOnLine;
                             }
                         }
