@@ -4231,7 +4231,7 @@ ${JSON.stringify(exampleData10)}
                             }
                         }
             
-                        // --- スナップ優先度 2: 壁際スナップ ---
+                        // --- スナップ優先度 2: 壁際スナップ (復活) ---
                         if (!newSnappedInfo && allWallSegments.length > 0) {
                             const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
                             let minDistanceSq = Infinity;
@@ -4267,11 +4267,12 @@ ${JSON.stringify(exampleData10)}
                                  newSnappedInfo = { point: previewEndPoint, type: 'wall' };
                             }
                         }
-            
+                        
                         // --- スナップ優先度 3: 頂点/延長線スナップ ---
                         if (!newSnappedInfo) {
                             let bestVerticalSnap = null, bestHorizontalSnap = null;
                             let minXDist = snapThreshold, minYDist = snapThreshold;
+                            
                             pointsToSnapAgainst.forEach(p => {
                                 const distX = Math.abs(currentMousePos.x - p.x);
                                 if (distX < minXDist) { minXDist = distX; bestVerticalSnap = { x: p.x, from: p }; }
