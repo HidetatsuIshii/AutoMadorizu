@@ -5530,17 +5530,26 @@ ${JSON.stringify(exampleData10)}
     
                                 {/* --- 修正箇所 --- */}
                                 <div className="relative group">
-                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center">
-                                        <span>重ね順</span>
-                                        <span className="text-gray-400">▶</span>
-                                    </button>
-                                    {/* サブメニューをtop-0と-mt-1で親要素に少し重ねる */}
-                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block">
-                                        <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
-                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
-                                    </div>
+                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center">
+                                        <span>最前面へ移動</span>
+                                        <span className="text-gray-400">▶</span>
+                                    </button>
+                                    {/* top-0と-mt-1で親要素に少し重ね、隙間をなくす */}
+                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block z-10">
+                                        <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
+                                    </div>
+                                </div>
+                                <div className="relative group">
+                                    <button className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between items-center">
+                                        <span>最背面へ移動</span>
+                                        <span className="text-gray-400">▶</span>
+                                    </button>
+                                    {/* こちらも同様に-mt-1で位置を調整 */}
+                                    <div className="absolute left-full top-0 -mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 hidden group-hover:block z-10">
+                                        <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
+                                        <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
+                                    </div>
                                 </div>
                                 {/* --- 修正ここまで --- */}
     
