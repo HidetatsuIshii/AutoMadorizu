@@ -4196,47 +4196,86 @@ ${JSON.stringify(exampleData10)}
                     if (linePoints.length > 0) pointsToSnapAgainst.push(...linePoints);
             
                     if (linePoints.length > 0) {
-                        setStairSnapPreview(null);
-                        const lastPoint = linePoints[linePoints.length - 1];
-                        const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
-                        let snapCandidate = null;
-           
-                        if (allWallSegments.length > 0) {
-                            let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
-                            for (const wall of allWallSegments) {
-                                const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
-                                if (dx === 0 && dy === 0) continue;
-                                const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                const clampedT = Math.max(0, Math.min(1, t));
-                                const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
-                                if (distSq < minDistanceSq) { minDistanceSq = distSq; tempClosestWall = wall; tempClosestPointOnWall = pointOnLine; }
-                            }
-            
-                            if (minDistanceSq < (snapThreshold * 5) ** 2) {
-                                const { closestPointOnWall, closestWall } = { closestPointOnWall: tempClosestPointOnWall, closestWall: tempClosestWall };
-                                const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
-                                const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
-                                if (wallLen > 0) {
-                                    const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
-                                    const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
-                                    const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
-                                    const side = Math.sign(dotProduct) || 1;
-                                    const offsetPoint = { x: closestPointOnWall.x + side * perp.x * (stairWidth / 2), y: closestPointOnWall.y + side * perp.y * (stairWidth / 2) };
-                                    const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
-                                    snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
-                                }
-                            }
-                        }
-            
-                        if (snapCandidate) {
-                            const distToSnap = Math.sqrt(Math.pow(currentMousePos.x - snapCandidate.x, 2) + Math.pow(currentMousePos.y - snapCandidate.y, 2));
-                            if (distToSnap < snapThreshold * 2) {
-                                previewEndPoint = snapCandidate;
-                                newSnappedInfo = { point: previewEndPoint, type: 'wall' };
-                            }
-                        }
-                    }else {
+                        setStairSnapPreview(null);
+                        const lastPoint = linePoints[linePoints.length - 1];
+                        const prevPoint = linePoints.length > 1 ? linePoints[linePoints.length - 2] : null;
+                        let uShapeSnapApplied = false; // ★ 新規追加: U字スナップが適用されたかどうかのフラグ
+    
+                        // ★ 新規追加: ここからU型階段用のスナップ機能です。
+                        // 3クリック目のために、linePointsの数が2つの場合のみ動作します。
+                        if (linePoints.length === 2) {
+                            const p1 = linePoints[0];
+                            const stairW = stairWidth;
+    
+                            // 1クリック目の点(p1)を基準に、0, 90, 180, 270度の4方向へ階段幅分離れたスナップ候補点を計算
+                            const snapCandidates = [
+                                { x: p1.x + stairW, y: p1.y }, // 右 (0度)
+                                { x: p1.x, y: p1.y + stairW }, // 下 (90度)
+                                { x: p1.x - stairW, y: p1.y }, // 左 (180度)
+                                { x: p1.x, y: p1.y - stairW }  // 上 (270度)
+                            ];
+                            
+                            let bestSnap = null;
+                            let minSnapDistSq = snapThreshold * snapThreshold;
+    
+                            // 4つの候補点のうち、マウスカーソルに最も近いものを探す
+                            snapCandidates.forEach(candidate => {
+                                const distSq = (currentMousePos.x - candidate.x)**2 + (currentMousePos.y - candidate.y)**2;
+                                if (distSq < minSnapDistSq) {
+                                    minSnapDistSq = distSq;
+                                    bestSnap = candidate;
+                                }
+                            });
+    
+                            // スナップ可能な候補が見つかった場合
+                            if (bestSnap) {
+                                previewEndPoint = bestSnap;
+                                newSnappedInfo = { point: bestSnap, type: 'vertex' }; // スナップ表示を頂点と同じにする
+                                uShapeSnapApplied = true; // フラグを立てて、後続の通常スナップ処理をスキップ
+                            }
+                        }
+                        // ★ 新規追加: U型階段用スナップ機能ここまで
+    
+                        // ★ 変更: U字スナップが適用されなかった場合にのみ、既存のL字階段等のスナップ処理を実行
+                        if (!uShapeSnapApplied) {
+                            let snapCandidate = null;
+                            if (allWallSegments.length > 0) {
+                                let minDistanceSq = Infinity, tempClosestPointOnWall = null, tempClosestWall = null;
+                                for (const wall of allWallSegments) {
+                                    const p1 = wall.p1, p2 = wall.p2, dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                    if (dx === 0 && dy === 0) continue;
+                                    const t = ((currentMousePos.x - p1.x) * dx + (currentMousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                    const clampedT = Math.max(0, Math.min(1, t));
+                                    const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
+                                    const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
+                                    if (distSq < minDistanceSq) { minDistanceSq = distSq; tempClosestWall = wall; tempClosestPointOnWall = pointOnLine; }
+                                }
+                    
+                                if (minDistanceSq < (snapThreshold * 5) ** 2) {
+                                    const { closestPointOnWall, closestWall } = { closestPointOnWall: tempClosestPointOnWall, closestWall: tempClosestWall };
+                                    const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
+                                    const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
+                                    if (wallLen > 0) {
+                                        const perp = { x: -wallDy / wallLen, y: wallDx / wallLen };
+                                        const vecToMouse = { x: currentMousePos.x - closestPointOnWall.x, y: currentMousePos.y - closestPointOnWall.y };
+                                        const dotProduct = vecToMouse.x * perp.x + vecToMouse.y * perp.y;
+                                        const side = Math.sign(dotProduct) || 1;
+                                        const offsetPoint = { x: closestPointOnWall.x + side * perp.x * (stairWidth / 2), y: closestPointOnWall.y + side * perp.y * (stairWidth / 2) };
+                                        const isPrevHorizontal = prevPoint ? Math.abs(lastPoint.y - prevPoint.y) < 1 : Math.abs(offsetPoint.x - lastPoint.x) > Math.abs(offsetPoint.y - lastPoint.y);
+                                        snapCandidate = isPrevHorizontal ? { x: offsetPoint.x, y: lastPoint.y } : { x: lastPoint.x, y: offsetPoint.y };
+                                    }
+                                }
+                            }
+                    
+                            if (snapCandidate) {
+                                const distToSnap = Math.sqrt(Math.pow(currentMousePos.x - snapCandidate.x, 2) + Math.pow(currentMousePos.y - snapCandidate.y, 2));
+                                if (distToSnap < snapThreshold * 2) {
+                                    previewEndPoint = snapCandidate;
+                                    newSnappedInfo = { point: previewEndPoint, type: 'wall' };
+                                }
+                            }
+                        }
+                    }else {
                         setStairSnapPreview(null);
                         if (allWallSegments.length > 0) {
                             let minDistanceSq = Infinity, closestPointOnWall = null, closestWall = null;
@@ -4249,7 +4288,7 @@ ${JSON.stringify(exampleData10)}
                                 const distSq = (currentMousePos.x - pointOnLine.x) ** 2 + (currentMousePos.y - pointOnLine.y) ** 2;
                                 if (distSq < minDistanceSq) { minDistanceSq = distSq; closestWall = wall; closestPointOnWall = pointOnLine; }
                             }
-            
+                
                             if (closestWall && minDistanceSq < (snapThreshold * 5) ** 2) {
                                 const wallDx = closestWall.p2.x - closestWall.p1.x, wallDy = closestWall.p2.y - closestWall.p1.y;
                                 const wallLen = Math.sqrt(wallDx**2 + wallDy**2);
@@ -4304,7 +4343,7 @@ ${JSON.stringify(exampleData10)}
                         if(type==='door'||type==='window'){const dx=newElement.x2-newElement.x1;const dy=newElement.y2-newElement.y1;newElement.length=Math.sqrt(dx*dx+dy*dy);newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI}
                         newElements[elementIndex] = newElement;
                     } else if (type === 'spaceCorner' || type === 'spaceEdge') {
-                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
+                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = points.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
                         if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
                         const newPointsStr=newPoints.map(p=>`${p.x},${p.y}`).join(' ');const newCentroid=getPolygonCentroid([...newPoints]);newElements=newElements.map(el=>{if(el.groupId!==id)return el;if(el.type==='space')return{...el,points:newPointsStr};if(el.type==='text')return{...el,x:(newCentroid.x/dimensions.width)*100,y:(newCentroid.y/dimensions.height)*100};if(el.type==='wall'){const p1=newPoints[el.edgeIndex];const p2=newPoints[(el.edgeIndex+1)%newPoints.length];return{...el,x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y}}return el});
                     }
@@ -4319,9 +4358,10 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
             }, [
-                getCanvasCoords, zoom, isDisplaySettingsOpen, imagePosition, svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, historyState.present, isGridVisible, getGridSnappedPoint, drawingMode, spaceShape, linePoints, isSnapToWall, isModifierKeyDown, stairWidth, stairSnapPreview, strokeColor, dimensions
+                getCanvasCoords, zoom, isDisplaySettingsOpen, imagePosition, svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, historyState.present, isGridVisible, getGridSnappedPoint, drawingMode, spaceShape, linePoints, isSnapToWall, isModifierKeyDown,
+                stairWidth, // ★ 新規追加: 依存配列にstairWidthを追加
+                stairSnapPreview, strokeColor, dimensions
             ]);
-
 
             const handleMouseUp = (e) => {
                 const wasDraggingImage = !!imageDragInfo.current;
