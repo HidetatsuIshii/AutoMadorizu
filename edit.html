@@ -5992,7 +5992,6 @@ ${JSON.stringify(exampleData10)}
                                                                 points={el.points}
                                                                 fill={el.fill}
                                                                 stroke="none"
-                                                                style={{ pointerEvents: (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all' }}
                                                             />
                                                             
                                                             {/* 背景パターン */}
@@ -6043,7 +6042,6 @@ ${JSON.stringify(exampleData10)}
                                                 }
                                             }
                                             if (el.type === 'wall') {
-                                                const pointerEvents = (editorMode === 'create' || editorMode === 'continuous-create') ? 'none' : 'all';
                                                 const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                                 const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                                 const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR);
@@ -6060,7 +6058,7 @@ ${JSON.stringify(exampleData10)}
                                                     const offsetY = dx / len * offsetDistance;
                                                     
                                                     return (
-                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ pointerEvents, cursor: 'pointer' }}>
+                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
                                                             {/* 2本の線で二重線を表現 */}
                                                             <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
                                                                 stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
