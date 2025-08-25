@@ -4567,11 +4567,12 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
             
-                // 2. 2クリック描画の1クリック目の場合、その開始点をリセット
-                if (drawingStartPoint || pendingFixture) {
+                // 2. 2クリック描画の途中（1クリック目または2クリック目）の場合、その状態をリセット
+                if (drawingStartPoint || pendingFixture || pendingWindow) {
                     setDrawingStartPoint(null);
                     setPendingFixture(null);
-                    activeSnapWallRef.current = null; // 壁スナップもリセット
+                    setPendingWindow(null);
+                    activeSnapWallRef.current = null;
                     return;
                 }
             
@@ -4582,7 +4583,7 @@ ${JSON.stringify(exampleData10)}
                     if (!newPresent) return prevState;
                     return { past: past, present: newPresent, future: [prevState.present, ...prevState.future] };
                 });
-            }, [linePoints, drawingStartPoint, pendingFixture]);
+            }, [linePoints, drawingStartPoint, pendingFixture, pendingWindow]);
 
             const handleRedo = useCallback(() => {
                 setHistoryState(prevState => {
