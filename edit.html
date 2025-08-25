@@ -6677,10 +6677,51 @@ ${JSON.stringify(exampleData10)}
                                 </h2>
                                 <div className={`accordion-content ${isDrawingToolsOpen ? 'accordion-content-open' : ''}`}>
                                     <div>
-                                        <div className="flex bg-gray-200 rounded-lg p-1 mb-4">
-                                            <button onClick={() => setEditorMode('continuous-create')} className={`w-full py-2 text-sm font-semibold rounded-md transition-all duration-200 ease-in-out ${editorMode === 'continuous-create' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-300/50'}`}>連続作成</button>
-                                            <button onClick={() => setEditorMode('create')} className={`w-full py-2 text-sm font-semibold rounded-md transition-all duration-200 ease-in-out ${editorMode === 'create' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-300/50'}`}>作成</button>
-                                            <button onClick={() => setEditorMode('edit')} className={`w-full py-2 text-sm font-semibold rounded-md transition-all duration-200 ease-in-out ${editorMode === 'edit' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-300/50'}`}>編集</button>
+                                        <div className="grid grid-cols-3 gap-2 mb-4">
+                                            {/* 連続作成ボタン */}
+                                            <button
+                                                onClick={() => setEditorMode('continuous-create')}
+                                                className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-x-2 ${
+                                                    editorMode === 'continuous-create'
+                                                        ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                                                        : 'bg-white text-gray-800 hover:bg-blue-50 ring-1 ring-inset ring-gray-200'
+                                                }`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                                    <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                                                </svg>
+                                                <span>連続作成</span>
+                                            </button>
+                                            
+                                            {/* 作成ボタン */}
+                                            <button
+                                                onClick={() => setEditorMode('create')}
+                                                className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-x-2 ${
+                                                    editorMode === 'create'
+                                                        ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                                                        : 'bg-white text-gray-800 hover:bg-blue-50 ring-1 ring-inset ring-gray-200'
+                                                }`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                </svg>
+                                                <span>作成</span>
+                                            </button>
+                                        
+                                            {/* 編集ボタン */}
+                                            <button
+                                                onClick={() => setEditorMode('edit')}
+                                                className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-x-2 ${
+                                                    editorMode === 'edit'
+                                                        ? 'bg-amber-500 text-white shadow-lg transform scale-105'
+                                                        : 'bg-white text-gray-800 hover:bg-amber-50 ring-1 ring-inset ring-gray-200'
+                                                }`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                                    <path d="M10 3.75a2 2 0 100 4 2 2 0 000-4zM3.5 15.5a2 2 0 114 0 2 2 0 01-4 0zM16.5 15.5a2 2 0 114 0 2 2 0 01-4 0zM11.05 8.012a3.5 3.5 0 11-2.1 0l-2.712 6.33a.75.75 0 00.23.992l.79.527a.75.75 0 00.992-.23L10 12.813l2.24 2.813a.75.75 0 00.992.23l.79-.527a.75.75 0 00.23-.992l-2.712-6.33z" />
+                                                </svg>
+                                                <span>編集</span>
+                                            </button>
                                         </div>
 
                                         {(editorMode === 'create' || editorMode === 'continuous-create') && (
