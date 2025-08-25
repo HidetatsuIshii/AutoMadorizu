@@ -4561,20 +4561,28 @@ ${JSON.stringify(exampleData10)}
 
 
             const handleUndo = useCallback(() => {
-                // 空間や階段の線を描画途中であれば、最後の点を1つ削除する
+                // 1. 線や階段の描画途中の場合、最後の点を削除
                 if (linePoints.length > 0) {
                     setLinePoints(prev => prev.slice(0, -1));
-                    return; // これ以降の履歴操作は行わずに終了
+                    return;
                 }
             
-                // 通常の履歴（完成した図形）を戻す操作
+                // 2. 2クリック描画の1クリック目の場合、その開始点をリセット
+                if (drawingStartPoint || pendingFixture) {
+                    setDrawingStartPoint(null);
+                    setPendingFixture(null);
+                    activeSnapWallRef.current = null; // 壁スナップもリセット
+                    return;
+                }
+            
+                // 3. 上記以外の場合、通常の履歴（完成した図形）を戻す操作
                 setHistoryState(prevState => {
                     const past = [...prevState.past];
                     const newPresent = past.pop();
                     if (!newPresent) return prevState;
                     return { past: past, present: newPresent, future: [prevState.present, ...prevState.future] };
                 });
-            }, [linePoints]);
+            }, [linePoints, drawingStartPoint, pendingFixture]);
 
             const handleRedo = useCallback(() => {
                 setHistoryState(prevState => {
