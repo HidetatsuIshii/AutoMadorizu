@@ -4561,13 +4561,20 @@ ${JSON.stringify(exampleData10)}
 
 
             const handleUndo = useCallback(() => {
+                // 空間や階段の線を描画途中であれば、最後の点を1つ削除する
+                if (linePoints.length > 0) {
+                    setLinePoints(prev => prev.slice(0, -1));
+                    return; // これ以降の履歴操作は行わずに終了
+                }
+            
+                // 通常の履歴（完成した図形）を戻す操作
                 setHistoryState(prevState => {
                     const past = [...prevState.past];
                     const newPresent = past.pop();
                     if (!newPresent) return prevState;
                     return { past: past, present: newPresent, future: [prevState.present, ...prevState.future] };
                 });
-            }, []);
+            }, [linePoints]);
 
             const handleRedo = useCallback(() => {
                 setHistoryState(prevState => {
