@@ -4809,6 +4809,13 @@ ${JSON.stringify(exampleData10)}
             }, [handleUndo, handleRedo, deleteSelectedElement, selectedId]);
 
             useEffect(() => {
+                // 右クリックメニューが非表示になった時に選択を解除する
+                if (!contextMenu.visible) {
+                    setSelectedId(null);
+                }
+            }, [contextMenu.visible]);
+
+            useEffect(() => {
                 const editorArea = editorAreaRef.current;
                 const editorContainer = editorContainerRef.current;
                 if (!editorArea) return;
