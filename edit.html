@@ -5789,17 +5789,15 @@ ${JSON.stringify(exampleData10)}
                 }));
             };
 
-            const TextRenderer = ({ element, isDirectlySelected, isDragging }) => { ... };
-
             let displayImageOpacity = 1 - imageOpacity;
             let displayDrawingOpacity = 1 - drawingOpacity;
         
             if (previewMode === 'image') {
-                displayImageOpacity = 1;  // 下絵を不透明に
-                displayDrawingOpacity = 0;  // 作図を透明に
+                displayImageOpacity = 1;
+                displayDrawingOpacity = 0;
             } else if (previewMode === 'drawing') {
-                displayImageOpacity = 0;  // 下絵を透明に
-                displayDrawingOpacity = 1;  // 作図を不透明に
+                displayImageOpacity = 0;
+                displayDrawingOpacity = 1;
             }
 
             return (                    
