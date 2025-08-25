@@ -1582,6 +1582,16 @@
             const dragTarget = useRef(null); // Ref to store the potential drag target
             const textEditAreaRef = useRef(null);
             const prevSelectedIdRef = useRef(null);
+            
+            const onMouseMoveRef = useRef(() => {});
+            const onMouseUpRef = useRef(() => {});
+            useEffect(() => {
+                onMouseMoveRef.current = handleMouseMove;
+            }, [handleMouseMove]);
+            
+            useEffect(() => {
+                onMouseUpRef.current = handleMouseUp;
+            }, [handleMouseUp]);
 
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
@@ -4661,13 +4671,17 @@ ${JSON.stringify(exampleData10)}
             }, [fixtureCategory]); // fixtureCategory が変更された時だけこの処理を実行
 
             useEffect(() => {
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
+                const handleMove = (e) => onMouseMoveRef.current(e);
+                const handleUp = (e) => onMouseUpRef.current(e);
+                
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('mouseup', handleUp);
+                
                 return () => {
-                    document.removeEventListener('mousemove', handleMouseMove);
-                    document.removeEventListener('mouseup', handleMouseUp);
+                    document.removeEventListener('mousemove', handleMove);
+                    document.removeEventListener('mouseup', handleUp);
                 };
-            }, [svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, handleCanvasClick, getCanvasCoords, getGridSnappedPoint, zoom, drawingMode, spaceShape, isGridVisible, mouseDownInfo.current]);
+            }, []);
 
             useEffect(() => {
                 const canvas = canvasRef.current;
