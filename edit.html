@@ -5529,25 +5529,36 @@ ${JSON.stringify(exampleData10)}
                     <div 
                         ref={contextMenuRef} 
                         style={menuStyle} 
-                        className="bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" // 全体に均等な余白(py-1)を追加
+                        className="w-44 bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1" 
                         onContextMenu={(e) => e.preventDefault()}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
-                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
-                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
+                        {/* ▼▼▼ flex justify-between を flex items-center に変更し、ショートカットのspanに ml-auto を追加 ▼▼▼ */}
+                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex items-center">
+                            <span>切り取り</span>
+                            <span className="ml-auto text-gray-400">Ctrl+X</span>
+                        </button>
+                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex items-center">
+                            <span>コピー</span>
+                            <span className="ml-auto text-gray-400">Ctrl+C</span>
+                        </button>
+                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex items-center disabled:opacity-50 disabled:hover:bg-white">
+                            <span>貼り付け</span>
+                            <span className="ml-auto text-gray-400">Ctrl+V</span>
+                        </button>
                         
                         <div className="my-1 border-t border-gray-200"></div>
                 
-                        {/* ▼▼▼ サブメニューを解除し、直接メニュー項目として配置 ▼▼▼ */}
                         <button onClick={() => handleAction('reorder', 'front')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最前面へ移動</button>
                         <button onClick={() => handleAction('reorder', 'forward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">前面へ移動</button>
                         <button onClick={() => handleAction('reorder', 'backward')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">背面へ移動</button>
                         <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
-                        {/* ▲▲▲ ここまで ▲▲▲ */}
                 
                         <div className="my-1 border-t border-gray-200"></div>
-                        <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
+                        <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex items-center">
+                            <span>削除</span>
+                            <span className="ml-auto text-gray-400">Delete</span>
+                        </button>
                     </div>
                 );
             };
