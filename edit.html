@@ -1564,6 +1564,8 @@
             const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null, targetElement: null });
             const [clipboard, setClipboard] = useState(null);
             const [stairSnapPreview, setStairSnapPreview] = useState(null);
+            const [previewMode, setPreviewMode] = useState(null);
+            const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 
             // --- Ref定義 ---
             const contextMenuRef = useRef(null);
@@ -5114,6 +5116,17 @@ ${JSON.stringify(exampleData10)}
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
 
+                let displayImageOpacity = 1 - imageOpacity;
+                let displayDrawingOpacity = 1 - drawingOpacity;
+            
+                if (previewMode === 'image') {
+                    displayImageOpacity = 1;  // 下絵を不透明に
+                    displayDrawingOpacity = 0;  // 作図を透明に
+                } else if (previewMode === 'drawing') {
+                    displayImageOpacity = 0;  // 下絵を透明に
+                    displayDrawingOpacity = 1;  // 作図を不透明に
+                }
+
                 return (
                     <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
@@ -5776,6 +5789,19 @@ ${JSON.stringify(exampleData10)}
                 }));
             };
 
+            const TextRenderer = ({ element, isDirectlySelected, isDragging }) => { ... };
+
+            let displayImageOpacity = 1 - imageOpacity;
+            let displayDrawingOpacity = 1 - drawingOpacity;
+        
+            if (previewMode === 'image') {
+                displayImageOpacity = 1;  // 下絵を不透明に
+                displayDrawingOpacity = 0;  // 作図を透明に
+            } else if (previewMode === 'drawing') {
+                displayImageOpacity = 0;  // 下絵を透明に
+                displayDrawingOpacity = 1;  // 作図を不透明に
+            }
+
             return (                    
                 <div className="flex flex-col h-screen" onClick={() => setContextMenu({ visible: false })}>
                     <ContextMenu />
@@ -5840,7 +5866,8 @@ ${JSON.stringify(exampleData10)}
                                         alt="間取り図" 
                                         className="editor-image" 
                                         style={{ 
-                                            opacity: 1 - imageOpacity, 
+                                            opacity: displayImageOpacity,
+                                            transition: 'opacity 0.2s ease-in-out',
                                             transform: `translate(-50%, -50%) translate(${imagePosition.x}px, ${imagePosition.y}px) scale(${imageScale})`,
                                             cursor: isDisplaySettingsOpen ? 'grab' : 'default',
                                             pointerEvents: isDisplaySettingsOpen ? 'all' : 'none'
@@ -5848,7 +5875,7 @@ ${JSON.stringify(exampleData10)}
                                         crossOrigin="anonymous"
                                     />}
                                     <canvas ref={canvasRef} className={getCursorClass()} width={dimensions.width} height={dimensions.height} />
-                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: 1 - drawingOpacity }} onMouseDown={handleMouseDown} onContextMenu={handleCanvasContextMenu}>
+                                    <svg ref={svgRef} className="editor-svg" width={dimensions.width} height={dimensions.height} xmlns="http://www.w3.org/2000/svg" style={{ opacity: displayDrawingOpacity, transition: 'opacity 0.2s ease-in-out' }} onMouseDown={handleMouseDown} onContextMenu={handleCanvasContextMenu}>
                                         <defs>
                                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
                                                 <polygon points="0 0, 10 3.5, 0 7" />
@@ -7455,6 +7482,27 @@ ${JSON.stringify(exampleData10)}
                                 </div>
                             </div>
                         </aside>
+                        <div className="fixed bottom-4 right-4 z-40 bg-white bg-opacity-75 backdrop-blur-sm p-2 rounded-lg shadow-lg flex items-center space-x-2">
+                            <span className="text-xs font-bold text-gray-600 mr-2">プレビュー</span>
+                            <button
+                                onMouseDown={() => setPreviewMode('image')}
+                                onMouseUp={() => setPreviewMode(null)}
+                                onMouseLeave={() => setPreviewMode(null)}
+                                className="px-4 py-2 bg-gray-500 text-white text-xs font-semibold rounded-md hover:bg-gray-600 active:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                title="下絵をプレビュー (長押し)"
+                            >
+                                下絵
+                            </button>
+                            <button
+                                onMouseDown={() => setPreviewMode('drawing')}
+                                onMouseUp={() => setPreviewMode(null)}
+                                onMouseLeave={() => setPreviewMode(null)}
+                                className="px-4 py-2 bg-indigo-500 text-white text-xs font-semibold rounded-md hover:bg-indigo-600 active:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                title="作図をプレビュー (長押し)"
+                            >
+                                作図
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
