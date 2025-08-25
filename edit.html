@@ -5536,9 +5536,9 @@ ${JSON.stringify(exampleData10)}
                 return (
                     <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm" onContextMenu={(e) => e.preventDefault()}>
                         {/* ▼▼▼ UI改善: 上下の余白を詰める (py-1.5 -> py-1) ▼▼▼ */}
-                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
-                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
-                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
+                        <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
+                        <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
+                        <button onClick={() => handleAction('paste')} disabled={!clipboard} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between disabled:opacity-50 disabled:hover:bg-white"><span>貼り付け</span><span className="text-gray-400">Ctrl+V</span></button>
                         
                         {/* ▼▼▼ UI改善: 区切り線の上下余白を詰める (my-1を削除) ▼▼▼ */}
                         <div className="border-t border-gray-200"></div>
