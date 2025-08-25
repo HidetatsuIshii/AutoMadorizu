@@ -4744,7 +4744,20 @@ ${JSON.stringify(exampleData10)}
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
+                    // テキスト入力中はショートカットを無効にする
+                    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                        return;
+                    }
+            
+                    // ▼▼▼ プレビュー開始のロジックを追加 ▼▼▼
+                    if (e.key.toLowerCase() === 'a') {
+                        setPreviewMode('image');
+                    } else if (e.key.toLowerCase() === 's') {
+                        setPreviewMode('drawing');
+                    } 
+                    // ▲▲▲ ここまで追加 ▲▲▲
+                    
+                    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
                     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
                     else if (e.key === 'Delete') { 
                         if (selectedId) {
@@ -4762,8 +4775,21 @@ ${JSON.stringify(exampleData10)}
                         activeSnapWallRef.current = null;
                     }
                 };
+            
+                // ▼▼▼ プレビュー終了のロジックを追加 ▼▼▼
+                const handleKeyUp = (e) => {
+                    if (e.key.toLowerCase() === 'a' || e.key.toLowerCase() === 's') {
+                        setPreviewMode(null);
+                    }
+                };
+                // ▲▲▲ ここまで追加 ▲▲▲
+            
                 window.addEventListener('keydown', handleKeyDown);
-                return () => window.removeEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp); // 👈 keyupイベントリスナーを追加
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp); // 👈 keyupイベントリスナーを削除
+                };
             }, [handleUndo, handleRedo, deleteSelectedElement, selectedId]);
 
             useEffect(() => {
