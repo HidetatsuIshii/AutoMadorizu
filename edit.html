@@ -5529,11 +5529,10 @@ ${JSON.stringify(exampleData10)}
                         {/* ▼▼▼ UI改善: 区切り線の上下余白を詰める (my-1を削除) ▼▼▼ */}
                         <div className="border-t border-gray-200"></div>
     
-                        {/* ▼▼▼ サブメニュー修正 ▼▼▼ */}
                         {/* 親要素に group と p-1 -m-1 を追加し、ホバー領域を確保 */}
                         <div className="relative group p-1 -m-1">
                             {/* ボタンのクラスを調整 */}
-                            <button className="w-full text-left px-3 py-1 hover:bg-gray-100 flex justify-between items-center rounded-sm">
+                            <button className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between items-center rounded-sm">
                                 <span>重ね順</span>
                                 <span className="text-gray-400">▶</span>
                             </button>
@@ -5547,7 +5546,6 @@ ${JSON.stringify(exampleData10)}
                                 <button onClick={() => handleAction('reorder', 'back')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100">最背面へ移動</button>
                             </div>
                         </div>
-                        {/* ▲▲▲ 修正ここまで ▲▲▲ */}
                         
                         <div className="border-t border-gray-200"></div>
                         <button onClick={() => handleAction('delete')} className="w-full text-left px-4 py-1 hover:bg-gray-100 flex justify-between"><span>削除</span><span className="text-gray-400">Delete</span></button>
