@@ -4174,7 +4174,7 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
                 
-                let previewEndPoint = isGridVisible ? getGridSnappedPoint(currentMousePos) : currentMousePos;
+                let previewEndPoint = (isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(currentMousePos) : currentMousePos;
                 let newSnappedInfo = null;
                 let newGuideLines = [];
                 const snapThreshold = SNAP_THRESHOLD / zoom;
