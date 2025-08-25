@@ -1566,6 +1566,7 @@
             const [stairSnapPreview, setStairSnapPreview] = useState(null);
 
             // --- Ref定義 ---
+            const contextMenuRef = useRef(null);
             const imageRef = useRef(null);
             const modalRef = useRef(null);
             const tooltipTimers = useRef([]);
@@ -1583,16 +1584,6 @@
             const textEditAreaRef = useRef(null);
             const prevSelectedIdRef = useRef(null);
             
-            const onMouseMoveRef = useRef(() => {});
-            const onMouseUpRef = useRef(() => {});
-            useEffect(() => {
-                onMouseMoveRef.current = handleMouseMove;
-            }, [handleMouseMove]);
-            
-            useEffect(() => {
-                onMouseUpRef.current = handleMouseUp;
-            }, [handleMouseUp]);
-
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
             const handleSpaceTypeChange = (newType) => {
@@ -4167,7 +4158,9 @@ ${JSON.stringify(exampleData10)}
             ]);
 
             const handleMouseMove = useCallback((e) => {
-                if (contextMenu.visible) return;
+                if (contextMenuRef.current && contextMenuRef.current.contains(e.target)) {
+                    return;
+                }
                 const currentMousePos = getCanvasCoords(e);
             
                 if (imageDragInfo.current) {
@@ -4384,6 +4377,9 @@ ${JSON.stringify(exampleData10)}
             ]);
 
             const handleMouseUp = (e) => {
+                if (contextMenuRef.current && contextMenuRef.current.contains(e.target)) {
+                    return;
+                }
                 const wasDraggingImage = !!imageDragInfo.current;
                 if (imageDragInfo.current) {
                     imageDragInfo.current = null;
@@ -4671,17 +4667,13 @@ ${JSON.stringify(exampleData10)}
             }, [fixtureCategory]); // fixtureCategory が変更された時だけこの処理を実行
 
             useEffect(() => {
-                const handleMove = (e) => onMouseMoveRef.current(e);
-                const handleUp = (e) => onMouseUpRef.current(e);
-                
-                document.addEventListener('mousemove', handleMove);
-                document.addEventListener('mouseup', handleUp);
-                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
                 return () => {
-                    document.removeEventListener('mousemove', handleMove);
-                    document.removeEventListener('mouseup', handleUp);
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
                 };
-            }, []);
+            }, [handleMouseMove, handleMouseUp]);
 
             useEffect(() => {
                 const canvas = canvasRef.current;
@@ -5534,7 +5526,7 @@ ${JSON.stringify(exampleData10)}
     
                 // 要素の上で右クリックした場合のメニュー
                 return (
-                    <div style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm" onContextMenu={(e) => e.preventDefault()}>
+                    <div ref={contextMenuRef} style={menuStyle} className="bg-white rounded-md shadow-lg border border-gray-200 text-sm" onContextMenu={(e) => e.preventDefault()}>
                         {/* ▼▼▼ UI改善: 上下の余白を詰める (py-1.5 -> py-1) ▼▼▼ */}
                         <button onClick={() => handleAction('cut')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>切り取り</span><span className="text-gray-400">Ctrl+X</span></button>
                         <button onClick={() => handleAction('copy')} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 flex justify-between"><span>コピー</span><span className="text-gray-400">Ctrl+C</span></button>
