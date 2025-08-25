@@ -4114,7 +4114,7 @@ ${JSON.stringify(exampleData10)}
                     tooltipTimers.current = [fadeTimer, hideTimer];
                 }
 
-                if (isDisplaySettingsOpen) {
+                if (isDisplaySettingsOpen && !drawingMode) {
                     // 表示設定が開いている時は、下絵のドラッグ操作を開始する
                     imageDragInfo.current = {
                         startMouseX: e.clientX,
