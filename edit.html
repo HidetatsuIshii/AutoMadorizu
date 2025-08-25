@@ -6360,7 +6360,7 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             } else {
                                                 // 1クリック前の処理 (マウスカーソルに追従)
-                                                const previewPos = isGridVisible ? getGridSnappedPoint(mousePos) : mousePos;
+                                                const previewPos = (isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(mousePos) : mousePos;
                                                 return (
                                                     <g transform={`translate(${previewPos.x}, ${previewPos.y}) rotate(${fixtureRotation || 0}) ${fixtureFlip ? 'scale(-1, 1)' : ''}`} style={{ opacity: 0.7, pointerEvents: 'none' }}>
                                                         {previewElement}
