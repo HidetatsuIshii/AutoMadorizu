@@ -4163,7 +4163,21 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
                 const currentMousePos = getCanvasCoords(e);
+
+                if (drawingMode === 'wall' && drawingStartPoint && !isModifierKeyDown) {
+                    const dx = currentMousePos.x - drawingStartPoint.x;
+                    const dy = currentMousePos.y - drawingStartPoint.y;
             
+                    // X軸方向の移動量が大きい場合は、Y座標を始点に固定（水平スナップ）
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        currentMousePos.y = drawingStartPoint.y;
+                    } 
+                    // Y軸方向の移動量が大きい場合は、X座標を始点に固定（垂直スナップ）
+                    else {
+                        currentMousePos.x = drawingStartPoint.x;
+                    }
+                }
+
                 if (imageDragInfo.current) {
                     const dx = e.clientX - imageDragInfo.current.startMouseX;
                     const dy = e.clientY - imageDragInfo.current.startMouseY;
@@ -4414,7 +4428,7 @@ ${JSON.stringify(exampleData10)}
             }, [
                 getCanvasCoords, zoom, isDisplaySettingsOpen, imagePosition, svgElements, editorMode, selectedId, isDragging, resizingHandleInfo, dragInfo.current, historyState.present, isGridVisible, getGridSnappedPoint, drawingMode, spaceShape, linePoints, isSnapToWall, isModifierKeyDown,
                 stairWidth,
-                stairSnapPreview, strokeColor, dimensions
+                stairSnapPreview, strokeColor, dimensions, drawingStartPoint
             ]);
 
             const handleMouseUp = (e) => {
