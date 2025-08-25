@@ -4167,15 +4167,29 @@ ${JSON.stringify(exampleData10)}
                 if (drawingMode === 'wall' && drawingStartPoint && !isModifierKeyDown) {
                     const dx = currentMousePos.x - drawingStartPoint.x;
                     const dy = currentMousePos.y - drawingStartPoint.y;
-            
-                    // X軸方向の移動量が大きい場合は、Y座標を始点に固定（水平スナップ）
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        currentMousePos.y = drawingStartPoint.y;
+                
+                    // 始点からの角度を計算 (ラジアンから度に変換)
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                    // スナップが作動する角度の閾値 (6度以内であればスナップ)
+                    const snapAngleThreshold = 6; 
+                
+                    // 水平方向 (0度, 180度) へのスナップ判定
+                    if (
+                        Math.abs(angle) < snapAngleThreshold || 
+                        Math.abs(angle - 180) < snapAngleThreshold || 
+                        Math.abs(angle + 180) < snapAngleThreshold 
+                    ) {
+                        currentMousePos.y = drawingStartPoint.y; // Y座標を始点に固定
                     } 
-                    // Y軸方向の移動量が大きい場合は、X座標を始点に固定（垂直スナップ）
-                    else {
-                        currentMousePos.x = drawingStartPoint.x;
+                    // 垂直方向 (90度, -90度) へのスナップ判定
+                    else if (
+                        Math.abs(angle - 90) < snapAngleThreshold || 
+                        Math.abs(angle + 90) < snapAngleThreshold
+                    ) {
+                        currentMousePos.x = drawingStartPoint.x; // X座標を始点に固定
                     }
+                    // どの角度にも近くない場合は、スナップせずそのままの座標を使用
                 }
 
                 if (imageDragInfo.current) {
