@@ -3849,9 +3849,9 @@ ${JSON.stringify(exampleData10)}
                     }
             
                     if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
-                        const finalStartPoint = snappedInfo 
-                            ? snappedInfo.point 
-                            : (isGridVisible ? getGridSnappedPoint(clickPos) : clickPos);
+                        const finalStartPoint = snappedInfo
+                            ? snappedInfo.point
+                            : ((isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(clickPos) : clickPos);
             
                         if (drawingMode === 'fixture') {
                             setPendingFixture(finalStartPoint);
@@ -4364,9 +4364,49 @@ ${JSON.stringify(exampleData10)}
                     return;
                 }
                 if (isDragging) {
-                    const startMouseCanvasX = dragInfo.current.startMouseX; const startMouseCanvasY = dragInfo.current.startMouseY; const mouseMoveDx = currentMousePos.x - startMouseCanvasX; const mouseMoveDy = currentMousePos.y - startMouseCanvasY; let finalDeltaX = mouseMoveDx; let finalDeltaY = mouseMoveDy; if (isGridVisible) { finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize; finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize; }
-                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId); if(!elementToDragOriginal) return; const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null); const isGroupDrag = !!groupId; const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
-                    const newElements = historyOnActionStart.current.svgElements.map(el => { const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id); if (originalEl) { const newEl = { ...el }; switch (originalEl.type) { case 'text': case 'fixture': case 'compass': newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100; newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100; break; case 'door': case 'window': case 'wall': newEl.x1 = originalEl.x1 + finalDeltaX; newEl.y1 = originalEl.y1 + finalDeltaY; newEl.x2 = originalEl.x2 + finalDeltaX; newEl.y2 = originalEl.y2 + finalDeltaY; break; case 'space': case 'stairs': const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])})); const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY })); newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' '); break; } return newEl; } return el; });
+                    const startMouseCanvasX = dragInfo.current.startMouseX; 
+                    const startMouseCanvasY = dragInfo.current.startMouseY; 
+                    const mouseMoveDx = currentMousePos.x - startMouseCanvasX; 
+                    const mouseMoveDy = currentMousePos.y - startMouseCanvasY; 
+                    let finalDeltaX = mouseMoveDx; 
+                    let finalDeltaY = mouseMoveDy; 
+                    if (isGridVisible && !isModifierKeyDown) {
+                        finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize; 
+                        finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize; 
+                    }
+                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId); 
+                    if(!elementToDragOriginal) return; 
+                    const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null); 
+                    const isGroupDrag = !!groupId; 
+                    const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
+                    const newElements = historyOnActionStart.current.svgElements.map(el => { 
+                        const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
+                        if (originalEl) { 
+                            const newEl = { ...el }; 
+                            switch (originalEl.type) { 
+                                case 'text': 
+                                case 'fixture': 
+                                case 'compass': 
+                                    newEl.x = (originalEl.x / 100 * dimensions.width + finalDeltaX) / dimensions.width * 100; 
+                                    newEl.y = (originalEl.y / 100 * dimensions.height + finalDeltaY) / dimensions.height * 100; 
+                                    break; 
+                                case 'door': 
+                                case 'window': 
+                                case 'wall': 
+                                    newEl.x1 = originalEl.x1 + finalDeltaX; 
+                                    newEl.y1 = originalEl.y1 + finalDeltaY; 
+                                    newEl.x2 = originalEl.x2 + finalDeltaX; 
+                                    newEl.y2 = originalEl.y2 + finalDeltaY; 
+                                    break; 
+                                case 'space': 
+                                case 'stairs': 
+                                    const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])})); 
+                                    const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY })); 
+                                    newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' '); 
+                                    break; 
+                            } return newEl; 
+                        } return el; 
+                    });
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
                 }
