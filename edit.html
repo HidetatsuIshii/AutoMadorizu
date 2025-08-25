@@ -7513,14 +7513,14 @@ ${JSON.stringify(exampleData10)}
                                     onMouseDown={() => setPreviewMode('image')}
                                     onMouseUp={() => setPreviewMode(null)}
                                     onMouseLeave={() => setPreviewMode(null)}
-                                    className={`px-4 py-2 text-white text-xs font-semibold rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 ${
+                                    className={`pl-3 pr-8 py-2 text-white text-xs font-semibold rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 text-left ${
                                         previewMode === 'image' ? 'bg-gray-700' : 'bg-gray-500 hover:bg-gray-600'
                                     }`}
                                     title="下絵をプレビュー (Aキー長押し)"
                                 >
                                     下絵
                                 </button>
-                                <kbd className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-gray-200 text-gray-800 text-[10px] font-sans font-bold rounded-sm pointer-events-none">A</kbd>
+                                <kbd className="absolute top-1/2 -translate-y-1/2 right-2 px-1.5 py-0.5 bg-gray-200 text-gray-800 text-[10px] font-sans font-bold rounded-sm pointer-events-none">A</kbd>
                             </div>
                             {/* 作図ボタン */}
                             <div className="relative">
@@ -7528,14 +7528,14 @@ ${JSON.stringify(exampleData10)}
                                     onMouseDown={() => setPreviewMode('drawing')}
                                     onMouseUp={() => setPreviewMode(null)}
                                     onMouseLeave={() => setPreviewMode(null)}
-                                    className={`px-4 py-2 text-white text-xs font-semibold rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 ${
+                                    className={`pl-3 pr-8 py-2 text-white text-xs font-semibold rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 text-left ${
                                         previewMode === 'drawing' ? 'bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'
                                     }`}
                                     title="作図をプレビュー (Sキー長押し)"
                                 >
                                     作図
                                 </button>
-                                <kbd className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-gray-200 text-gray-800 text-[10px] font-sans font-bold rounded-sm pointer-events-none">S</kbd>
+                                <kbd className="absolute top-1/2 -translate-y-1/2 right-2 px-1.5 py-0.5 bg-gray-200 text-gray-800 text-[10px] font-sans font-bold rounded-sm pointer-events-none">S</kbd>
                             </div>
                         </div>
                     </div>
