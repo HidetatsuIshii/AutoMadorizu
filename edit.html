@@ -6135,21 +6135,21 @@ ${JSON.stringify(exampleData10)}
                                                 const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                                 const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                                 const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR);
-                                        
+                                            
                                                 if (el.lineStyle === 'double') {
                                                     const dx = el.x2 - el.x1;
                                                     const dy = el.y2 - el.y1;
                                                     const len = Math.sqrt(dx * dx + dy * dy);
                                                     if (len === 0) return null;
                                                     
-                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
+                                                    const finalStrokeWidth = 1;
                                                     const offsetDistance = (strokeW - finalStrokeWidth) / 2;
                                                     const offsetX = -dy / len * offsetDistance;
                                                     const offsetY = dx / len * offsetDistance;
                                                     
                                                     return (
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            {/* 2本の線で二重線を表現 */}
+                                                            {/* 見た目用の線 */}
                                                             <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
                                                                 stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
                                                             <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY}
@@ -6160,7 +6160,8 @@ ${JSON.stringify(exampleData10)}
                                                         </g>
                                                     );
                                                 }
-                                            
+                                                
+                                                // 二重線以外の場合 (実線、破線など)
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
                                                         {/* 見た目用の線 */}
@@ -6173,7 +6174,7 @@ ${JSON.stringify(exampleData10)}
                                                             shapeRendering="crispEdges"
                                                             style={{ pointerEvents: 'none' }} 
                                                         />
-                                                        {/* クリック判定用の透明で太い線 */}
+                                                        {/* クリック判定用の透明で太い線を追加 */}
                                                         <line 
                                                             x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
                                                             stroke="transparent" 
