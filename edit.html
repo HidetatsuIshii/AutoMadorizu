@@ -3774,7 +3774,13 @@ ${JSON.stringify(exampleData10)}
                             if (startPoint) {
                                 setDrawingStartPoint(startPoint);
                                 if (snappedWall) {
-                                    activeSnapWallRef.current = snappedWall;
+                                    activeSnapWallRef.current = {
+                                        x1: snappedWall.p1.x,
+                                        y1: snappedWall.p1.y,
+                                        x2: snappedWall.p2.x,
+                                        y2: snappedWall.p2.y,
+                                        strokeWidth: snappedWall.strokeWidth // ドア/窓の厚み計算のために必要
+                                    };
                                 }
                                 setSnappedInfo(null);
                             }
