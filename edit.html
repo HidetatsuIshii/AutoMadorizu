@@ -4387,14 +4387,72 @@ ${JSON.stringify(exampleData10)}
                     let newElements = [...historyOnActionStart.current.svgElements];
                     const elementIndex = newElements.findIndex(el => el.id === id);
                     if (elementIndex === -1) return;
+                
                     if (type === 'fixtureCorner' || type === 'fixtureEdge') {
                         const originalElement = { ...newElements[elementIndex] }; const cx = originalElement.x / 100 * dimensions.width; const cy = originalElement.y / 100 * dimensions.height; const rad = (originalElement.rotation || 0) * Math.PI / 180; const mouseDx = snappedPos.x - cx; const mouseDy = snappedPos.y - cy; const unrotatedMouseX = mouseDx * Math.cos(-rad) - mouseDy * Math.sin(-rad); const unrotatedMouseY = mouseDx * Math.sin(-rad) + mouseDy * Math.cos(-rad); let newWidth = originalElement.width; let newHeight = originalElement.height;
                         if(type==='fixtureCorner'){const originalAspectRatio=originalElement.width/originalElement.height;const newHalfWidth=Math.abs(unrotatedMouseX);const newHalfHeight=Math.abs(unrotatedMouseY);if(newHalfWidth/originalAspectRatio>newHalfHeight){newWidth=newHalfWidth*2;newHeight=newWidth/originalAspectRatio}else{newHeight=newHalfHeight*2;newWidth=newHeight*originalAspectRatio}}else if(type==='fixtureEdge'){switch(handleIndex){case 0:case 2:newHeight=Math.abs(unrotatedMouseY)*2;break;case 1:case 3:newWidth=Math.abs(unrotatedMouseX)*2;break;}}
                         newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
+                    
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
-                        const newElement = { ...newElements[elementIndex] }; if (handleIndex === 0) { newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y; } else { newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y; }
-                        if(type==='door'||type==='window'){const dx=newElement.x2-newElement.x1;const dy=newElement.y2-newElement.y1;newElement.length=Math.sqrt(dx*dx+dy*dy);newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI}
-                        newElements[elementIndex] = newElement;
+                        const elementToResize = { ...newElements[elementIndex] };
+                
+                        // 空間に属する壁 (groupId を持つ壁) のリサイズ処理
+                        if (type === 'wall' && elementToResize.groupId) {
+                            const groupId = elementToResize.groupId;
+                            const spaceOfGroup = newElements.find(el => el.id === groupId);
+                            
+                            if (!spaceOfGroup) return; // 念のため関連するspaceの存在を確認
+                
+                            // 1. 空間のポリゴン頂点リストを取得し、配列に変換
+                            const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                            
+                            // 2. ドラッグされているハンドルが、ポリゴンの何番目の頂点に対応するか計算
+                            //    (handleIndexが0なら始点、1なら終点)
+                            const pointToMoveIndex = (elementToResize.edgeIndex + handleIndex) % polygonPoints.length;
+                
+                            // 3. ポリゴンの頂点座標をマウスの現在位置に更新
+                            polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
+                            
+                            // 4. 更新された頂点リストを元に、関連する要素(space, wall, text)を全て更新する
+                            const newPointsStr = polygonPoints.map(p => `${p.x},${p.y}`).join(' ');
+                            const newCentroid = getPolygonCentroid([...polygonPoints]);
+                
+                            newElements = newElements.map(el => {
+                                if (el.groupId !== groupId) return el; // 関係ない要素はそのまま返す
+                
+                                if (el.id === groupId) { // space要素のpoints文字列を更新
+                                    return { ...el, points: newPointsStr };
+                                }
+                                if (el.type === 'wall') { // wall要素の始点・終点を更新
+                                    const p1 = polygonPoints[el.edgeIndex];
+                                    const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
+                                    return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+                                }
+                                if (el.type === 'text') { // text要素の中心位置を再計算して更新
+                                    return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
+                                }
+                                return el;
+                            });
+                
+                        } else { // 独立した壁、またはドア、窓の場合 (これまでの処理)
+                            const newElement = elementToResize;
+                            if (handleIndex === 0) { 
+                                newElement.x1 = snappedPos.x; 
+                                newElement.y1 = snappedPos.y; 
+                            } else { 
+                                newElement.x2 = snappedPos.x; 
+                                newElement.y2 = snappedPos.y; 
+                            }
+                            
+                            if(type==='door'||type==='window'){
+                                const dx=newElement.x2-newElement.x1;
+                                const dy=newElement.y2-newElement.y1;
+                                newElement.length=Math.sqrt(dx*dx+dy*dy);
+                                newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
+                            }
+                            newElements[elementIndex] = newElement;
+                        }
+                
                     } else if (type === 'spaceCorner' || type === 'spaceEdge') {
                         const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
                         if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
@@ -6339,26 +6397,40 @@ ${JSON.stringify(exampleData10)}
                                                 
                                         {editorMode === 'edit' && (() => {
                                             if (!selectedElement) return null;
-                                            if (selectedElement.type === 'wall' || selectedElement.type === 'door' || selectedElement.type === 'window') {
+                                            // 選択された要素が「壁」の場合
+                                            if (selectedElement.type === 'wall') {
                                                 const { vertices } = getVerticesAndEdges(selectedElement);
                                                 return (
                                                     <g>
                                                         {vertices.map((vertex, index) => (
-                                                            // ▼▼▼【修正】data-handle-typeに要素のタイプを動的に設定 ▼▼▼
-                                                            <circle key={`handle-vertex-${selectedElement.id}-${index}`} data-id={selectedElement.id} data-handle-index={index} data-handle-type={selectedElement.type} cx={vertex.x} cy={vertex.y} r={6 / zoom} fill="black" stroke="white" strokeWidth={2 / zoom} style={{ cursor: 'pointer' }} />
+                                                            <circle 
+                                                                key={`handle-vertex-${selectedElement.id}-${index}`}
+                                                                data-id={selectedElement.id}
+                                                                data-handle-index={index}
+                                                                data-handle-type="wall" // handle-typeを 'wall' に設定
+                                                                cx={vertex.x}
+                                                                cy={vertex.y}
+                                                                r={6 / zoom}
+                                                                fill="black"
+                                                                stroke="white"
+                                                                strokeWidth={2 / zoom}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
                                                         ))}
                                                     </g>
                                                 );
                                             }
+                                            
+                                            // 選択された要素が「空間」の場合 (既存のロジック)
                                             if (selectedElement.type === 'space') {
                                                 const { corners, edges } = getVerticesAndEdges(selectedElement);
                                                 return (
                                                     <g>
                                                         {corners.map((corner, index) => (
-                                                            <circle key={`handle-corner-${selectedElement.id}-${index}`} data-id={selectedElement.id} data-handle-index={index} data-handle-type="spaceCorner" cx={corner.x} cy={corner.y} r={6 / zoom} fill="black" stroke="white" strokeWidth={2 / zoom} style={{ cursor: getResizeCursor(index, corners.length) }} />
+                                                            <circle /* ...既存の角ハンドル... */ />
                                                         ))}
                                                         {edges.map((edge, index) => (
-                                                             <rect key={`handle-edge-${selectedElement.id}-${index}`} data-id={selectedElement.id} data-handle-index={index} data-handle-type="spaceEdge" x={edge.x - 5 / zoom} y={edge.y - 5 / zoom} width={10 / zoom} height={10 / zoom} fill="white" stroke="black" strokeWidth={1 / zoom} style={{ cursor: (index === 0 || index === 2) ? 'ns-resize' : 'ew-resize' }} transform={`rotate(45 ${edge.x} ${edge.y})`} />
+                                                            <rect /* ...既存の辺ハンドル... */ />
                                                         ))}
                                                     </g>
                                                 );
