@@ -4488,11 +4488,17 @@ ${JSON.stringify(exampleData10)}
                         finalDeltaX = Math.round(mouseMoveDx / gridSize) * gridSize; 
                         finalDeltaY = Math.round(mouseMoveDy / gridSize) * gridSize; 
                     }
-                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId); 
-                    if(!elementToDragOriginal) return; 
-                    const groupId = elementToDragOriginal.groupId || (elementToDragOriginal.type === 'space' ? elementToDragOriginal.id : null); 
-                    const isGroupDrag = !!groupId; 
-                    const elementsToUpdate = isGroupDrag ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId) : [elementToDragOriginal];
+                    const elementToDragOriginal = historyOnActionStart.current.svgElements.find(el => el.id === selectedId);
+                    if (!elementToDragOriginal) return;
+                    
+                    // グループ全体をドラッグするのは、'space'自体が選択された時のみに限定
+                    const isGroupDrag = elementToDragOriginal.type === 'space';
+                    const groupId = elementToDragOriginal.groupId || (isGroupDrag ? elementToDragOriginal.id : null);
+                    
+                    // グループドラッグでない場合は、選択された要素単体のみを移動対象とする
+                    const elementsToUpdate = (isGroupDrag && groupId)
+                        ? historyOnActionStart.current.svgElements.filter(el => el.groupId === groupId)
+                        : [elementToDragOriginal];
                     const newElements = historyOnActionStart.current.svgElements.map(el => { 
                         const originalEl = elementsToUpdate.find(u_el => u_el.id === el.id);
                         if (originalEl) { 
