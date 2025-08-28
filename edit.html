@@ -3886,49 +3886,78 @@ ${JSON.stringify(exampleData10)}
             ]);
 
             const createPolygonSpace = useCallback((points) => {
-                const groupId = `space-group-${Date.now()}`;
-                const newElements = [];
-            
-                const specialProps = SUB_TYPE_PROPERTIES[spaceType];
-                const finalLineStyle = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
-                const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
+                // ポリゴンが閉じていない場合（線分ツールで描画した場合など）に、始点と終点を連結して閉じる
+                if (points.length > 2 && (points[0].x !== points[points.length - 1].x || points[0].y !== points[points.length - 1].y)) {
+                    points.push(points[0]);
+                }
+                // 稀に発生する末尾の重複点を削除
+                if (points.length > 1 && points[points.length-1].x === points[points.length-2].x && points[points.length-1].y === points[points.length-2].y) {
+                    points.pop();
+                }
 
-                let finalBackgroundPattern = backgroundPattern;
-                if (spaceType === '玄関') finalBackgroundPattern = 'grid-small';
-                if (spaceType === '和室') finalBackgroundPattern = 'grid-large';
-                if (['吹抜', 'グルニエ', '折上天井', '床下収納', '冷蔵庫', '洗濯機'].includes(spaceType)) {
-                    finalBackgroundPattern = 'dotted-x';
-                }
+                const groupId = `space-group-${Date.now()}`;
+                const newElements = [];
+            
+                // 選択中の空間タイプに基づいてスタイルを決定
+                const specialProps = SUB_TYPE_PROPERTIES[spaceType];
+                const finalLineStyle = specialProps?.lineStyle !== undefined ? specialProps.lineStyle : lineStyle;
+                const finalStrokeWidth = specialProps?.strokeWidth !== undefined ? specialProps.strokeWidth : strokeWidth;
+                const finalFillColor = specialProps?.fill !== undefined ? specialProps.fill : fillColor;
+                const finalStrokeColor = strokeColor;
 
-                const spaceElement = {
-                    id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId,
-                    points: points.map(p => `${p.x},${p.y}`).join(' '),
-                    fill: specialProps?.fill !== undefined ? specialProps.fill : fillColor,
-                    backgroundPattern: finalBackgroundPattern,
-                    // ✅ 壁のスタイル情報をspace要素に直接追加します。
-                    stroke: strokeColor,
-                    strokeWidth: finalStrokeWidth,
-                    lineStyle: finalLineStyle
-                };
-                newElements.push(spaceElement);
-            
-                const centroid = getPolygonCentroid([...points]);
-                const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
-                if (labelElement) {
-                    // ✅ ラベルにも同じgroupIdを付与します。
-                    labelElement.groupId = groupId;
-                    newElements.push(labelElement);
-                }
-                
-                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
-                if (editorMode === 'create') {
-                    setEditorMode('edit');
-                }
-                if (editorMode !== 'continuous-create') {
-                    setSelectedId(groupId);
-                }
-                // ✅ 依存配列に壁スタイル関連のstateを追加します。
-            }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, strokeWidth, dimensions, editorMode]);
+                let finalBackgroundPattern = backgroundPattern;
+                if (spaceType === '玄関') finalBackgroundPattern = 'grid-small';
+                if (spaceType === '和室') finalBackgroundPattern = 'grid-large';
+                if (['吹抜', 'グルニエ', '折上天井', '床下収納'].includes(spaceType)) {
+                    finalBackgroundPattern = 'dotted-x';
+                }
+
+                // 1. 空間要素を作成 (塗りつぶしと背景のみ、枠線はなし)
+                const spaceElement = {
+                    id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId,
+                    points: points.map(p => `${p.x},${p.y}`).join(' '),
+                    fill: finalFillColor,
+                    backgroundPattern: finalBackgroundPattern,
+                    // 壁のスタイル情報をspace要素に持たせておく（編集パネルで参照するため）
+                    stroke: finalStrokeColor,
+                    strokeWidth: finalStrokeWidth,
+                    lineStyle: finalLineStyle
+                };
+                newElements.push(spaceElement);
+
+                // 2. 各辺に対応する壁要素を個別に作成
+                for (let i = 0; i < points.length - 1; i++) { // 最後の点は始点と同じなのでループは-1まで
+                    const p1 = points[i];
+                    const p2 = points[i + 1];
+                    
+                    if (p1.x === p2.x && p1.y === p2.y) continue; // 同じ点への線は作成しない
+                    
+                    newElements.push({
+                        id: `wall-${groupId}-${i}`,
+                        type: 'wall',
+                        groupId: groupId,
+                        edgeIndex: i, // ポリゴンの何番目の辺か記録
+                        x1: p1.x, y1: p1.y,
+                        x2: p2.x, y2: p2.y,
+                    });
+                }
+
+                // 3. ラベル用のテキスト要素を作成
+                const centroid = getPolygonCentroid([...points]);
+                const labelElement = createSpaceLabel(spaceType, centroid, dimensions);
+                if (labelElement) {
+                    labelElement.groupId = groupId;
+                    newElements.push(labelElement);
+                }
+                
+                setHistoryState(prev => ({ past: [...prev.past, prev.present], present: { ...prev.present, svgElements: [...prev.present.svgElements, ...newElements] }, future: [] }));
+                if (editorMode === 'create') {
+                    setEditorMode('edit');
+                }
+                if (editorMode !== 'continuous-create') {
+                    setSelectedId(groupId);
+                }
+            }, [spaceType, backgroundPattern, fillColor, strokeColor, lineStyle, strokeWidth, dimensions, editorMode]);
 
             const createStairs = useCallback((points) => {
                 const stairId = `stairs-${Date.now()}`; // 階段とテキストの共通ID
@@ -6021,165 +6050,66 @@ ${JSON.stringify(exampleData10)}
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                             
                                             if (el.type === 'space') {
-                                                const isHighlighted = (isDirectlySelected || isPartOfSelectedSpace) && !isPickingColor;
-                                                const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || DEFAULT_STROKE_COLOR);
-                                                const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                            
-                                                if (el.lineStyle === 'double') {
-                                                    const points = el.points.split(' ').map(p => ({ x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1]) }));
-                                                    if (points.length < 2) return null; // 点が2つ未満なら描画しない
-                                            
-                                                    // --- ▼▼▼ 新しい角の計算ロジックです ▼▼▼ ---
-                                            
-                                                    // 2つの線分の交点を計算するヘルパー関数
-                                                    const getLineIntersection = (p1, p2, p3, p4) => {
-                                                        const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                                                        if (Math.abs(d) < 1e-8) return null; // ほぼ平行
-                                                        const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
-                                                        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
-                                                    };
-                                            
-                                                    const outerPoints = [];
-                                                    const innerPoints = [];
-                                                    const offsetDistance = strokeW / 2;
-                                            
-                                                    // 1. まず、全ての角（頂点）における、内側と外側の正しい座標を先に計算してしまう
-                                                    for (let i = 0; i < points.length; i++) {
-                                                        const p_prev = points[(i - 1 + points.length) % points.length];
-                                                        const p_curr = points[i];
-                                                        const p_next = points[(i + 1) % points.length];
-                                            
-                                                        // 入ってくる辺の法線ベクトル
-                                                        let vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
-                                                        let len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
-                                                        let perp_in = len_in > 0 ? { x: -vec_in.y / len_in, y: vec_in.x / len_in } : {x:0, y:0};
-                                            
-                                                        // 出ていく辺の法線ベクトル
-                                                        let vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
-                                                        let len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
-                                                        let perp_out = len_out > 0 ? { x: -vec_out.y / len_out, y: vec_out.x / len_out } : {x:0, y:0};
-                                            
-                                                        // 内側と外側の辺（線分）を定義
-                                                        const outer_line1 = { p1: {x: p_prev.x + perp_in.x * offsetDistance, y: p_prev.y + perp_in.y * offsetDistance}, p2: {x: p_curr.x + perp_in.x * offsetDistance, y: p_curr.y + perp_in.y * offsetDistance} };
-                                                        const outer_line2 = { p1: {x: p_curr.x + perp_out.x * offsetDistance, y: p_curr.y + perp_out.y * offsetDistance}, p2: {x: p_next.x + perp_out.x * offsetDistance, y: p_next.y + perp_out.y * offsetDistance} };
-                                                        const inner_line1 = { p1: {x: p_prev.x - perp_in.x * offsetDistance, y: p_prev.y - perp_in.y * offsetDistance}, p2: {x: p_curr.x - perp_in.x * offsetDistance, y: p_curr.y - perp_in.y * offsetDistance} };
-                                                        const inner_line2 = { p1: {x: p_curr.x - perp_out.x * offsetDistance, y: p_curr.y - perp_out.y * offsetDistance}, p2: {x: p_next.x - perp_out.x * offsetDistance, y: p_next.y - perp_out.y * offsetDistance} };
-                                                        
-                                                        // 交点を計算
-                                                        const outerCorner = getLineIntersection(outer_line1.p1, outer_line1.p2, outer_line2.p1, outer_line2.p2);
-                                                        const innerCorner = getLineIntersection(inner_line1.p1, inner_line1.p2, inner_line2.p1, inner_line2.p2);
-                                                        
-                                                        // 交点が計算できない場合（直線など）は、オフセットしただけの点を採用
-                                                        outerPoints.push(outerCorner || outer_line1.p2);
-                                                        innerPoints.push(innerCorner || inner_line1.p2);
-                                                    }
-                                            
-                                                    // 2. 計算した頂点リストを元に、辺を描画していく
-                                                    return (
-                                                        <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
-                                                            {/* 塗りつぶし用ポリゴン */}
-                                                            <polygon
-                                                                data-id={el.id}
-                                                                points={el.points}
-                                                                fill={el.fill}
-                                                                stroke="none"
-                                                            />
-                                                            
-                                                            {/* 背景パターン */}
-                                                            <BackgroundRenderer element={el} />
-                                            
-                                                            {/* 二重線の枠線 */}
-                                                            <g style={{ pointerEvents: 'none' }}>
-                                                                {points.map((_, i) => {
-                                                                    const outerP1 = outerPoints[i];
-                                                                    const outerP2 = outerPoints[(i + 1) % points.length];
-                                                                    const innerP1 = innerPoints[i];
-                                                                    const innerP2 = innerPoints[(i + 1) % points.length];
-                                                                    
-                                                                    const finalStrokeWidth = 1; // 二重線の1本あたりの太さ
-                                            
-                                                                    return (
-                                                                        <g key={`${el.id}-edge-${i}`}>
-                                                                            <line x1={outerP1.x} y1={outerP1.y} x2={outerP2.x} y2={outerP2.y}
-                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" />
-                                                                            <line x1={innerP1.x} y1={innerP1.y} x2={innerP2.x} y2={innerP2.y}
-                                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="butt" />
-                                                                        </g>
-                                                                    );
-                                                                })}
-                                                            </g>
-                                                        </g>
-                                                    );
-                                            
-                                                } else {
-                                                    // 'double' 以外 (実線、破線など) の場合は従来の描画
-                                                    const style = LINE_STYLES.find(s => s.id === el.lineStyle);
-                                                    return (
-                                                        <g key={el.id} onContextMenu={handleContextMenu} data-id={el.id}>
-                                                            <polygon
-                                                                data-id={el.id}
-                                                                points={el.points}
-                                                                fill={el.fill}
-                                                                stroke={stroke}
-                                                                strokeWidth={strokeW}
-                                                                strokeDasharray={style?.dashArray}
-                                                                strokeLinejoin="miter"
-                                                                shapeRendering="crispEdges"
-                                                            />
-                                                            <BackgroundRenderer element={el} />
-                                                        </g>
-                                                    );
-                                                }
+                                                return (
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
+                                                        {/* 塗りつぶしと背景パターンのみを描画し、枠線(stroke)は描画しない */}
+                                                        <polygon
+                                                            data-id={el.id}
+                                                            points={el.points}
+                                                            fill={el.fill}
+                                                            stroke="none"
+                                                            style={{ pointerEvents: isHighlighted ? 'all' : 'auto', cursor: 'pointer' }}
+                                                        />
+                                                        <BackgroundRenderer element={el} />
+                                                    </g>
+                                                );
                                             }
                                             if (el.type === 'wall') {
-                                                const style = LINE_STYLES.find(s => s.id === el.lineStyle);
-                                                const strokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const stroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || el.stroke || DEFAULT_STROKE_COLOR);
+                                                const isPartOfSpace = !!el.groupId;
+                                                let finalStroke, finalStrokeW, finalStyle;
                                             
-                                                if (el.lineStyle === 'double') {
-                                                    const dx = el.x2 - el.x1;
-                                                    const dy = el.y2 - el.y1;
-                                                    const len = Math.sqrt(dx * dx + dy * dy);
-                                                    if (len === 0) return null;
+                                                // 空間に属する壁の場合、スタイルは親のspace要素から取得
+                                                if (isPartOfSpace) {
+                                                    const space = svgElements.find(s => s.id === el.groupId);
+                                                    if (!space) return null; // 親が見つからなければ描画しない
+                                            
+                                                    const isWallSelected = selectedId === el.id;
+                                                    const isSpaceSelected = selectedId === space.id;
+                                                    const isGroupHighlighted = isWallSelected || isSpaceSelected;
                                                     
-                                                    const finalStrokeWidth = 1;
-                                                    const offsetDistance = (strokeW - finalStrokeWidth) / 2;
-                                                    const offsetX = -dy / len * offsetDistance;
-                                                    const offsetY = dx / len * offsetDistance;
+                                                    finalStroke = isGroupHighlighted ? SELECTED_ELEMENT_COLOR : space.stroke;
+                                                    finalStrokeW = space.strokeWidth;
+                                                    finalStyle = LINE_STYLES.find(s => s.id === space.lineStyle);
+                                            
+                                                } else { // 独立した壁の場合 (従来のロジック)
+                                                    const isHighlighted = isDirectlySelected;
+                                                    finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || DEFAULT_STROKE_COLOR);
+                                                    finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                    finalStyle = LINE_STYLES.find(s => s.id === el.lineStyle);
+                                                }
+                                            
+                                                // 二重線の描画ロジック
+                                                if (finalStyle?.id === 'double') {
+                                                    const dx = el.x2 - el.x1; const dy = el.y2 - el.y1; const len = Math.sqrt(dx * dx + dy * dy);
+                                                    if (len === 0) return null;
+                                                    const singleLineWidth = 1;
+                                                    const offsetDistance = (finalStrokeW - singleLineWidth) / 2;
+                                                    const offsetX = -dy / len * offsetDistance; const offsetY = dx / len * offsetDistance;
                                                     
                                                     return (
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            {/* 見た目用の線 */}
-                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY}
-                                                                stroke={stroke} strokeWidth={finalStrokeWidth} strokeLinecap="square" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
-                                                            {/* クリック判定用の透明な線 */}
-                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
-                                                                stroke="transparent" strokeWidth={Math.max(strokeW, 10)} />
+                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
+                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
                                                         </g>
                                                     );
                                                 }
-                                                
-                                                // 二重線以外の場合 (実線、破線など)
+                                            
+                                                // 通常の線（実線、破線など）の描画
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                        {/* 見た目用の線 */}
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke={stroke} 
-                                                            strokeWidth={strokeW} 
-                                                            strokeDasharray={style?.dashArray}
-                                                            strokeLinecap="square"
-                                                            shapeRendering="crispEdges"
-                                                            style={{ pointerEvents: 'none' }} 
-                                                        />
-                                                        {/* クリック判定用の透明で太い線を追加 */}
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke="transparent" 
-                                                            strokeWidth={Math.max(strokeW, 10)} 
-                                                        />
+                                                        <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeDasharray={finalStyle?.dashArray} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
+                                                        <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
                                                     </g>
                                                 );
                                             }
