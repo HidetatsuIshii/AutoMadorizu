@@ -3710,7 +3710,12 @@ ${JSON.stringify(exampleData10)}
                         });
                         if (drawingStartPoint) {
                             let clickedEndPoint;
-                            if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
+                            // 1. プレビューで表示されていたスナップ情報があれば、それを最優先で採用
+                            if (snappedInfo && snappedInfo.point) {
+                                clickedEndPoint = snappedInfo.point;
+                            
+                            // 2. スナップ情報がなく、壁スナップが有効な場合は壁の「辺」にスナップ (既存のロジック)
+                            } else if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
                                 let tempClosestPoint = null;
                                 let minDistanceSq = Infinity;
                                 for (const segment of allWallSegments) {
