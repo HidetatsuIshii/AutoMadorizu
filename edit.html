@@ -6395,47 +6395,86 @@ ${JSON.stringify(exampleData10)}
                                             );
                                         })()}
                                                 
+                                        {/* 編集モード時のハンドルや枠線の描画 */}
                                         {editorMode === 'edit' && (() => {
                                             if (!selectedElement) return null;
-                                            // 選択された要素が「壁」の場合
-                                            if (selectedElement.type === 'wall') {
-                                                const { vertices } = getVerticesAndEdges(selectedElement);
-                                                return (
-                                                    <g>
-                                                        {vertices.map((vertex, index) => (
-                                                            <circle 
-                                                                key={`handle-vertex-${selectedElement.id}-${index}`}
-                                                                data-id={selectedElement.id}
-                                                                data-handle-index={index}
-                                                                data-handle-type="wall" // handle-typeを 'wall' に設定
-                                                                cx={vertex.x}
-                                                                cy={vertex.y}
-                                                                r={6 / zoom}
-                                                                fill="black"
-                                                                stroke="white"
-                                                                strokeWidth={2 / zoom}
-                                                                style={{ cursor: 'pointer' }}
-                                                            />
-                                                        ))}
-                                                    </g>
-                                                );
+                                        
+                                            const { id, type } = selectedElement;
+                                        
+                                            // 選択された要素のタイプに応じて、適切なハンドルを描画
+                                            switch (type) {
+                                                // 壁・ドア・窓が選択された場合：両端の頂点ハンドルを表示
+                                                case 'wall':
+                                                case 'door':
+                                                case 'window': {
+                                                    const { vertices } = getVerticesAndEdges(selectedElement);
+                                                    return (
+                                                        <g>
+                                                            {vertices.map((vertex, index) => (
+                                                                <circle
+                                                                    key={`handle-vertex-${id}-${index}`}
+                                                                    data-id={id}
+                                                                    data-handle-index={index}
+                                                                    data-handle-type={type}
+                                                                    cx={vertex.x}
+                                                                    cy={vertex.y}
+                                                                    r={6 / zoom}
+                                                                    fill="black"
+                                                                    stroke="white"
+                                                                    strokeWidth={2 / zoom}
+                                                                    style={{ cursor: 'pointer' }}
+                                                                />
+                                                            ))}
+                                                        </g>
+                                                    );
+                                                }
+                                                
+                                                // 空間が選択された場合：四隅と各辺のハンドルを表示
+                                                case 'space': {
+                                                    const { corners, edges } = getVerticesAndEdges(selectedElement);
+                                                    return (
+                                                        <g>
+                                                            {corners.map((corner, index) => (
+                                                                <circle
+                                                                    key={`handle-corner-${id}-${index}`}
+                                                                    data-id={id}
+                                                                    data-handle-index={index}
+                                                                    data-handle-type="spaceCorner"
+                                                                    cx={corner.x}
+                                                                    cy={corner.y}
+                                                                    r={6 / zoom}
+                                                                    fill="black"
+                                                                    stroke="white"
+                                                                    strokeWidth={2 / zoom}
+                                                                    style={{ cursor: getResizeCursor(index, corners.length) }}
+                                                                />
+                                                            ))}
+                                                            {edges.map((edge, index) => (
+                                                                <rect
+                                                                    key={`handle-edge-${id}-${index}`}
+                                                                    data-id={id}
+                                                                    data-handle-index={index}
+                                                                    data-handle-type="spaceEdge"
+                                                                    x={edge.x - 5 / zoom}
+                                                                    y={edge.y - 5 / zoom}
+                                                                    width={10 / zoom}
+                                                                    height={10 / zoom}
+                                                                    fill="white"
+                                                                    stroke="black"
+                                                                    strokeWidth={1 / zoom}
+                                                                    style={{ cursor: (index === 0 || index === 2) ? 'ns-resize' : 'ew-resize' }}
+                                                                    transform={`rotate(45 ${edge.x} ${edge.y})`}
+                                                                />
+                                                            ))}
+                                                        </g>
+                                                    );
+                                                }
+                                                
+                                                // 他の要素タイプ（fixtureなど）のハンドル表示もここに追加できます
+                                        
+                                                default:
+                                                    return null;
                                             }
-                                            
-                                            // 選択された要素が「空間」の場合 (既存のロジック)
-                                            if (selectedElement.type === 'space') {
-                                                const { corners, edges } = getVerticesAndEdges(selectedElement);
-                                                return (
-                                                    <g>
-                                                        {corners.map((corner, index) => (
-                                                            <circle /* ...既存の角ハンドル... */ />
-                                                        ))}
-                                                        {edges.map((edge, index) => (
-                                                            <rect /* ...既存の辺ハンドル... */ />
-                                                        ))}
-                                                    </g>
-                                                );
-                                            }
-                                            return null;
                                         })()}
 
                                         {/* --- 設備プレビューの描画 --- */}
