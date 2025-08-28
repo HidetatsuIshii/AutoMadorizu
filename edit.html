@@ -7227,11 +7227,73 @@ ${JSON.stringify(exampleData10)}
                                                     );
                                                 })()}
                                                 
-                                                {/* ❌ 独立した壁要素はなくなったので、このブロックは不要になります。丸ごと削除してください。 */}
-                                                {/* {selectedElement?.type === 'wall' && (
-                                                    // ... wall編集用のUI ...
-                                                )}
-                                                */}
+                                                {/* ▼▼▼ このブロックをまるごと追加してください ▼▼▼ */}
+                                                {selectedElement?.type === 'wall' && (() => {
+                                                    // 壁が属する空間（親）を探す
+                                                    const parentSpace = selectedElement.groupId 
+                                                        ? svgElements.find(el => el.id === selectedElement.groupId) 
+                                                        : null;
+                                                
+                                                    // 空間に属していない独立した壁の場合は、処理を中断
+                                                    if (!parentSpace) {
+                                                        return (
+                                                            <div className="mt-4 space-y-4">
+                                                                <p className="text-sm text-gray-600">この壁は空間に属していないため、プロパティを編集できません。</p>
+                                                                <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この壁を削除</button>
+                                                            </div>
+                                                        );
+                                                    }
+                                                
+                                                    // 空間に属する壁の場合は、親であるspace要素のスタイルを編集する
+                                                    return (
+                                                        <div className="mt-4 space-y-4">
+                                                            <h3 className="text-md font-semibold mb-2">選択中の壁を編集</h3>
+                                                            <p className="text-xs text-gray-500 -mt-2">（同じ空間の壁に適用されます）</p>
+                                                            
+                                                            {/* 線の種類 */}
+                                                            <LineStyleSelector
+                                                                selectedStyle={parentSpace.lineStyle}
+                                                                onChange={(value) => handleSelectedGroupUpdate({ lineStyle: value })}
+                                                            />
+                                                
+                                                            {/* 線の太さ */}
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700">線の太さ: {parentSpace.strokeWidth}px</label>
+                                                                <div className="flex items-center space-x-2 mt-1">
+                                                                    <input
+                                                                        type="range" min="1" max="20" step="1"
+                                                                        value={parentSpace.strokeWidth}
+                                                                        onChange={(e) => handleSelectedGroupUpdate({ strokeWidth: parseInt(e.target.value) })}
+                                                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                                    />
+                                                                    <input
+                                                                        type="number"
+                                                                        value={parentSpace.strokeWidth}
+                                                                        onChange={(e) => handleSelectedGroupUpdate({ strokeWidth: parseInt(e.target.value) || 1 })}
+                                                                        className="w-20 p-1 border border-gray-300 rounded-md text-sm"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                
+                                                            {/* 線の色 */}
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700">線の色</label>
+                                                                <input
+                                                                    type="color"
+                                                                    value={parentSpace.stroke}
+                                                                    onChange={(e) => handleSelectedGroupUpdate({ stroke: e.target.value })}
+                                                                    onFocus={() => setIsPickingColor(true)}
+                                                                    onBlur={() => setIsPickingColor(false)}
+                                                                    className="mt-1 h-10 w-full border border-gray-300 rounded-md"
+                                                                />
+                                                            </div>
+                                                            
+                                                            <div className="mt-6">
+                                                                <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">この壁を削除 (グループ解除)</button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                         
                                                 {/* ▼▼▼ 階段（Stairs）が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'stairs' && (
