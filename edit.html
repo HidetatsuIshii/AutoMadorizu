@@ -4401,58 +4401,45 @@ ${JSON.stringify(exampleData10)}
                             const groupId = elementToResize.groupId;
                             const spaceOfGroup = newElements.find(el => el.id === groupId);
                             
-                            if (!spaceOfGroup) return; // 念のため関連するspaceの存在を確認
+                            if (spaceOfGroup) {
+                                // 1. 空間ポリゴンの頂点リストを更新
+                                const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                                const pointToMoveIndex = (elementToResize.edgeIndex + handleIndex) % polygonPoints.length;
+                                polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
+                                
+                                // 2. 更新された頂点リストから、関連要素を全て再計算
+                                const newPointsStr = polygonPoints.map(p => `${p.x},${p.y}`).join(' ');
+                                const newCentroid = getPolygonCentroid([...polygonPoints]);
                 
-                            // 1. 空間のポリゴン頂点リストを取得し、配列に変換
-                            const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
-                            
-                            // 2. ドラッグされているハンドルが、ポリゴンの何番目の頂点に対応するか計算
-                            //    (handleIndexが0なら始点、1なら終点)
-                            const pointToMoveIndex = (elementToResize.edgeIndex + handleIndex) % polygonPoints.length;
+                                newElements = newElements.map(el => {
+                                    if (el.groupId !== groupId) return el; // 関係ない要素はスキップ
                 
-                            // 3. ポリゴンの頂点座標をマウスの現在位置に更新
-                            polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
-                            
-                            // 4. 更新された頂点リストを元に、関連する要素(space, wall, text)を全て更新する
-                            const newPointsStr = polygonPoints.map(p => `${p.x},${p.y}`).join(' ');
-                            const newCentroid = getPolygonCentroid([...polygonPoints]);
-                
-                            newElements = newElements.map(el => {
-                                if (el.groupId !== groupId) return el; // 関係ない要素はそのまま返す
-                
-                                if (el.id === groupId) { // space要素のpoints文字列を更新
-                                    return { ...el, points: newPointsStr };
-                                }
-                                if (el.type === 'wall') { // wall要素の始点・終点を更新
-                                    const p1 = polygonPoints[el.edgeIndex];
-                                    const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
-                                    return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
-                                }
-                                if (el.type === 'text') { // text要素の中心位置を再計算して更新
-                                    return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
-                                }
-                                return el;
-                            });
-                
-                        } else { // 独立した壁、またはドア、窓の場合 (これまでの処理)
-                            const newElement = elementToResize;
-                            if (handleIndex === 0) { 
-                                newElement.x1 = snappedPos.x; 
-                                newElement.y1 = snappedPos.y; 
-                            } else { 
-                                newElement.x2 = snappedPos.x; 
-                                newElement.y2 = snappedPos.y; 
+                                    if (el.id === groupId) { // space要素のpointsを更新
+                                        return { ...el, points: newPointsStr };
+                                    }
+                                    if (el.type === 'wall') { // wall要素の始点・終点を更新
+                                        const p1 = polygonPoints[el.edgeIndex];
+                                        const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
+                                        return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+                                    }
+                                    if (el.type === 'text') { // text要素の中心位置を更新
+                                        return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
+                                    }
+                                    return el;
+                                });
                             }
+                        } else { // 独立した壁、またはドア、窓の場合 (従来のロジック)
+                            const newElement = elementToResize;
+                            if (handleIndex === 0) { newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y; } 
+                            else { newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y; }
                             
                             if(type==='door'||type==='window'){
-                                const dx=newElement.x2-newElement.x1;
-                                const dy=newElement.y2-newElement.y1;
+                                const dx=newElement.x2-newElement.x1; const dy=newElement.y2-newElement.y1;
                                 newElement.length=Math.sqrt(dx*dx+dy*dy);
                                 newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
                             }
                             newElements[elementIndex] = newElement;
                         }
-                
                     } else if (type === 'spaceCorner' || type === 'spaceEdge') {
                         const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
                         if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
