@@ -6426,10 +6426,31 @@ ${JSON.stringify(exampleData10)}
                                             let previewEndPoint;
                                             const walls = svgElements.filter(el => el.type === 'wall');
 
-                                            // 「壁の上に描画」が有効な場合
-                                            if ((drawingMode === 'door' || drawingMode === 'window') && isSnapToWall && !isModifierKeyDown && walls.length > 0) {
-                                                // マウスカーソルから最も近い壁上の点を計算する
-                                                previewEndPoint = getClosestPointOnWalls(mousePos, walls);
+                                            // 「壁の上に描画」が有効で、かつ1クリック目で壁にスナップした場合
+                                            if ((drawingMode === 'door' || drawingMode === 'window') && isSnapToWall && !isModifierKeyDown && activeSnapWallRef.current) {
+                                                
+                                                // 1クリック目でスナップした壁の情報を取得
+                                                const wall = activeSnapWallRef.current;
+                                                const p1 = { x: wall.x1, y: wall.y1 };
+                                                const p2 = { x: wall.x2, y: wall.y2 };
+                                        
+                                                // マウスカーソルを「その壁の線分上」に投影して終点を計算
+                                                const dx = p2.x - p1.x;
+                                                const dy = p2.y - p1.y;
+                                        
+                                                if (dx === 0 && dy === 0) {
+                                                     previewEndPoint = p1; // 線分が点の場合は始点をそのまま使用
+                                                } else {
+                                                    // 線分に対するマウスカーソルの射影を計算
+                                                    const t = ((mousePos.x - p1.x) * dx + (mousePos.y - p1.y) * dy) / (dx * dx + dy * dy);
+                                                    // 線分の範囲内（0 <= t <= 1）に終点をクランプする
+                                                    const clampedT = Math.max(0, Math.min(1, t)); 
+                                                    previewEndPoint = {
+                                                        x: p1.x + clampedT * dx,
+                                                        y: p1.y + clampedT * dy
+                                                    };
+                                                }
+                                        
                                             } else {
                                                 // それ以外の場合は、従来通りスナップ情報かグリッド位置を使用
                                                 previewEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(mousePos) : mousePos);
