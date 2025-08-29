@@ -1016,6 +1016,42 @@
             return true;
         };
 
+        const calculateOffsetPolygon = (points, offset) => {
+            const offsetPoints = [];
+            const len = points.length;
+
+            for (let i = 0; i < len; i++) {
+                const p_prev = points[(i + len - 1) % len];
+                const p_curr = points[i];
+                const p_next = points[(i + 1) % len];
+
+                const vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
+                const len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
+                const perp_in = len_in > 0 ? { x: -vec_in.y / len_in, y: vec_in.x / len_in } : { x: 0, y: 0 };
+
+                const vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
+                const len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
+                const perp_out = len_out > 0 ? { x: -vec_out.y / len_out, y: vec_out.x / len_out } : { x: 0, y: 0 };
+                
+                // 2つの辺からオフセットした平行線を計算
+                const l1_p1 = { x: p_prev.x + perp_in.x * offset, y: p_prev.y + perp_in.y * offset };
+                const l1_p2 = { x: p_curr.x + perp_in.x * offset, y: p_curr.y + perp_in.y * offset };
+                const l2_p1 = { x: p_curr.x + perp_out.x * offset, y: p_curr.y + perp_out.y * offset };
+                const l2_p2 = { x: p_next.x + perp_out.x * offset, y: p_next.y + perp_out.y * offset };
+                
+                // 平行線の交点（新しい角の座標）を計算
+                const intersection = getLineIntersection(l1_p1, l1_p2, l2_p1, l2_p2);
+                
+                if (intersection) {
+                    offsetPoints.push(intersection);
+                } else {
+                    // 平行で交点がない場合（180度の角など）は単純にオフセット
+                    offsetPoints.push(l1_p2);
+                }
+            }
+            return offsetPoints;
+        };
+
         const getIntersectionWithAllWalls = (lineStart, lineEnd, walls) => {
             let closestIntersection = null;
             let minDistanceSq = Infinity;
@@ -6064,67 +6100,67 @@ ${JSON.stringify(exampleData10)}
                                             const style = LINE_STYLES.find(s => s.id === el.lineStyle);
                                             
                                             if (el.type === 'space') {
-                                                return (
-                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
-                                                        {/* 塗りつぶしと背景パターンのみを描画し、枠線(stroke)は描画しない */}
-                                                        <polygon
-                                                            data-id={el.id}
-                                                            points={el.points}
-                                                            fill={el.fill}
-                                                            stroke="none"
-                                                            style={{ pointerEvents: isHighlighted ? 'all' : 'auto', cursor: 'pointer' }}
-                                                        />
-                                                        <BackgroundRenderer element={el} />
-                                                    </g>
-                                                );
-                                            }
-                                            if (el.type === 'wall') {
-                                                const isPartOfSpace = !!el.groupId;
-                                                const isWallSelected = selectedId === el.id;
-                                                const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
-                                                const isHighlighted = isWallSelected || isSpaceSelected;
-                                                
-                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
-                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const finalLineStyleId = el.lineStyle || 'solid';
-                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
-                                            
-                                                // 二重線の描画ロジック
-                                                if (finalLineStyleId === 'double') {
-                                                    const dx = el.x2 - el.x1; const dy = el.y2 - el.y1; const len = Math.sqrt(dx * dx + dy * dy);
-                                                    if (len === 0) return null;
-                                                    const singleLineWidth = 1;
-                                                    const offsetDistance = (finalStrokeW - singleLineWidth) / 2;
-                                                    const offsetX = -dy / len * offsetDistance; const offsetY = dx / len * offsetDistance;
-                                                    
-                                                    return (
-                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
-                                                        </g>
-                                                    );
-                                                }
-                                            
-                                                // 通常の線（実線、破線など）の描画
+                                                const allWallsInGroup = svgElements.filter(wall => wall.groupId === el.id && wall.type === 'wall');
+                                                const firstWall = allWallsInGroup[0];
+                                                if (!firstWall) {
+                                                    return (
+                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
+                                                            <polygon data-id={el.id} points={el.points} fill={el.fill} stroke="none" style={{ pointerEvents: 'auto', cursor: 'pointer' }} />
+                                                            <BackgroundRenderer element={el} />
+                                                        </g>
+                                                    );
+                                                }
+
+                                                const isHighlighted = selectedId === el.id;
+                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (firstWall.stroke || firstWall.color || DEFAULT_STROKE_COLOR);
+
                                                 return (
-                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke={finalStroke} 
-                                                            strokeWidth={finalStrokeW} 
-                                                            strokeDasharray={finalStyle?.dashArray} 
-                                                            strokeLinecap="round"
-                                                            style={{ pointerEvents: 'none' }} 
-                                                        />
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke="transparent" 
-                                                            strokeWidth={Math.max(finalStrokeW, 10)} 
-                                                        />
-                                                    </g>
-                                                );
-                                            }
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
+                                                        {/* 空間の塗りつぶしと背景 */}
+                                                        <polygon data-id={el.id} points={el.points} fill={el.fill} stroke="none" style={{ pointerEvents: 'auto', cursor: 'pointer' }}/>
+                                                        <BackgroundRenderer element={el} />
+
+                                                        {/* 壁の描画 */}
+                                                        {firstWall.lineStyle === 'double' ? (
+                                                            (() => {
+                                                                const singleLineWidth = 1;
+                                                                const offset = (firstWall.strokeWidth - singleLineWidth) / 2;
+                                                                const polygonPoints = el.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                                                                // ヘルパー関数を使ってオフセット後のポリゴンを計算
+                                                                const outerPoints = calculateOffsetPolygon(polygonPoints, offset);
+                                                                const innerPoints = calculateOffsetPolygon(polygonPoints, -offset);
+                                                                return (
+                                                                    <g style={{ pointerEvents: 'none' }}>
+                                                                        <polygon points={outerPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinejoin="miter" />
+                                                                        <polygon points={innerPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinejoin="miter" />
+                                                                    </g>
+                                                                );
+                                                            })()
+                                                    ) : (
+                                                        // それ以外の線種の場合は、今まで通り各壁を描画
+                                                        allWallsInGroup.map(wall => {
+                                                            const finalStyle = LINE_STYLES.find(s => s.id === wall.lineStyle);
+                                                            return (
+                                                                <g key={wall.id} data-id={wall.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
+                                                                    <line 
+                                                                        x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} 
+                                                                        stroke={wallStroke} 
+                                                                        strokeWidth={wall.strokeWidth} 
+                                                                        strokeDasharray={finalStyle?.dashArray} 
+                                                                        strokeLinecap="round"
+                                                                        style={{ pointerEvents: 'none' }} 
+                                                                    />
+                                                                    <line 
+                                                                        x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} 
+                                                                        stroke="transparent" 
+                                                                        strokeWidth={Math.max(wall.strokeWidth, 10)} 
+                                                                    />
+                                                                </g>
+                                                            );
+                                                        })
+                                                    )}
+                                                </g>
+                                            );
                                             if (el.type === 'stairs') {
                                                 return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} onContextMenu={handleContextMenu} />;
                                             }
