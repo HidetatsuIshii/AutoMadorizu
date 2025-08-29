@@ -6072,30 +6072,32 @@ ${JSON.stringify(exampleData10)}
                                             }
                                             if (el.type === 'wall') {
                                                 const isPartOfSpace = !!el.groupId;
-                                                let finalStroke, finalStrokeW, finalStyle;
+                                                let styleSource; // スタイルの参照元（space または wall 自身）
                                             
                                                 // 空間に属する壁の場合、スタイルは親のspace要素から取得
                                                 if (isPartOfSpace) {
                                                     const space = svgElements.find(s => s.id === el.groupId);
-                                                    if (!space) return null; // 親が見つからなければ描画しない
-                                            
-                                                    const isWallSelected = selectedId === el.id;
-                                                    const isSpaceSelected = selectedId === space.id;
-                                                    const isGroupHighlighted = isWallSelected || isSpaceSelected;
-                                                    
-                                                    finalStroke = isGroupHighlighted ? SELECTED_ELEMENT_COLOR : space.stroke;
-                                                    finalStrokeW = space.strokeWidth;
-                                                    finalStyle = LINE_STYLES.find(s => s.id === space.lineStyle);
-                                            
-                                                } else { // 独立した壁の場合 (従来のロジック)
-                                                    const isHighlighted = isDirectlySelected;
-                                                    finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.color || DEFAULT_STROKE_COLOR);
-                                                    finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                    finalStyle = LINE_STYLES.find(s => s.id === el.lineStyle);
+                                                    if (!space) return null; // 親が見つからない場合は何も描画しない
+                                                    styleSource = space;
+                                                } else {
+                                                    // 独立した壁の場合、壁自身のスタイル情報を参照
+                                                    styleSource = el;
                                                 }
+                                                
+                                                // --- ▼▼▼ ここからが重要な修正点 ▼▼▼ ---
+                                                // 各スタイルプロパティが存在しない場合に備えて、デフォルト値を設定
+                                                const isWallSelected = selectedId === el.id;
+                                                const isSpaceSelected = isPartOfSpace && selectedId === styleSource.id;
+                                                const isHighlighted = isWallSelected || isSpaceSelected;
+                                                
+                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (styleSource.stroke || DEFAULT_STROKE_COLOR);
+                                                const finalStrokeW = styleSource.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                const finalLineStyleId = styleSource.lineStyle || 'solid';
+                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
+                                                // --- ▲▲▲ ここまでが重要な修正点 ▲▲▲ ---
                                             
                                                 // 二重線の描画ロジック
-                                                if (finalStyle?.id === 'double') {
+                                                if (finalLineStyleId === 'double') {
                                                     const dx = el.x2 - el.x1; const dy = el.y2 - el.y1; const len = Math.sqrt(dx * dx + dy * dy);
                                                     if (len === 0) return null;
                                                     const singleLineWidth = 1;
@@ -6114,8 +6116,19 @@ ${JSON.stringify(exampleData10)}
                                                 // 通常の線（実線、破線など）の描画
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                        <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeDasharray={finalStyle?.dashArray} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
-                                                        <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke={finalStroke} 
+                                                            strokeWidth={finalStrokeW} 
+                                                            strokeDasharray={finalStyle?.dashArray} 
+                                                            strokeLinecap="square" 
+                                                            style={{ pointerEvents: 'none' }} 
+                                                        />
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke="transparent" 
+                                                            strokeWidth={Math.max(finalStrokeW, 10)} 
+                                                        />
                                                     </g>
                                                 );
                                             }
