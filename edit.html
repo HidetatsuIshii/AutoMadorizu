@@ -6107,23 +6107,23 @@ ${JSON.stringify(exampleData10)}
                                                 }
                                             
                                                 // 通常の線（実線、破線など）の描画
-                                                return (
-                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke={finalStroke} 
-                                                            strokeWidth={finalStrokeW} 
-                                                            strokeDasharray={finalStyle?.dashArray} 
-                                                            strokeLinecap="square" 
-                                                            style={{ pointerEvents: 'none' }} 
-                                                        />
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke="transparent" 
-                                                            strokeWidth={Math.max(finalStrokeW, 10)} 
-                                                        />
-                                                    </g>
-                                                );
+                                                return (
+                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke={finalStroke} 
+                                                            strokeWidth={finalStrokeW} 
+                                                            strokeDasharray={finalStyle?.dashArray} 
+                                                            strokeLinecap="round"  {/* ✅ ここを "round" に変更 */}
+                                                            style={{ pointerEvents: 'none' }} 
+                                                        />
+                                                        <line 
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
+                                                            stroke="transparent" 
+                                                            strokeWidth={Math.max(finalStrokeW, 10)} 
+                                                        />
+                                                    </g>
+                                                );
                                             }
                                             if (el.type === 'stairs') {
                                                 return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} onContextMenu={handleContextMenu} />;
