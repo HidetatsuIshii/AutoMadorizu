@@ -1645,46 +1645,46 @@
 
 
             const handleSelectedGroupUpdate = useCallback((updates) => {
-                const activeGroupId = selectedElement?.groupId || (selectedElement?.type === 'space' ? selectedElement.id : null);
-                if (!activeGroupId) return;
-            
-                setHistoryState(prevState => {
-                    const updatedSvgElements = prevState.present.svgElements.map(el => {
-                        if (el.groupId === activeGroupId) {
-                            let newEl = { ...el, ...updates };
-            
-                            // spaceTypeが更新された場合
-                            if (updates.spaceType) {
-                                // [修正点] 新しいタイプに対応するプリセットを取得
-                                const preset = SPACE_STYLE_PRESETS[updates.spaceType] || SPACE_STYLE_PRESETS['default'];
-                                
-                                if (el.type === 'space') {
-                                    // [修正点] プリセットに基づいてスタイルを全て上書き
-                                    newEl.fill = preset.fill;
-                                    newEl.backgroundPattern = preset.background;
-                                    newEl.lineStyle = preset.lineStyle;
-                                    newEl.strokeWidth = preset.strokeWidth;
-                                    newEl.stroke = preset.strokeColor; // プロパティ名を 'stroke' に統一
-                                }
-            
-                                // テキストラベルも更新
-                                if (el.type === 'text') {
-                                    newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
-                                        ? `${updates.spaceType}\n◯.◯帖`
-                                        : updates.spaceType;
-                                }
-                            }
-                            return newEl;
-                        }
-                        return el;
-                    });
-                        return {
-                        past: [...prevState.past, prevState.present],
-                        present: { ...prevState.present, svgElements: updatedSvgElements },
-                        future: []
-                    };
-                });
-            }, [selectedElement]);
+                const activeGroupId = selectedElement?.groupId || (selectedElement?.type === 'space' ? selectedElement.id : null);
+                if (!activeGroupId) return;
+            
+                setHistoryState(prevState => {
+                    const updatedSvgElements = prevState.present.svgElements.map(el => {
+                        if (el.groupId !== activeGroupId) {
+                            return el;
+                        }
+            
+                        let newEl = { ...el };
+            
+                        // ケース1: 空間タイプが変更された場合
+                        if (updates.spaceType) {
+                            const preset = SPACE_STYLE_PRESETS[updates.spaceType] || SPACE_STYLE_PRESETS['default'];
+                            if (el.type === 'space') {
+                                newEl = { ...newEl, fill: preset.fill, backgroundPattern: preset.background, spaceType: updates.spaceType };
+                            } else if (el.type === 'wall') {
+                                newEl = { ...newEl, lineStyle: preset.lineStyle, strokeWidth: preset.strokeWidth, stroke: preset.strokeColor };
+                            } else if (el.type === 'text') {
+                                newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
+                                    ? `${updates.spaceType}\n◯.◯帖`
+                                    : updates.spaceType;
+                            }
+                        } else {
+                            // ケース2: 空間タイプ以外の変更（壁スタイルや塗りつぶし色など）
+                            if (el.type === 'wall') {
+                                newEl = { ...newEl, ...updates };
+                            } else if (el.type === 'space') {
+                                newEl = { ...newEl, ...updates };
+                            }
+                        }
+                        return newEl;
+                    });
+                    return {
+                        past: [...prevState.past, prevState.present],
+                        present: { ...prevState.present, svgElements: updatedSvgElements },
+                        future: []
+                    };
+                });
+            }, [selectedElement]);
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
@@ -6074,30 +6074,15 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             }
                                             if (el.type === 'wall') {
-                                                const isPartOfSpace = !!el.groupId;
-                                                let styleSource; // スタイルの参照元（space または wall 自身）
-                                            
-                                                // 空間に属する壁の場合、スタイルは親のspace要素から取得
-                                                if (isPartOfSpace) {
-                                                    const space = svgElements.find(s => s.id === el.groupId);
-                                                    if (!space) return null; // 親が見つからない場合は何も描画しない
-                                                    styleSource = space;
-                                                } else {
-                                                    // 独立した壁の場合、壁自身のスタイル情報を参照
-                                                    styleSource = el;
-                                                }
-                                                
-                                                // --- ▼▼▼ ここからが重要な修正点 ▼▼▼ ---
-                                                // 各スタイルプロパティが存在しない場合に備えて、デフォルト値を設定
-                                                const isWallSelected = selectedId === el.id;
-                                                const isSpaceSelected = isPartOfSpace && selectedId === styleSource.id;
-                                                const isHighlighted = isWallSelected || isSpaceSelected;
-                                                
-                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (styleSource.stroke || DEFAULT_STROKE_COLOR);
-                                                const finalStrokeW = styleSource.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const finalLineStyleId = styleSource.lineStyle || 'solid';
-                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
-                                                // --- ▲▲▲ ここまでが重要な修正点 ▲▲▲ ---
+                                                const isPartOfSpace = !!el.groupId;
+                                                const isWallSelected = selectedId === el.id;
+                                                const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
+                                                const isHighlighted = isWallSelected || isSpaceSelected;
+                                                
+                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
+                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                const finalLineStyleId = el.lineStyle || 'solid';
+                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
                                             
                                                 // 二重線の描画ロジック
                                                 if (finalLineStyleId === 'double') {
@@ -7201,19 +7186,16 @@ ${JSON.stringify(exampleData10)}
                                                                 {/* 壁の線の種類 */}
                                                                 <LineStyleSelector 
                                                                     selectedStyle={selectedElement.lineStyle} 
-                                                                    onChange={(v) => handleSelectedElementUpdate({lineStyle: v})} 
+                                                                    onChange={(v) => handleSelectedGroupUpdate({lineStyle: v})} 
                                                                 />
                                                                 
                                                                 {/* 壁の線の太さ */}
                                                                 <div>
                                                                     <label className="block text-sm font-medium text-gray-700">線の太さ</label>
                                                                     <div className="flex items-center space-x-2 mt-1">
-                                                                        <input 
-                                                                            type="range" 
-                                                                            min="1" max="20" step="1" 
-                                                                            value={selectedElement.strokeWidth} 
-                                                                            onChange={(e) => handleSelectedElementUpdate({strokeWidth: parseInt(e.target.value)})} 
-                                                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                                        <input
+                                                                            value={selectedElement.strokeWidth}
+                                                                            onChange={(e) => handleSelectedGroupUpdate({strokeWidth: parseInt(e.target.value)})}
                                                                         />
                                                                         <input 
                                                                             type="number" 
@@ -7227,12 +7209,10 @@ ${JSON.stringify(exampleData10)}
                                                                 {/* 壁の線の色 */}
                                                                 <div>
                                                                     <label className="block text-sm font-medium text-gray-700">線の色</label>
-                                                                    <input 
-                                                                        type="color" 
-                                                                        value={selectedElement.stroke} 
-                                                                        onChange={(e) => handleSelectedElementUpdate({ stroke: e.target.value })} 
-                                                                        onFocus={() => setIsPickingColor(true)} onBlur={() => setIsPickingColor(false)} 
-                                                                        className="mt-1 h-10 w-full border border-gray-300 rounded-md"
+                                                                    <input
+                                                                        type="color"
+                                                                        value={selectedElement.stroke}
+                                                                        onChange={(e) => handleSelectedGroupUpdate({ stroke: e.target.value })}
                                                                     />
                                                                 </div>
                                                             </div>
