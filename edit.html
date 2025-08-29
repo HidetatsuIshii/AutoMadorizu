@@ -1660,16 +1660,17 @@
                         if (updates.spaceType) {
                             const preset = SPACE_STYLE_PRESETS[updates.spaceType] || SPACE_STYLE_PRESETS['default'];
                             if (el.type === 'space') {
+                                // 空間に関するプロパティのみ更新
                                 newEl = { ...newEl, fill: preset.fill, backgroundPattern: preset.background, spaceType: updates.spaceType };
-                            } else if (el.type === 'wall') {
-                                newEl = { ...newEl, lineStyle: preset.lineStyle, strokeWidth: preset.strokeWidth, stroke: preset.strokeColor };
                             } else if (el.type === 'text') {
+                                // テキストのみ更新
                                 newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
                                     ? `${updates.spaceType}\n◯.◯帖`
                                     : updates.spaceType;
                             }
+                            // ★★★ 壁(wall)のスタイルはここでは変更しない ★★★
                         } 
-                        // [ケース2] 空間タイプ以外の変更
+                        // [ケース2] 空間タイプ以外の変更 (壁スタイルや塗りつぶし色など、個別の変更)
                         else {
                             // 壁のスタイルに関する更新は、wall要素にのみ適用する
                             if (el.type === 'wall' && (updates.lineStyle !== undefined || updates.strokeWidth !== undefined || updates.stroke !== undefined)) {
