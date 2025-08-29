@@ -6319,18 +6319,15 @@ ${JSON.stringify(exampleData10)}
                                                 style={{ pointerEvents: 'none' }}
                                             />
                                         ))}
-
-                                        <StairsPrePlacementPreview 
-                                            previewInfo={stairSnapPreview} 
-                                            width={stairWidth} 
-                                            color={SELECTED_ELEMENT_COLOR} 
-                                        />
-                                        
-                                        <StairsPrePlacementPreview 
-                                            previewInfo={stairSnapPreview} 
-                                            width={stairWidth} 
-                                            color={SELECTED_ELEMENT_COLOR} 
-                                        />
+    
+                                        {/* プレビューデータがある時のみ表示し、重複を削除 */}
+                                        {stairSnapPreview && (
+                                            <StairsPrePlacementPreview 
+                                                previewInfo={stairSnapPreview} 
+                                                width={stairWidth} 
+                                                color={SELECTED_ELEMENT_COLOR} 
+                                            />
+                                        )}
 
                                         {/* スナップされた位置に表示される丸印 */}
                                         {snappedInfo && (editorMode === 'create' || editorMode === 'continuous-create') && (() => {
