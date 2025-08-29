@@ -3933,13 +3933,16 @@ ${JSON.stringify(exampleData10)}
                     if (p1.x === p2.x && p1.y === p2.y) continue; // 同じ点への線は作成しない
                     
                     newElements.push({
-                        id: `wall-${groupId}-${i}`,
-                        type: 'wall',
-                        groupId: groupId,
-                        edgeIndex: i, // ポリゴンの何番目の辺か記録
-                        x1: p1.x, y1: p1.y,
-                        x2: p2.x, y2: p2.y,
-                    });
+                        id: `wall-${groupId}-${i}`,
+                        type: 'wall',
+                        groupId: groupId,
+                        edgeIndex: i,
+                        x1: p1.x, y1: p1.y,
+                        x2: p2.x, y2: p2.y,
+                        stroke: spaceElement.stroke,
+                        strokeWidth: spaceElement.strokeWidth,
+                        lineStyle: spaceElement.lineStyle
+                    });
                 }
 
                 // 3. ラベル用のテキスト要素を作成
