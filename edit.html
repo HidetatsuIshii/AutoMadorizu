@@ -7244,14 +7244,14 @@ ${JSON.stringify(exampleData10)}
                                                     const title = isGroupedWall ? "空間の壁を編集" : "壁を編集";
                                                     const subTitle = isGroupedWall ? "（同じ空間の壁に適用されます）" : "";
                                                 
-                                                    // handleSelectedElementUpdate はオブジェクト全体を更新するため、現在のプロパティを渡す必要がある
-                                                    const handleStyleChange = (updateObject) => {
-                                                        if (isGroupedWall) {
-                                                            handleSelectedGroupUpdate(updateObject);
-                                                        } else {
-                                                            handleSelectedElementUpdate(updateObject);
-                                                        }
-                                                    };
+                                                    // --- ▼▼▼ ここからが重要な修正点 ▼▼▼ ---
+                                                    // 各スタイルプロパティが存在しない場合に備えて、デフォルト値を設定する
+                                                    // これにより value が undefined になることを防ぐ
+                                                    const currentLineStyle = styleSource.lineStyle || 'solid';
+                                                    const currentStrokeWidth = styleSource.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                    // 独立した古い壁は 'color' プロパティを持っている可能性があるため、それも考慮
+                                                    const currentStroke = styleSource.stroke || styleSource.color || DEFAULT_STROKE_COLOR;
+                                                    // --- ▲▲▲ ここまでが重要な修正点 ▲▲▲ ---
                                                 
                                                     return (
                                                         <div className="mt-4 space-y-4">
@@ -7260,24 +7260,24 @@ ${JSON.stringify(exampleData10)}
                                                             
                                                             {/* 線の種類 */}
                                                             <LineStyleSelector
-                                                                selectedStyle={styleSource.lineStyle}
-                                                                onChange={(value) => handleStyleChange({ lineStyle: value })}
+                                                                selectedStyle={currentLineStyle}
+                                                                onChange={(value) => updateFunction({ lineStyle: value })}
                                                             />
                                                 
                                                             {/* 線の太さ */}
                                                             <div>
-                                                                <label className="block text-sm font-medium text-gray-700">線の太さ: {styleSource.strokeWidth}px</label>
+                                                                <label className="block text-sm font-medium text-gray-700">線の太さ: {currentStrokeWidth}px</label>
                                                                 <div className="flex items-center space-x-2 mt-1">
                                                                     <input
                                                                         type="range" min="1" max="20" step="1"
-                                                                        value={styleSource.strokeWidth}
-                                                                        onChange={(e) => handleStyleChange({ strokeWidth: parseInt(e.target.value) })}
+                                                                        value={currentStrokeWidth}
+                                                                        onChange={(e) => updateFunction({ strokeWidth: parseInt(e.target.value) })}
                                                                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                                                     />
                                                                     <input
                                                                         type="number"
-                                                                        value={styleSource.strokeWidth}
-                                                                        onChange={(e) => handleStyleChange({ strokeWidth: parseInt(e.target.value) || 1 })}
+                                                                        value={currentStrokeWidth}
+                                                                        onChange={(e) => updateFunction({ strokeWidth: parseInt(e.target.value) || 1 })}
                                                                         className="w-20 p-1 border border-gray-300 rounded-md text-sm"
                                                                     />
                                                                 </div>
@@ -7288,8 +7288,12 @@ ${JSON.stringify(exampleData10)}
                                                                 <label className="block text-sm font-medium text-gray-700">線の色</label>
                                                                 <input
                                                                     type="color"
-                                                                    value={styleSource.stroke}
-                                                                    onChange={(e) => handleStyleChange({ stroke: e.target.value })}
+                                                                    value={currentStroke}
+                                                                    onChange={(e) => {
+                                                                        const newColor = e.target.value;
+                                                                        // 独立した壁(color)と空間の壁(stroke)の両方に対応できるよう更新
+                                                                        updateFunction({ stroke: newColor, color: newColor });
+                                                                    }}
                                                                     onFocus={() => setIsPickingColor(true)}
                                                                     onBlur={() => setIsPickingColor(false)}
                                                                     className="mt-1 h-10 w-full border border-gray-300 rounded-md"
