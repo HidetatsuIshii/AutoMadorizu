@@ -6093,15 +6093,46 @@ ${JSON.stringify(exampleData10)}
                                                 if (finalLineStyleId === 'double') {
                                                     const dx = el.x2 - el.x1; const dy = el.y2 - el.y1; const len = Math.sqrt(dx * dx + dy * dy);
                                                     if (len === 0) return null;
-                                                    const singleLineWidth = 1;
+                                                    const singleLineWidth = 1; // 枠線1本あたりの太さ
                                                     const offsetDistance = (finalStrokeW - singleLineWidth) / 2;
-                                                    const offsetX = -dy / len * offsetDistance; const offsetY = dx / len * offsetDistance;
-                                                    
+                                                    const offsetX = -dy / len * offsetDistance;
+                                                    const offsetY = dx / len * offsetDistance;
+                                                
                                                     return (
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" style={{ pointerEvents: 'none' }} />
-                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
+                                                            {/* 1. まず背景色（白）で太い線を描画し、下にある線を消すことで交差部分をクリーンに見せる */}
+                                                            <line
+                                                                x1={el.x1} y1={el.y1}
+                                                                x2={el.x2} y2={el.y2}
+                                                                stroke="white"
+                                                                strokeWidth={finalStrokeW + 2} // 枠線の合計幅より少し太くしてはみ出しを防ぐ
+                                                                strokeLinecap="round" // 線の端を丸めることで、線の継ぎ目が自然になる
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                            {/* 2. その上にオフセットした2本の枠線を描画 */}
+                                                            <line
+                                                                x1={el.x1 + offsetX} y1={el.y1 + offsetY}
+                                                                x2={el.x2 + offsetX} y2={el.y2 + offsetY}
+                                                                stroke={finalStroke}
+                                                                strokeWidth={singleLineWidth}
+                                                                strokeLinecap="butt" // 線の端を四角くする
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                            <line
+                                                                x1={el.x1 - offsetX} y1={el.y1 - offsetY}
+                                                                x2={el.x2 - offsetX} y2={el.y2 - offsetY}
+                                                                stroke={finalStroke}
+                                                                strokeWidth={singleLineWidth}
+                                                                strokeLinecap="butt"
+                                                                style={{ pointerEvents: 'none' }}
+                                                            />
+                                                            {/* 3. クリック判定用の透明な太い線（これは元のまま） */}
+                                                            <line
+                                                                x1={el.x1} y1={el.y1}
+                                                                x2={el.x2} y2={el.y2}
+                                                                stroke="transparent"
+                                                                strokeWidth={Math.max(finalStrokeW, 10)}
+                                                            />
                                                         </g>
                                                     );
                                                 }
