@@ -4446,20 +4446,18 @@ ${JSON.stringify(exampleData10)}
                         const cos = Math.cos(rad);
                         const sin = Math.sin(rad);
                 
-                        // 1. 各ハンドルのローカル座標（中心が0,0）と、固定されるアンカーの座標を定義
+                        const startCx = startElement.x / 100 * dimensions.width;
+                        const startCy = startElement.y / 100 * dimensions.height;
                         const halfW = startElement.width / 2;
                         const halfH = startElement.height / 2;
+                
+                        // 1. 各ハンドルのローカル座標（中心が0,0）と、固定されるアンカーの座標を定義
                         const localHandlePositions = [
                             {x: -halfW, y: -halfH}, {x: halfW, y: -halfH}, {x: halfW, y: halfH}, {x: -halfW, y: halfH}, // Corners 0-3
                             {x: 0, y: -halfH},      {x: halfW, y: 0},       {x: 0, y: halfH},      {x: -halfW, y: 0}        // Edges 4-7
                         ];
-                        
-                        const handleIndexWithOffset = type === 'fixtureCorner' ? handleIndex : handleIndex + 4;
                         const anchorIndex = (handleIndex + 2) % 4 + (type === 'fixtureCorner' ? 0 : 4);
-                        
                         const anchorLocal = localHandlePositions[anchorIndex];
-                        const startCx = startElement.x / 100 * dimensions.width;
-                        const startCy = startElement.y / 100 * dimensions.height;
                 
                         // 2. アンカーのワールド座標（ここは動かない基準点）を計算
                         const anchorGlobal = {
@@ -4476,29 +4474,29 @@ ${JSON.stringify(exampleData10)}
                 
                         let newWidth, newHeight;
                         let newCenterLocal;
-                        
+                
                         // 4. ハンドルの種類に応じて新しい幅・高さ・中心点を計算
                         if (type === 'fixtureEdge') {
                             switch(handleIndex) {
                                 case 0: // Top
-                                    newHeight = Math.max(10, anchorLocal.y - unrotatedMouseVec.y);
                                     newWidth = startElement.width;
-                                    newCenterLocal = { x: 0, y: anchorLocal.y - newHeight / 2 };
+                                    newHeight = Math.max(10, -unrotatedMouseVec.y);
+                                    newCenterLocal = { x: 0, y: anchorLocal.y + unrotatedMouseVec.y / 2 };
                                     break;
                                 case 1: // Right
-                                    newWidth = Math.max(10, unrotatedMouseVec.x - anchorLocal.x);
                                     newHeight = startElement.height;
-                                    newCenterLocal = { x: anchorLocal.x + newWidth / 2, y: 0 };
+                                    newWidth = Math.max(10, unrotatedMouseVec.x);
+                                    newCenterLocal = { x: anchorLocal.x + unrotatedMouseVec.x / 2, y: 0 };
                                     break;
                                 case 2: // Bottom
-                                    newHeight = Math.max(10, unrotatedMouseVec.y - anchorLocal.y);
                                     newWidth = startElement.width;
-                                    newCenterLocal = { x: 0, y: anchorLocal.y + newHeight / 2 };
+                                    newHeight = Math.max(10, unrotatedMouseVec.y);
+                                    newCenterLocal = { x: 0, y: anchorLocal.y + unrotatedMouseVec.y / 2 };
                                     break;
                                 case 3: // Left
-                                    newWidth = Math.max(10, anchorLocal.x - unrotatedMouseVec.x);
                                     newHeight = startElement.height;
-                                    newCenterLocal = { x: anchorLocal.x - newWidth / 2, y: 0 };
+                                    newWidth = Math.max(10, -unrotatedMouseVec.x);
+                                    newCenterLocal = { x: anchorLocal.x + unrotatedMouseVec.x / 2, y: 0 };
                                     break;
                             }
                         } else { // fixtureCorner (アスペクト比維持)
@@ -4506,6 +4504,7 @@ ${JSON.stringify(exampleData10)}
                             const signX = (handleIndex === 1 || handleIndex === 2) ? 1 : -1;
                             const signY = (handleIndex === 2 || handleIndex === 3) ? 1 : -1;
                             
+                            // アスペクト比を考慮して、どちらの移動量を基準にするか決定
                             if (Math.abs(unrotatedMouseVec.x / aspectRatio) > Math.abs(unrotatedMouseVec.y)) {
                                 newWidth = Math.max(10, Math.abs(unrotatedMouseVec.x));
                                 newHeight = newWidth / aspectRatio;
@@ -4522,21 +4521,29 @@ ${JSON.stringify(exampleData10)}
                         
                         // 5. 新しいローカル中心座標をワールド座標に変換
                         const newCenterGlobal = {
-                            x: anchorGlobal.x + (newCenterLocal.x - anchorLocal.x) * cos - (newCenterLocal.y - anchorLocal.y) * sin,
-                            y: anchorGlobal.y + (newCenterLocal.x - anchorLocal.x) * sin + (newCenterLocal.y - anchorLocal.y) * cos,
+                            x: startCx + (newCenterLocal.x - localHandlePositions[4 + (handleIndex+2)%4].x) * cos - (newCenterLocal.y - localHandlePositions[4 + (handleIndex+2)%4].y) * sin,
+                            y: startCy + (newCenterLocal.x - localHandlePositions[4 + (handleIndex+2)%4].x) * sin + (newCenterLocal.y - localHandlePositions[4 + (handleIndex+2)%4].y) * cos,
                         };
-                        
+                        const rotatedCenterOffset = {
+                            x: newCenterLocal.x * cos - newCenterLocal.y * sin,
+                            y: newCenterLocal.x * sin + newCenterLocal.y * cos
+                        };
+                        const finalNewCx = anchorGlobal.x - (anchorLocal.x*cos - anchorLocal.y*sin) + rotatedCenterOffset.x;
+                        const finalNewCy = anchorGlobal.y - (anchorLocal.x*sin + anchorLocal.y*cos) + rotatedCenterOffset.y;
+                
+                
                         // 6. 計算した新しい値で要素を更新
                         newElements[elementIndex] = {
                             ...startElement,
                             width: newWidth,
                             height: newHeight,
-                            x: (newCenterGlobal.x / dimensions.width) * 100,
-                            y: (newCenterGlobal.y / dimensions.height) * 100
+                            x: (finalNewCx / dimensions.width) * 100,
+                            y: (finalNewCy / dimensions.height) * 100
                         };
-                        
+                
                         setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                         return;
+                        
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
                         const elementToResize = { ...newElements[elementIndex] };
                 
