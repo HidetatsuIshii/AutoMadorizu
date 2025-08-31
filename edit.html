@@ -4175,10 +4175,22 @@ ${JSON.stringify(exampleData10)}
                 if (editorMode === 'edit') {
                     const handleIndex = e.target.dataset.handleIndex;
                     const handleType = e.target.dataset.handleType;
-                    if (handleIndex !== undefined && selectedId) {
-                        setResizingHandleInfo({ id: selectedId, handleIndex: parseInt(handleIndex, 10), type: handleType });
-                        historyOnActionStart.current = historyState.present;
-                        return;
+                    if (handleIndex !== undefined) {
+                        const elementId = e.target.dataset.id;
+                        const elementToResize = svgElements.find(el => el.id === elementId);
+                        if (elementToResize) {
+                            setResizingHandleInfo({
+                                id: elementId,
+                                handleIndex: parseInt(handleIndex, 10),
+                                type: handleType,
+                                // リサイズ前の要素の状態を保存
+                                startElement: { ...elementToResize },
+                                // リサイズ開始時のマウス座標を保存
+                                startMousePos: getCanvasCoords(e)
+                            });
+                            historyOnActionStart.current = historyState.present;
+                            return;
+                        }
                     }
 
                     dragTarget.current = targetElement;
@@ -4426,10 +4438,89 @@ ${JSON.stringify(exampleData10)}
                     if (elementIndex === -1) return;
                 
                     if (type === 'fixtureCorner' || type === 'fixtureEdge') {
-                        const originalElement = { ...newElements[elementIndex] }; const cx = originalElement.x / 100 * dimensions.width; const cy = originalElement.y / 100 * dimensions.height; const rad = (originalElement.rotation || 0) * Math.PI / 180; const mouseDx = snappedPos.x - cx; const mouseDy = snappedPos.y - cy; const unrotatedMouseX = mouseDx * Math.cos(-rad) - mouseDy * Math.sin(-rad); const unrotatedMouseY = mouseDx * Math.sin(-rad) + mouseDy * Math.cos(-rad); let newWidth = originalElement.width; let newHeight = originalElement.height;
-                        if(type==='fixtureCorner'){const originalAspectRatio=originalElement.width/originalElement.height;const newHalfWidth=Math.abs(unrotatedMouseX);const newHalfHeight=Math.abs(unrotatedMouseY);if(newHalfWidth/originalAspectRatio>newHalfHeight){newWidth=newHalfWidth*2;newHeight=newWidth/originalAspectRatio}else{newHeight=newHalfHeight*2;newWidth=newHeight*originalAspectRatio}}else if(type==='fixtureEdge'){switch(handleIndex){case 0:case 2:newHeight=Math.abs(unrotatedMouseY)*2;break;case 1:case 3:newWidth=Math.abs(unrotatedMouseX)*2;break;}}
-                        newElements[elementIndex] = { ...originalElement, width: Math.max(10, newWidth), height: Math.max(10, newHeight) };
+                        const { id, handleIndex, type, startElement, startMousePos } = resizingHandleInfo;
+                        const elementIndex = newElements.findIndex(el => el.id === id);
+                        if (elementIndex === -1) return;
                     
+                        const rad = (startElement.rotation || 0) * Math.PI / 180;
+                        const cos = Math.cos(rad);
+                        const sin = Math.sin(rad);
+                    
+                        // 1. ワールド座標系でのマウスの移動量を計算
+                        const mouseDx = snappedPos.x - startMousePos.x;
+                        const mouseDy = snappedPos.y - startMousePos.y;
+                    
+                        // 2. マウスの移動量を、設備の向きに合わせたローカル座標系での移動量に変換
+                        const localDx = mouseDx * cos + mouseDy * sin;
+                        const localDy = -mouseDx * sin + mouseDy * cos;
+                    
+                        let dw = 0; // widthの変化量
+                        let dh = 0; // heightの変化量
+                        let dx_c = 0; // ローカル座標系での中心のX移動量
+                        let dy_c = 0; // ローカル座標系での中心のY移動量
+                    
+                        // 3. どのハンドルを動かしたかに応じて、サイズと中心位置の変化量を計算
+                        if (type === 'fixtureEdge') { // 辺をリサイズ (アスペクト比は維持しない)
+                            switch(handleIndex) {
+                                case 0: // 上辺
+                                    dh = -localDy; dy_c = localDy / 2; break;
+                                case 1: // 右辺
+                                    dw = localDx; dx_c = localDx / 2; break;
+                                case 2: // 下辺
+                                    dh = localDy; dy_c = localDy / 2; break;
+                                case 3: // 左辺
+                                    dw = -localDx; dx_c = localDx / 2; break;
+                            }
+                        } else { // 角をリサイズ (アスペクト比を維持)
+                            const aspectRatio = startElement.width / startElement.height;
+                            let scaleFactor;
+                            
+                            // 変化量が大きい方を基準にスケールを計算
+                            if (Math.abs(localDx / aspectRatio) > Math.abs(localDy)) {
+                                scaleFactor = (startElement.width + (handleIndex === 0 || handleIndex === 3 ? -localDx : localDx)) / startElement.width;
+                            } else {
+                                scaleFactor = (startElement.height + (handleIndex === 0 || handleIndex === 1 ? -localDy : localDy)) / startElement.height;
+                            }
+                    
+                            const newWidth = startElement.width * scaleFactor;
+                            const newHeight = startElement.height * scaleFactor;
+                            dw = newWidth - startElement.width;
+                            dh = newHeight - startElement.height;
+                            
+                            // 符号を決定して中心の移動量を計算
+                            const signX = (handleIndex === 1 || handleIndex === 2) ? 1 : -1;
+                            const signY = (handleIndex === 2 || handleIndex === 3) ? 1 : -1;
+                            dx_c = (signX * dw) / 2;
+                            dy_c = (signY * dh) / 2;
+                        }
+                    
+                        const newWidth = startElement.width + dw;
+                        const newHeight = startElement.height + dh;
+                    
+                        // 最小サイズ以下にならないように制限
+                        if (newWidth < 10 || newHeight < 10) return;
+                    
+                        // 4. ローカル座標系での中心の移動量を、ワールド座標系に戻す
+                        const world_dx_center = dx_c * cos - dy_c * sin;
+                        const world_dy_center = dx_c * sin + dy_c * cos;
+                        
+                        // 5. 元の中心座標に移動量を加算して、新しい中心座標を算出
+                        const originalCx = startElement.x / 100 * dimensions.width;
+                        const originalCy = startElement.y / 100 * dimensions.height;
+                        const newCx = originalCx + world_dx_center;
+                        const newCy = originalCy + world_dy_center;
+                        
+                        // 6. 計算した新しい値で要素を更新
+                        newElements[elementIndex] = {
+                            ...startElement,
+                            width: newWidth,
+                            height: newHeight,
+                            x: (newCx / dimensions.width) * 100,
+                            y: (newCy / dimensions.height) * 100
+                        };
+                    
+                        setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
+                        return;
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
                         const elementToResize = { ...newElements[elementIndex] };
                 
