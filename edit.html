@@ -4460,34 +4460,43 @@ ${JSON.stringify(exampleData10)}
                         let dy_c = 0; // ローカル座標系での中心のY移動量
                     
                         // 3. どのハンドルを動かしたかに応じて、サイズと中心位置の変化量を計算
-                        if (type === 'fixtureEdge') { // 辺をリサイズ (アスペクト比は維持しない)
+                        if (type === 'fixtureEdge') { // 辺のリサイズ
                             switch(handleIndex) {
                                 case 0: // 上辺
-                                    dh = -localDy; dy_c = localDy / 2; break;
+                                    dh = -localDy;
+                                    dy_c = dh / 2; // 変化量の半分だけ中心を動かす (修正点)
+                                    break;
                                 case 1: // 右辺
-                                    dw = localDx; dx_c = localDx / 2; break;
+                                    dw = localDx;
+                                    dx_c = dw / 2; // 変化量の半分だけ中心を動かす
+                                    break;
                                 case 2: // 下辺
-                                    dh = localDy; dy_c = localDy / 2; break;
+                                    dh = localDy;
+                                    dy_c = dh / 2; // 変化量の半分だけ中心を動かす
+                                    break;
                                 case 3: // 左辺
-                                    dw = -localDx; dx_c = localDx / 2; break;
+                                    dw = -localDx;
+                                    dx_c = dw / 2; // 変化量の半分だけ中心を動かす (修正点)
+                                    break;
                             }
-                        } else { // 角をリサイズ (アスペクト比を維持)
+                        } else { // 角のリサイズ (アスペクト比維持)
                             const aspectRatio = startElement.width / startElement.height;
                             let scaleFactor;
-                            
-                            // 変化量が大きい方を基準にスケールを計算
-                            if (Math.abs(localDx / aspectRatio) > Math.abs(localDy)) {
-                                scaleFactor = (startElement.width + (handleIndex === 0 || handleIndex === 3 ? -localDx : localDx)) / startElement.width;
-                            } else {
-                                scaleFactor = (startElement.height + (handleIndex === 0 || handleIndex === 1 ? -localDy : localDy)) / startElement.height;
-                            }
                     
+                            // ドラッグした方向に応じてスケールを計算
+                            if (handleIndex === 0 || handleIndex === 2) { // 上下方向の角
+                                 scaleFactor = (startElement.height + (handleIndex === 0 ? -localDy : localDy)) / startElement.height;
+                            } else { // 左右方向の角
+                                 scaleFactor = (startElement.width + (handleIndex === 3 ? -localDx : localDx)) / startElement.width;
+                            }
+                            
+                            // 変化量を計算
                             const newWidth = startElement.width * scaleFactor;
                             const newHeight = startElement.height * scaleFactor;
                             dw = newWidth - startElement.width;
                             dh = newHeight - startElement.height;
-                            
-                            // 符号を決定して中心の移動量を計算
+                    
+                            // 角の位置に応じて中心の移動方向を決定
                             const signX = (handleIndex === 1 || handleIndex === 2) ? 1 : -1;
                             const signY = (handleIndex === 2 || handleIndex === 3) ? 1 : -1;
                             dx_c = (signX * dw) / 2;
@@ -4498,7 +4507,9 @@ ${JSON.stringify(exampleData10)}
                         const newHeight = startElement.height + dh;
                     
                         // 最小サイズ以下にならないように制限
-                        if (newWidth < 10 || newHeight < 10) return;
+                        if (newWidth < 10 || newHeight < 10) {
+                            return;
+                        }
                     
                         // 4. ローカル座標系での中心の移動量を、ワールド座標系に戻す
                         const world_dx_center = dx_c * cos - dy_c * sin;
