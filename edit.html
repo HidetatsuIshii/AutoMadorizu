@@ -6066,7 +6066,7 @@ ${JSON.stringify(exampleData10)}
                                             if (el.type === 'space') {
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
-                                                        {/* 塗りつぶしと背景パターンのみを描画し、枠線(stroke)は描画しない */}
+                                                        {/* 既存の塗りつぶしと背景パターン */}
                                                         <polygon
                                                             data-id={el.id}
                                                             points={el.points}
@@ -6075,10 +6075,46 @@ ${JSON.stringify(exampleData10)}
                                                             style={{ pointerEvents: isHighlighted ? 'all' : 'auto', cursor: 'pointer' }}
                                                         />
                                                         <BackgroundRenderer element={el} />
+                                            
+                                                        {el.lineStyle === 'double' && (() => {
+                                                            const singleLineWidth = 1.5; // 枠線1本あたりの太さ
+                                                            const wallStroke = (isHighlighted && !isPickingColor) ? SELECTED_ELEMENT_COLOR : (el.stroke || DEFAULT_STROKE_COLOR);
+                                                            
+                                                            // 空間全体の壁の太さ
+                                                            const wallWidth = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                            
+                                                            // 白い線の太さ = 全体の太さ - (外側の枠線x2)
+                                                            // 枠線がはみ出ないように、少しだけ細くします
+                                                            const whiteLineWidth = Math.max(0, wallWidth - (singleLineWidth * 2));
+                                            
+                                                            return (
+                                                                <g style={{ pointerEvents: 'none' }}>
+                                                                    {/* 1. 外側の枠線 (太い黒線) */}
+                                                                    <polygon
+                                                                        points={el.points}
+                                                                        fill="none"
+                                                                        stroke={wallStroke}
+                                                                        strokeWidth={wallWidth}
+                                                                        strokeLinejoin="miter"
+                                                                    />
+                                                                    {/* 2. 内側の白い線 (重ねて二重線を表現) */}
+                                                                    <polygon
+                                                                        points={el.points}
+                                                                        fill="none"
+                                                                        stroke="white"
+                                                                        strokeWidth={whiteLineWidth}
+                                                                        strokeLinejoin="miter"
+                                                                    />
+                                                                </g>
+                                                            );
+                                                        })()}
                                                     </g>
                                                 );
                                             }
                                             if (el.type === 'wall') {
+                                                if (el.groupId && el.lineStyle === 'double') {
+                                                    return null;
+                                                }
                                                 const isPartOfSpace = !!el.groupId;
                                                 const isWallSelected = selectedId === el.id;
                                                 const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
