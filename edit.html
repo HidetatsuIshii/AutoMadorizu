@@ -4441,95 +4441,100 @@ ${JSON.stringify(exampleData10)}
                         const { id, handleIndex, type, startElement, startMousePos } = resizingHandleInfo;
                         const elementIndex = newElements.findIndex(el => el.id === id);
                         if (elementIndex === -1) return;
-                    
+                
                         const rad = (startElement.rotation || 0) * Math.PI / 180;
                         const cos = Math.cos(rad);
                         const sin = Math.sin(rad);
-                    
-                        // 1. ワールド座標系でのマウスの移動量を計算
-                        const mouseDx = snappedPos.x - startMousePos.x;
-                        const mouseDy = snappedPos.y - startMousePos.y;
-                    
-                        // 2. マウスの移動量を、設備の向きに合わせたローカル座標系での移動量に変換
-                        const localDx = mouseDx * cos + mouseDy * sin;
-                        const localDy = -mouseDx * sin + mouseDy * cos;
-                    
-                        let dw = 0; // widthの変化量
-                        let dh = 0; // heightの変化量
-                        let dx_c = 0; // ローカル座標系での中心のX移動量
-                        let dy_c = 0; // ローカル座標系での中心のY移動量
-                    
-                        // 3. どのハンドルを動かしたかに応じて、サイズと中心位置の変化量を計算
-                        if (type === 'fixtureEdge') { // 辺のリサイズ
+                
+                        // 1. 各ハンドルのローカル座標（中心が0,0）と、固定されるアンカーの座標を定義
+                        const halfW = startElement.width / 2;
+                        const halfH = startElement.height / 2;
+                        const localHandlePositions = [
+                            {x: -halfW, y: -halfH}, {x: halfW, y: -halfH}, {x: halfW, y: halfH}, {x: -halfW, y: halfH}, // Corners 0-3
+                            {x: 0, y: -halfH},      {x: halfW, y: 0},       {x: 0, y: halfH},      {x: -halfW, y: 0}        // Edges 4-7
+                        ];
+                        
+                        const handleIndexWithOffset = type === 'fixtureCorner' ? handleIndex : handleIndex + 4;
+                        const anchorIndex = (handleIndex + 2) % 4 + (type === 'fixtureCorner' ? 0 : 4);
+                        
+                        const anchorLocal = localHandlePositions[anchorIndex];
+                        const startCx = startElement.x / 100 * dimensions.width;
+                        const startCy = startElement.y / 100 * dimensions.height;
+                
+                        // 2. アンカーのワールド座標（ここは動かない基準点）を計算
+                        const anchorGlobal = {
+                            x: startCx + (anchorLocal.x * cos - anchorLocal.y * sin),
+                            y: startCy + (anchorLocal.x * sin + anchorLocal.y * cos)
+                        };
+                
+                        // 3. マウスの現在地からアンカーまでのベクトルを計算し、設備のローカル座標系に変換
+                        const mouseVecFromAnchor = { x: snappedPos.x - anchorGlobal.x, y: snappedPos.y - anchorGlobal.y };
+                        const unrotatedMouseVec = {
+                            x: mouseVecFromAnchor.x * cos + mouseVecFromAnchor.y * sin,
+                            y: -mouseVecFromAnchor.x * sin + mouseVecFromAnchor.y * cos
+                        };
+                
+                        let newWidth, newHeight;
+                        let newCenterLocal;
+                        
+                        // 4. ハンドルの種類に応じて新しい幅・高さ・中心点を計算
+                        if (type === 'fixtureEdge') {
                             switch(handleIndex) {
-                                case 0: // 上辺
-                                    dh = -localDy;
-                                    dy_c = dh / 2; // 変化量の半分だけ中心を動かす (修正点)
+                                case 0: // Top
+                                    newHeight = Math.max(10, anchorLocal.y - unrotatedMouseVec.y);
+                                    newWidth = startElement.width;
+                                    newCenterLocal = { x: 0, y: anchorLocal.y - newHeight / 2 };
                                     break;
-                                case 1: // 右辺
-                                    dw = localDx;
-                                    dx_c = dw / 2; // 変化量の半分だけ中心を動かす
+                                case 1: // Right
+                                    newWidth = Math.max(10, unrotatedMouseVec.x - anchorLocal.x);
+                                    newHeight = startElement.height;
+                                    newCenterLocal = { x: anchorLocal.x + newWidth / 2, y: 0 };
                                     break;
-                                case 2: // 下辺
-                                    dh = localDy;
-                                    dy_c = dh / 2; // 変化量の半分だけ中心を動かす
+                                case 2: // Bottom
+                                    newHeight = Math.max(10, unrotatedMouseVec.y - anchorLocal.y);
+                                    newWidth = startElement.width;
+                                    newCenterLocal = { x: 0, y: anchorLocal.y + newHeight / 2 };
                                     break;
-                                case 3: // 左辺
-                                    dw = -localDx;
-                                    dx_c = dw / 2; // 変化量の半分だけ中心を動かす (修正点)
+                                case 3: // Left
+                                    newWidth = Math.max(10, anchorLocal.x - unrotatedMouseVec.x);
+                                    newHeight = startElement.height;
+                                    newCenterLocal = { x: anchorLocal.x - newWidth / 2, y: 0 };
                                     break;
                             }
-                        } else { // 角のリサイズ (アスペクト比維持)
+                        } else { // fixtureCorner (アスペクト比維持)
                             const aspectRatio = startElement.width / startElement.height;
-                            let scaleFactor;
-                    
-                            // ドラッグした方向に応じてスケールを計算
-                            if (handleIndex === 0 || handleIndex === 2) { // 上下方向の角
-                                 scaleFactor = (startElement.height + (handleIndex === 0 ? -localDy : localDy)) / startElement.height;
-                            } else { // 左右方向の角
-                                 scaleFactor = (startElement.width + (handleIndex === 3 ? -localDx : localDx)) / startElement.width;
-                            }
-                            
-                            // 変化量を計算
-                            const newWidth = startElement.width * scaleFactor;
-                            const newHeight = startElement.height * scaleFactor;
-                            dw = newWidth - startElement.width;
-                            dh = newHeight - startElement.height;
-                    
-                            // 角の位置に応じて中心の移動方向を決定
                             const signX = (handleIndex === 1 || handleIndex === 2) ? 1 : -1;
                             const signY = (handleIndex === 2 || handleIndex === 3) ? 1 : -1;
-                            dx_c = (signX * dw) / 2;
-                            dy_c = (signY * dh) / 2;
+                            
+                            if (Math.abs(unrotatedMouseVec.x / aspectRatio) > Math.abs(unrotatedMouseVec.y)) {
+                                newWidth = Math.max(10, Math.abs(unrotatedMouseVec.x));
+                                newHeight = newWidth / aspectRatio;
+                            } else {
+                                newHeight = Math.max(10, Math.abs(unrotatedMouseVec.y));
+                                newWidth = newHeight * aspectRatio;
+                            }
+                            
+                            newCenterLocal = {
+                                x: anchorLocal.x + (signX * newWidth) / 2,
+                                y: anchorLocal.y + (signY * newHeight) / 2
+                            };
                         }
-                    
-                        const newWidth = startElement.width + dw;
-                        const newHeight = startElement.height + dh;
-                    
-                        // 最小サイズ以下にならないように制限
-                        if (newWidth < 10 || newHeight < 10) {
-                            return;
-                        }
-                    
-                        // 4. ローカル座標系での中心の移動量を、ワールド座標系に戻す
-                        const world_dx_center = dx_c * cos - dy_c * sin;
-                        const world_dy_center = dx_c * sin + dy_c * cos;
                         
-                        // 5. 元の中心座標に移動量を加算して、新しい中心座標を算出
-                        const originalCx = startElement.x / 100 * dimensions.width;
-                        const originalCy = startElement.y / 100 * dimensions.height;
-                        const newCx = originalCx + world_dx_center;
-                        const newCy = originalCy + world_dy_center;
+                        // 5. 新しいローカル中心座標をワールド座標に変換
+                        const newCenterGlobal = {
+                            x: anchorGlobal.x + (newCenterLocal.x - anchorLocal.x) * cos - (newCenterLocal.y - anchorLocal.y) * sin,
+                            y: anchorGlobal.y + (newCenterLocal.x - anchorLocal.x) * sin + (newCenterLocal.y - anchorLocal.y) * cos,
+                        };
                         
                         // 6. 計算した新しい値で要素を更新
                         newElements[elementIndex] = {
                             ...startElement,
                             width: newWidth,
                             height: newHeight,
-                            x: (newCx / dimensions.width) * 100,
-                            y: (newCy / dimensions.height) * 100
+                            x: (newCenterGlobal.x / dimensions.width) * 100,
+                            y: (newCenterGlobal.y / dimensions.height) * 100
                         };
-                    
+                        
                         setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                         return;
                     } else if (type === 'wall' || type === 'door' || type === 'window') {
