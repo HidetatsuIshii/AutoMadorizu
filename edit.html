@@ -1140,19 +1140,17 @@
             const fontSize = smallFontTypes.includes(spaceType) ? 10 : 16;
 
             return {
-                id: `text-${Date.now()}`,
-                type: 'text',
-                x: (centroid.x / dimensions.width) * 100,
-                y: (centroid.y / dimensions.height) * 100,
-                text: text,
-                color: '#000000',
-                backgroundColor: 'none',
-                fontSize: fontSize,
-                fontFamily: 'sans-serif',
-                textAlign: 'center',
-                writingMode: 'horizontal-tb', // デフォルトは横書き
-                letterSpacing: 0,             // 文字の余白のデフォルト値
-            };
+                id: `text-${Date.now()}`,
+                type: 'text',
+                x: (centroid.x / dimensions.width) * 100,
+                y: (centroid.y / dimensions.height) * 100,
+                text: text,
+                color: '#000000',
+                backgroundColor: 'none',
+                fontSize: fontSize,
+                fontFamily: 'sans-serif',
+                textAlign: 'center',
+            };
         };
 
         const getClosestPointOnWalls = (p, walls) => {
@@ -4085,7 +4083,7 @@ ${JSON.stringify(exampleData10)}
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 } else if (drawingMode === 'text') {
-                    const newElement = { id: `text-${Date.now()}`, type: 'text', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign, backgroundColor: 'none', writingMode: 'horizontal-tb', letterSpacing: 0 };
+                    const newElement = { id: `text-${Date.now()}`, type: 'text', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign, backgroundColor: 'none' };
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 } else if (drawingMode === 'fixture') {
@@ -5395,94 +5393,86 @@ ${JSON.stringify(exampleData10)}
                 }
             });
 
-            const TextRenderer = ({ element, isDirectlySelected, isDragging, onContextMenu }) => {
-                const divRef = useRef(null);
-                const [size, setSize] = useState({ width: 0, height: 0 });
+            const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
+                const textRef = useRef(null);
+                const [bbox, setBbox] = useState(null);
+                useLayoutEffect(() => {
+                    if (textRef.current) {
+                        const textBbox = textRef.current.getBBox();
+                        setBbox(textBbox);
+                    }
+                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation]);
 
-                const x_px = element.x / 100 * dimensions.width;
-                const y_px = element.y / 100 * dimensions.height;
+                let textAnchor = 'start';
+                if (element.textAlign === 'center') textAnchor = 'middle';
+                else if (element.textAlign === 'right') textAnchor = 'end';
+                
+                const x_px = element.x / 100 * dimensions.width;
+                const y_px = element.y / 100 * dimensions.height;
 
-                // テキストを描画するdiv要素の実際のサイズを監視し、選択枠の大きさに反映させます
-                useLayoutEffect(() => {
-                    if (divRef.current) {
-                        // スタイルが適用された後にサイズを計測するため、ごくわずかに待機します
-                        const timer = setTimeout(() => {
-                            if (divRef.current) {
-                                // 計測したサイズが現在のサイズと異なるときだけ更新し、不要な再描画ループを防ぎます
-                                if (size.width !== divRef.current.offsetWidth || size.height !== divRef.current.offsetHeight) {
-                                    setSize({
-                                        width: divRef.current.offsetWidth,
-                                        height: divRef.current.offsetHeight
-                                    });
-                                }
-                            }
-                        }, 0);
-                        return () => clearTimeout(timer);
-                    }
-                }, [element.text, element.fontSize, element.fontFamily, element.letterSpacing, element.writingMode, element.textAlign, element.backgroundColor, dimensions, size]);
+                let displayImageOpacity = 1 - imageOpacity;
+                let displayDrawingOpacity = 1 - drawingOpacity;
+            
+                if (previewMode === 'image') {
+                    displayImageOpacity = 1;  // 下絵を不透明に
+                    displayDrawingOpacity = 0;  // 作図を透明に
+                } else if (previewMode === 'drawing') {
+                    displayImageOpacity = 0;  // 下絵を透明に
+                    displayDrawingOpacity = 1;  // 作図を不透明に
+                }
 
-                // 表示用のHTML要素に適用するCSSスタイル
-                const style = {
-                    fontFamily: element.fontFamily,
-                    fontSize: `${element.fontSize}px`,
-                    color: element.color,
-                    textAlign: element.textAlign,
-                    lineHeight: 1.2,
-                    letterSpacing: `${element.letterSpacing || 0}px`,
-                    writingMode: element.writingMode || 'horizontal-tb',
-                    whiteSpace: 'pre', // 改行をそのまま反映し、自動折り返しはしない
-                    display: 'inline-block', // サイズ計測のために必要
-                    padding: '4px',
-                    backgroundColor: (element.backgroundColor && element.backgroundColor !== 'none') ? element.backgroundColor : 'transparent',
-                    borderRadius: '2px',
-                    cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
-                    // CSS transformで中心に配置
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                };
-
-                return (
-                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
-                        {/* foreignObjectをアンカーポイントとして配置 */}
-                        <foreignObject x={x_px} y={y_px} width="1" height="1" style={{ overflow: 'visible', pointerEvents: 'all' }}>
-                            <div xmlns="http://www.w3.org/1999/xhtml" style={{position: 'relative', width: '1px', height: '1px'}}>
-                                <div ref={divRef} style={style} onContextMenu={onContextMenu}>
-                                    {element.text}
-                                </div>
-                            </div>
-                        </foreignObject>
-
-                        {/* 選択枠 */}
-                        {isDirectlySelected && size.width > 0 && (
-                            <>
-                                <rect
-                                    x={x_px - size.width / 2} y={y_px - size.height / 2}
-                                    width={size.width} height={size.height}
-                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
-                                    strokeDasharray={`${4 / zoom}, ${2 / zoom}`}
-                                    style={{ pointerEvents: 'none' }}
-                                />
-                                {/* 回転ハンドル */}
-                                <line 
-                                    x1={x_px} y1={y_px - size.height / 2 - 4}
-                                    x2={x_px} y2={y_px - size.height / 2 - 14}
-                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
-                                    style={{ pointerEvents: 'none' }}
-                                />
-                                <circle 
-                                    data-id={element.id}
-                                    data-handle-type="textRotation"
-                                    cx={x_px} cy={y_px - size.height / 2 - 18} r={5 / zoom}
-                                    fill="white" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
-                                    style={{ cursor: 'alias', pointerEvents: 'all' }}
-                                />
-                            </>
-                        )}
-                    </g>
-                );
-            };
+                return (
+                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
+                        {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
+                            <rect
+                                x={bbox.x - 4} y={bbox.y - 4}
+                                width={bbox.width + 8} height={bbox.height + 8}
+                                fill={element.backgroundColor}
+                                rx="2"
+                                style={{ pointerEvents: 'none' }}
+                            />
+                        )}
+                        <text
+                            ref={textRef}
+                            x={`${element.x}%`}
+                            y={`${element.y}%`}
+                            fill={element.color}
+                            fontSize={element.fontSize}
+                            fontFamily={element.fontFamily}
+                            style={{ cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab', pointerEvents: 'all' }}
+                            textAnchor={textAnchor}
+                        >
+                            {element.text.split('\n').map((line, i) => (
+                                <tspan key={i} x={`${element.x}%`} dy={i === 0 ? 0 : '1.2em'}>{line}</tspan>
+                            ))}
+                        </text>
+                        {isDirectlySelected && bbox && (
+                            <>
+                                <rect
+                                    x={bbox.x - 4} y={bbox.y - 4}
+                                    width={bbox.width + 8} height={bbox.height + 8}
+                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
+                                    rx="2" style={{ pointerEvents: 'none' }}
+                                />
+                                {/* 回転ハンドル */}
+                                <line 
+                                    x1={x_px} y1={y_px - bbox.height / 2 - 10}
+                                    x2={x_px} y2={y_px - bbox.height / 2 - 20}
+                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
+                                    style={{ pointerEvents: 'none' }}
+                                />
+                                <circle 
+                                    data-id={element.id}
+                                    data-handle-type="textRotation"
+                                    cx={x_px} cy={y_px - bbox.height / 2 - 25} r={5 / zoom}
+                                    fill="white" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={2 / zoom}
+                                    style={{ cursor: 'alias' }}
+                                />
+                            </>
+                        )}
+                    </g>
+                );
+            };
 
             // 背景パターンを描画するためのコンポーネント
             const BackgroundRenderer = ({ element }) => {
@@ -7858,47 +7848,6 @@ ${JSON.stringify(exampleData10)}
                                                                     type="number"
                                                                     value={selectedElement.fontSize}
                                                                     onChange={(e) => handleSelectedElementUpdate({ fontSize: parseInt(e.target.value) || 8 })}
-                                                                    className="w-20 p-1 border border-gray-300 rounded-md text-sm"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">向き</label>
-                                                            <div className="flex bg-gray-200 rounded-lg p-1 mt-1">
-                                                                <button
-                                                                    onClick={() => handleSelectedElementUpdate({ writingMode: 'horizontal-tb' })}
-                                                                    className={`w-full py-1 rounded-md text-sm ${(!selectedElement.writingMode || selectedElement.writingMode === 'horizontal-tb') ? 'bg-white shadow' : ''}`}
-                                                                >
-                                                                    横書き
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleSelectedElementUpdate({ writingMode: 'vertical-rl' })}
-                                                                    className={`w-full py-1 rounded-md text-sm ${selectedElement.writingMode === 'vertical-rl' ? 'bg-white shadow' : ''}`}
-                                                                >
-                                                                    縦書き
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-gray-700">文字の余白: {selectedElement.letterSpacing || 0}px</label>
-                                                            <div className="flex items-center space-x-2 mt-1">
-                                                                <input
-                                                                    type="range"
-                                                                    min="-5"
-                                                                    max="50"
-                                                                    step="1"
-                                                                    value={selectedElement.letterSpacing || 0}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ letterSpacing: parseInt(e.target.value) })}
-                                                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                                                />
-                                                                <input
-                                                                    type="number"
-                                                                    min="-5"
-                                                                    max="50"
-                                                                    value={selectedElement.letterSpacing || 0}
-                                                                    onChange={(e) => handleSelectedElementUpdate({ letterSpacing: parseInt(e.target.value) || 0 })}
                                                                     className="w-20 p-1 border border-gray-300 rounded-md text-sm"
                                                                 />
                                                             </div>
