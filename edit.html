@@ -5447,7 +5447,6 @@ ${JSON.stringify(exampleData10)}
                             dominantBaseline="central"
                         >
                             {element.text.split('\n').map((line, i) => {
-                        
                                 const isVertical = element.writingMode === 'vertical';
                         
                                 // 縦書きの場合、2行目以降はx属性をリセットせず、dx属性で左にずらす
@@ -5455,8 +5454,13 @@ ${JSON.stringify(exampleData10)}
                                 return (
                                     <tspan
                                         key={i}
-                                        x={isVertical && i > 0 ? undefined : `${element.x}%`}
+                                        // 横書きの時は各行でxをリセット。縦書きでは先頭行のみxを設定。
+                                        x={!isVertical || i === 0 ? `${element.x}%` : undefined}
+                                        // 縦書きの時は2列目以降、y座標を先頭列と同じ位置にリセット <-- ★★★ 最も重要な修正点 ★★★
+                                        y={isVertical && i > 0 ? `${element.y}%` : undefined}
+                                        // 縦書きの時は2列目以降、dxで左にずらす
                                         dx={isVertical && i > 0 ? '-1.2em' : undefined}
+                                        // 横書きの時は2行目以降、dyで下にずらす
                                         dy={!isVertical && i > 0 ? '1.2em' : undefined}
                                     >
                                         {line}
