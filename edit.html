@@ -5401,29 +5401,31 @@ ${JSON.stringify(exampleData10)}
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
                 const [bbox, setBbox] = useState(null);
+                
+                // elementのプロパティ（特にwritingMode）が変更されたときにbboxを再計算する
                 useLayoutEffect(() => {
                     if (textRef.current) {
                         const textBbox = textRef.current.getBBox();
                         setBbox(textBbox);
                     }
                 }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation, element.writingMode]);
-            
+    
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
                 else if (element.textAlign === 'right') textAnchor = 'end';
                 
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
-            
+    
                 const textStyle = {
                     cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
                     pointerEvents: 'all',
                     writingMode: element.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
                     textOrientation: element.writingMode === 'vertical' ? 'mixed' : 'sideways',
                 };
-            
+    
                 return (
-                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
+                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`} onContextMenu={handleContextMenu}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
                             <rect
                                 x={bbox.x - 4} y={bbox.y - 4}
@@ -5442,12 +5444,12 @@ ${JSON.stringify(exampleData10)}
                             fontFamily={element.fontFamily}
                             style={textStyle}
                             textAnchor={textAnchor}
-                            dominantBaseline="central" // ★ 垂直方向の配置基準を中央に固定
+                            // ★ 垂直方向のテキストの基点を中央に固定し、ブラウザ間の表示差異をなくします
+                            dominantBaseline="central"
                         >
                             {element.text.split('\n').map((line, i) => (
-                                // ★★★ このロジックを修正しました ★★★
-                                // 縦書きの場合、dyで列を左にずらし(-1.2em)、x属性で各行の開始位置をリセットします。
-                                // 横書きの場合、dyで下の行にずらし(1.2em)、x属性で各行の開始位置をリセットします。
+                                // ★★★ この一行が最も重要な修正点です ★★★
+                                // 縦書きの時はdy（水平方向のシフト）をマイナスにし、左の列に移動させます。
                                 <tspan
                                     key={i}
                                     x={`${element.x}%`} 
@@ -5462,13 +5464,13 @@ ${JSON.stringify(exampleData10)}
                                 <rect
                                     x={bbox.x - 4} y={bbox.y - 4}
                                     width={bbox.width + 8} height={bbox.height + 8}
-                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
+                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={2 / zoom}
                                     rx="2" style={{ pointerEvents: 'none' }}
                                 />
                                 <line 
                                     x1={x_px} y1={y_px - bbox.height / 2 - 10}
                                     x2={x_px} y2={y_px - bbox.height / 2 - 20}
-                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
+                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={2 / zoom}
                                     style={{ pointerEvents: 'none' }}
                                 />
                                 <circle 
