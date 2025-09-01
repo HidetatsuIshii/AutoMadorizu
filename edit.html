@@ -5444,20 +5444,25 @@ ${JSON.stringify(exampleData10)}
                             fontFamily={element.fontFamily}
                             style={textStyle}
                             textAnchor={textAnchor}
-                            // ★ 垂直方向のテキストの基点を中央に固定し、ブラウザ間の表示差異をなくします
                             dominantBaseline="central"
                         >
-                            {element.text.split('\n').map((line, i) => (
-                                // ★★★ この一行が最も重要な修正点です ★★★
-                                // 縦書きの時はdy（水平方向のシフト）をマイナスにし、左の列に移動させます。
-                                <tspan
-                                    key={i}
-                                    x={`${element.x}%`} 
-                                    dy={i === 0 ? 0 : (element.writingMode === 'vertical' ? '-1.2em' : '1.2em')}
-                                >
-                                    {line}
-                                </tspan>
-                            ))}
+                            {element.text.split('\n').map((line, i) => {
+                        
+                                const isVertical = element.writingMode === 'vertical';
+                        
+                                // 縦書きの場合、2行目以降はx属性をリセットせず、dx属性で左にずらす
+                                // 横書きの場合は、従来通りx属性で左端を揃え、dy属性で下にずらす
+                                return (
+                                    <tspan
+                                        key={i}
+                                        x={isVertical && i > 0 ? undefined : `${element.x}%`}
+                                        dx={isVertical && i > 0 ? '-1.2em' : undefined}
+                                        dy={!isVertical && i > 0 ? '1.2em' : undefined}
+                                    >
+                                        {line}
+                                    </tspan>
+                                );
+                            })}
                         </text>
                         {isDirectlySelected && bbox && (
                             <>
