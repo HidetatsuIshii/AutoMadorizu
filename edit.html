@@ -1150,6 +1150,7 @@
                 fontSize: fontSize,
                 fontFamily: 'sans-serif',
                 textAlign: 'center',
+                writingMode: 'horizontal',
             };
         };
 
@@ -4083,7 +4084,11 @@ ${JSON.stringify(exampleData10)}
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 } else if (drawingMode === 'text') {
-                    const newElement = { id: `text-${Date.now()}`, type: 'text', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100, text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign, backgroundColor: 'none' };
+                    const newElement = {
+                        id: `text-${Date.now()}`, type: 'text', x: (start.x / dimensions.width) * 100, y: (start.y / dimensions.height) * 100,
+                        text: "テキスト", color: strokeColor, fontSize: fontSize, fontFamily: fontFamily, textAlign: textAlign, backgroundColor: 'none',
+                        writingMode: 'horizontal' // ★★★ この行を追加 ★★★
+                    };
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 } else if (drawingMode === 'fixture') {
@@ -5421,6 +5426,13 @@ ${JSON.stringify(exampleData10)}
                     displayDrawingOpacity = 1;  // 作図を不透明に
                 }
 
+                const textStyle = {
+                    cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
+                    pointerEvents: 'all',
+                    writingMode: element.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+                    textOrientation: element.writingMode === 'vertical' ? 'mixed' : 'sideways'
+                };
+
                 return (
                     <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
@@ -5439,10 +5451,11 @@ ${JSON.stringify(exampleData10)}
                             fill={element.color}
                             fontSize={element.fontSize}
                             fontFamily={element.fontFamily}
-                            style={{ cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab', pointerEvents: 'all' }}
+                            style={textStyle} // ★★★ ここでstyleを適用 ★★★
                             textAnchor={textAnchor}
                         >
                             {element.text.split('\n').map((line, i) => (
+                                // tspanのdy属性は縦書きでもうまく機能するため、変更不要です
                                 <tspan key={i} x={`${element.x}%`} dy={i === 0 ? 0 : '1.2em'}>{line}</tspan>
                             ))}
                         </text>
@@ -7852,7 +7865,41 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                         </div>
-                        
+                                                        
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700">書字方向</label>
+                                                            <fieldset className="mt-2 flex space-x-4">
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        id="orientation-h"
+                                                                        name="text-orientation"
+                                                                        type="radio"
+                                                                        value="horizontal"
+                                                                        checked={selectedElement.writingMode === 'horizontal' || !selectedElement.writingMode}
+                                                                        onChange={(e) => handleSelectedElementUpdate({ writingMode: e.target.value })}
+                                                                        className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                                                    />
+                                                                    <label htmlFor="orientation-h" className="ml-3 block text-sm font-medium text-gray-700">
+                                                                        横書き
+                                                                    </label>
+                                                                </div>
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        id="orientation-v"
+                                                                        name="text-orientation"
+                                                                        type="radio"
+                                                                        value="vertical"
+                                                                        checked={selectedElement.writingMode === 'vertical'}
+                                                                        onChange={(e) => handleSelectedElementUpdate({ writingMode: e.target.value })}
+                                                                        className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                                                    />
+                                                                    <label htmlFor="orientation-v" className="ml-3 block text-sm font-medium text-gray-700">
+                                                                        縦書き
+                                                                    </label>
+                                                                </div>
+                                                            </fieldset>
+                                                        </div>
+                                                        
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">回転</label>
                                                             <div className="flex items-center space-x-2 mt-1">
