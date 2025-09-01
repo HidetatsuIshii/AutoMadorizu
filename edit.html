@@ -3847,7 +3847,7 @@ ${JSON.stringify(exampleData10)}
             
                     if (drawingStartPoint) {
                         const endPoint = getCanvasCoords(e);
-                        const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible ? getGridSnappedPoint(endPoint) : endPoint);
+                        const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
                         
                         if (drawingMode === 'space' && spaceShape === 'rect') {
                             const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
