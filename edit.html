@@ -5396,99 +5396,78 @@ ${JSON.stringify(exampleData10)}
             });
 
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
-                const textRef = useRef(null);
-                const [bbox, setBbox] = useState(null);
-                
-                // 依存配列から element.x と element.y を削除し、代わりに x_px, y_px を使用
-                useLayoutEffect(() => {
-                    if (textRef.current) {
-                        const textBbox = textRef.current.getBBox();
-                        setBbox(textBbox);
-                    }
-                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.rotation, element.writingMode, element.letterSpacing, dimensions]);
+                const divRef = useRef(null);
+                const [size, setSize] = useState({ width: 0, height: 0 });
 
-                let textAnchor = 'start';
-                if (element.textAlign === 'center') textAnchor = 'middle';
-                else if (element.textAlign === 'right') textAnchor = 'end';
-                
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
-                
-                // ▼▼▼【ここから変更】▼▼▼
-                const lines = element.text.split('\n');
-                const numLines = lines.length;
-                // テキストブロック全体をY座標中心に配置するための垂直方向のオフセットを計算
-                const verticalShift = -((numLines - 1) / 2) * 1.2;
-                // ▲▲▲【ここまで変更】▲▲▲
 
-                let displayImageOpacity = 1 - imageOpacity;
-                let displayDrawingOpacity = 1 - drawingOpacity;
-            
-                if (previewMode === 'image') {
-                    displayImageOpacity = 1;
-                    displayDrawingOpacity = 0;
-                } else if (previewMode === 'drawing') {
-                    displayImageOpacity = 0;
-                    displayDrawingOpacity = 1;
-                }
+                // HTML要素のサイズを計測して、中央揃えや選択枠の大きさに使用します
+                useLayoutEffect(() => {
+                    if (divRef.current) {
+                        // スタイルが適用された後にサイズを計測するため、少しだけ待機します
+                        setTimeout(() => {
+                            if (divRef.current) {
+                                setSize({
+                                    width: divRef.current.offsetWidth,
+                                    height: divRef.current.offsetHeight
+                                });
+                            }
+                        }, 0);
+                    }
+                }, [element.text, element.fontSize, element.fontFamily, element.letterSpacing, element.writingMode, element.textAlign, element.backgroundColor, dimensions]);
+
+                const style = {
+                    fontFamily: element.fontFamily,
+                    fontSize: `${element.fontSize}px`,
+                    color: element.color,
+                    textAlign: element.textAlign,
+                    lineHeight: 1.2,
+                    letterSpacing: `${element.letterSpacing || 0}px`,
+                    writingMode: element.writingMode || 'horizontal-tb',
+                    whiteSpace: 'pre-wrap', // 改行と自動折り返しを有効にする
+                    display: 'inline-block', // サイズ計測のために必要
+                    padding: '4px',
+                    backgroundColor: (element.backgroundColor && element.backgroundColor !== 'none') ? element.backgroundColor : 'transparent',
+                    borderRadius: '2px',
+                    cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
+                };
+
+                // foreignObjectの描画開始位置を、divが中心に来るように計算
+                const fo_x = x_px - size.width / 2;
+                const fo_y = y_px - size.height / 2;
 
                 return (
                     <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
-                        {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
-                            <rect
-                                x={bbox.x - 4} y={bbox.y - 4}
-                                width={bbox.width + 8} height={bbox.height + 8}
-                                fill={element.backgroundColor}
-                                rx="2"
-                                style={{ pointerEvents: 'none' }}
-                            />
-                        )}
-                        <text
-                            ref={textRef}
-                            x={x_px}
-                            y={y_px}
-                            dy={`${verticalShift}em`}
-                            fill={element.color}
-                            fontSize={element.fontSize}
-                            fontFamily={element.fontFamily}
-                            style={{ cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab', pointerEvents: 'all' }}
-                            writingMode={element.writingMode || 'horizontal-tb'}
-                            letterSpacing={`${element.letterSpacing || 0}px`}
-                            textAnchor={textAnchor}
-                            dominantBaseline="middle"
-                        >
-                            {lines.map((line, i) => (
-                                <tspan
-                                    key={i}
-                                    x={(!element.writingMode || element.writingMode === 'horizontal-tb') ? x_px : undefined}
-                                    dy={i > 0 && (!element.writingMode || element.writingMode === 'horizontal-tb') ? '1.2em' : 0}
-                                    dx={i > 0 && element.writingMode === 'vertical-rl' ? '1.2em' : 0}
-                                >
-                                    {line}
-                                </tspan>
-                            ))}
-                        </text>
-                        {isDirectlySelected && bbox && (
+                        <foreignObject x={fo_x} y={fo_y} width={Math.max(1, size.width)} height={Math.max(1, size.height)} style={{ overflow: 'visible', pointerEvents: 'all' }}>
+                            <div xmlns="http://www.w3.org/1999/xhtml" ref={divRef} style={style} onContextMenu={onContextMenu}>
+                                {element.text}
+                            </div>
+                        </foreignObject>
+
+                        {/* 選択枠 */}
+                        {isDirectlySelected && size.width > 0 && (
                             <>
                                 <rect
-                                    x={bbox.x - 4} y={bbox.y - 4}
-                                    width={bbox.width + 8} height={bbox.height + 8}
-                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
-                                    rx="2" style={{ pointerEvents: 'none' }}
+                                    x={fo_x} y={fo_y}
+                                    width={size.width} height={size.height}
+                                    fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
+                                    strokeDasharray={`${4 / zoom}, ${2 / zoom}`}
+                                    style={{ pointerEvents: 'none' }}
                                 />
                                 {/* 回転ハンドル */}
                                 <line 
-                                    x1={x_px} y1={y_px - bbox.height / 2 - 10}
-                                    x2={x_px} y2={y_px - bbox.height / 2 - 20}
-                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
+                                    x1={x_px} y1={y_px - size.height / 2 - 4}
+                                    x2={x_px} y2={y_px - size.height / 2 - 14}
+                                    stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
                                     style={{ pointerEvents: 'none' }}
                                 />
                                 <circle 
                                     data-id={element.id}
                                     data-handle-type="textRotation"
-                                    cx={x_px} cy={y_px - bbox.height / 2 - 25} r={5 / zoom}
-                                    fill="white" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={2 / zoom}
-                                    style={{ cursor: 'alias' }}
+                                    cx={x_px} cy={y_px - size.height / 2 - 18} r={5 / zoom}
+                                    fill="white" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
+                                    style={{ cursor: 'alias', pointerEvents: 'all' }}
                                 />
                             </>
                         )}
