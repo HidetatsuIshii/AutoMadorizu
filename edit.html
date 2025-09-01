@@ -5406,33 +5406,33 @@ ${JSON.stringify(exampleData10)}
                         const textBbox = textRef.current.getBBox();
                         setBbox(textBbox);
                     }
-                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation]);
-
+                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation, element.writingMode]);
+            
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
                 else if (element.textAlign === 'right') textAnchor = 'end';
                 
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
-
+            
                 let displayImageOpacity = 1 - imageOpacity;
                 let displayDrawingOpacity = 1 - drawingOpacity;
             
                 if (previewMode === 'image') {
-                    displayImageOpacity = 1;  // 下絵を不透明に
-                    displayDrawingOpacity = 0;  // 作図を透明に
+                    displayImageOpacity = 1;
+                    displayDrawingOpacity = 0;
                 } else if (previewMode === 'drawing') {
-                    displayImageOpacity = 0;  // 下絵を透明に
-                    displayDrawingOpacity = 1;  // 作図を不透明に
+                    displayImageOpacity = 0;
+                    displayDrawingOpacity = 1;
                 }
-
+            
                 const textStyle = {
                     cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
                     pointerEvents: 'all',
                     writingMode: element.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
                     textOrientation: element.writingMode === 'vertical' ? 'mixed' : 'sideways'
                 };
-
+            
                 return (
                     <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
@@ -5451,13 +5451,18 @@ ${JSON.stringify(exampleData10)}
                             fill={element.color}
                             fontSize={element.fontSize}
                             fontFamily={element.fontFamily}
-                            style={textStyle} // ★★★ ここでstyleを適用 ★★★
+                            style={textStyle}
                             textAnchor={textAnchor}
                         >
-                            {element.text.split('\n').map((line, i) => (
-                                // tspanのdy属性は縦書きでもうまく機能するため、変更不要です
-                                <tspan key={i} x={`${element.x}%`} dy={i === 0 ? 0 : '1.2em'}>{line}</tspan>
-                            ))}
+                            {element.text.split('\n').map((line, i) => {
+                                // ★★★ ここからが修正点 ★★★
+                                // writingModeに応じてdyの値を変更します。縦書きの場合はマイナスにします。
+                                const dy = i === 0 ? 0 : (element.writingMode === 'vertical' ? '-1.2em' : '1.2em');
+                                return (
+                                    <tspan key={i} x={`${element.x}%`} dy={dy}>{line}</tspan>
+                                );
+                                // ★★★ ここまでが修正点 ★★★
+                            })}
                         </text>
                         {isDirectlySelected && bbox && (
                             <>
@@ -7867,7 +7872,7 @@ ${JSON.stringify(exampleData10)}
                                                         </div>
                                                         
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700">書字方向</label>
+                                                            <label className="block text-sm font-medium text-gray-700">文字の方向</label>
                                                             <fieldset className="mt-2 flex space-x-4">
                                                                 <div className="flex items-center">
                                                                     <input
