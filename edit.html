@@ -5398,12 +5398,14 @@ ${JSON.stringify(exampleData10)}
             const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
                 const [bbox, setBbox] = useState(null);
+                
+                // 依存配列から element.x と element.y を削除し、代わりに x_px, y_px を使用
                 useLayoutEffect(() => {
                     if (textRef.current) {
                         const textBbox = textRef.current.getBBox();
                         setBbox(textBbox);
                     }
-                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation, element.writingMode, element.letterSpacing]);
+                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.rotation, element.writingMode, element.letterSpacing, dimensions]);
 
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
@@ -5411,6 +5413,13 @@ ${JSON.stringify(exampleData10)}
                 
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
+                
+                // ▼▼▼【ここから変更】▼▼▼
+                const lines = element.text.split('\n');
+                const numLines = lines.length;
+                // テキストブロック全体をY座標中心に配置するための垂直方向のオフセットを計算
+                const verticalShift = -((numLines - 1) / 2) * 1.2;
+                // ▲▲▲【ここまで変更】▲▲▲
 
                 let displayImageOpacity = 1 - imageOpacity;
                 let displayDrawingOpacity = 1 - drawingOpacity;
@@ -5438,6 +5447,7 @@ ${JSON.stringify(exampleData10)}
                             ref={textRef}
                             x={x_px}
                             y={y_px}
+                            dy={`${verticalShift}em`}
                             fill={element.color}
                             fontSize={element.fontSize}
                             fontFamily={element.fontFamily}
@@ -5447,7 +5457,7 @@ ${JSON.stringify(exampleData10)}
                             textAnchor={textAnchor}
                             dominantBaseline="middle"
                         >
-                            {element.text.split('\n').map((line, i) => (
+                            {lines.map((line, i) => (
                                 <tspan
                                     key={i}
                                     x={(!element.writingMode || element.writingMode === 'horizontal-tb') ? x_px : undefined}
