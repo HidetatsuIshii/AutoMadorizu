@@ -5455,13 +5455,19 @@ ${JSON.stringify(exampleData10)}
                             textAnchor={textAnchor}
                         >
                             {element.text.split('\n').map((line, i) => {
-                                // ★★★ ここからが修正点 ★★★
-                                // writingModeに応じてdyの値を変更します。縦書きの場合はマイナスにします。
+                                {/* ★★★ ここからが修正点 ★★★ */}
+                                // 縦書きモードの時だけ、dyの値をマイナスにして左の列に移動させます。
                                 const dy = i === 0 ? 0 : (element.writingMode === 'vertical' ? '-1.2em' : '1.2em');
-                                return (
-                                    <tspan key={i} x={`${element.x}%`} dy={dy}>{line}</tspan>
-                                );
-                                // ★★★ ここまでが修正点 ★★★
+                                
+                                if (element.writingMode === 'vertical') {
+                                     // 縦書きの場合、2行目以降はx属性をリセットせず、dyだけで列を移動します。
+                                     // これにより、各列が同じ高さから始まります。
+                                    return <tspan key={i} x={`${element.x}%`} dy={dy}>{line}</tspan>;
+                                } else {
+                                    // 横書きの場合は今まで通りです。
+                                    return <tspan key={i} x={`${element.x}%`} dy={dy}>{line}</tspan>;
+                                }
+                                {/* ★★★ ここまでが修正点 ★★★ */}
                             })}
                         </text>
                         {isDirectlySelected && bbox && (
@@ -5472,7 +5478,6 @@ ${JSON.stringify(exampleData10)}
                                     fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth="2"
                                     rx="2" style={{ pointerEvents: 'none' }}
                                 />
-                                {/* 回転ハンドル */}
                                 <line 
                                     x1={x_px} y1={y_px - bbox.height / 2 - 10}
                                     x2={x_px} y2={y_px - bbox.height / 2 - 20}
