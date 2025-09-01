@@ -5402,21 +5402,26 @@ ${JSON.stringify(exampleData10)}
                 const x_px = element.x / 100 * dimensions.width;
                 const y_px = element.y / 100 * dimensions.height;
 
-                // HTML要素のサイズを計測して、中央揃えや選択枠の大きさに使用します
+                // テキストを描画するdiv要素の実際のサイズを監視し、選択枠の大きさに反映させます
                 useLayoutEffect(() => {
                     if (divRef.current) {
-                        // スタイルが適用された後にサイズを計測するため、少しだけ待機します
-                        setTimeout(() => {
+                        // スタイルが適用された後にサイズを計測するため、ごくわずかに待機します
+                        const timer = setTimeout(() => {
                             if (divRef.current) {
-                                setSize({
-                                    width: divRef.current.offsetWidth,
-                                    height: divRef.current.offsetHeight
-                                });
+                                // 計測したサイズが現在のサイズと異なるときだけ更新し、不要な再描画ループを防ぎます
+                                if (size.width !== divRef.current.offsetWidth || size.height !== divRef.current.offsetHeight) {
+                                    setSize({
+                                        width: divRef.current.offsetWidth,
+                                        height: divRef.current.offsetHeight
+                                    });
+                                }
                             }
                         }, 0);
+                        return () => clearTimeout(timer);
                     }
-                }, [element.text, element.fontSize, element.fontFamily, element.letterSpacing, element.writingMode, element.textAlign, element.backgroundColor, dimensions]);
+                }, [element.text, element.fontSize, element.fontFamily, element.letterSpacing, element.writingMode, element.textAlign, element.backgroundColor, dimensions, size]);
 
+                // 表示用のHTML要素に適用するCSSスタイル
                 const style = {
                     fontFamily: element.fontFamily,
                     fontSize: `${element.fontSize}px`,
@@ -5425,23 +5430,27 @@ ${JSON.stringify(exampleData10)}
                     lineHeight: 1.2,
                     letterSpacing: `${element.letterSpacing || 0}px`,
                     writingMode: element.writingMode || 'horizontal-tb',
-                    whiteSpace: 'pre-wrap', // 改行と自動折り返しを有効にする
+                    whiteSpace: 'pre', // 改行をそのまま反映し、自動折り返しはしない
                     display: 'inline-block', // サイズ計測のために必要
                     padding: '4px',
                     backgroundColor: (element.backgroundColor && element.backgroundColor !== 'none') ? element.backgroundColor : 'transparent',
                     borderRadius: '2px',
                     cursor: isDirectlySelected && isDragging ? 'grabbing' : 'grab',
+                    // CSS transformで中心に配置
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
                 };
-
-                // foreignObjectの描画開始位置を、divが中心に来るように計算
-                const fo_x = x_px - size.width / 2;
-                const fo_y = y_px - size.height / 2;
 
                 return (
                     <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`}>
-                        <foreignObject x={fo_x} y={fo_y} width={Math.max(1, size.width)} height={Math.max(1, size.height)} style={{ overflow: 'visible', pointerEvents: 'all' }}>
-                            <div xmlns="http://www.w3.org/1999/xhtml" ref={divRef} style={style} onContextMenu={onContextMenu}>
-                                {element.text}
+                        {/* foreignObjectをアンカーポイントとして配置 */}
+                        <foreignObject x={x_px} y={y_px} width="1" height="1" style={{ overflow: 'visible', pointerEvents: 'all' }}>
+                            <div xmlns="http://www.w3.org/1999/xhtml" style={{position: 'relative', width: '1px', height: '1px'}}>
+                                <div ref={divRef} style={style} onContextMenu={onContextMenu}>
+                                    {element.text}
+                                </div>
                             </div>
                         </foreignObject>
 
@@ -5449,7 +5458,7 @@ ${JSON.stringify(exampleData10)}
                         {isDirectlySelected && size.width > 0 && (
                             <>
                                 <rect
-                                    x={fo_x} y={fo_y}
+                                    x={x_px - size.width / 2} y={y_px - size.height / 2}
                                     width={size.width} height={size.height}
                                     fill="none" stroke={SELECTED_ELEMENT_COLOR} strokeWidth={1.5 / zoom}
                                     strokeDasharray={`${4 / zoom}, ${2 / zoom}`}
