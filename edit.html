@@ -5395,7 +5395,7 @@ ${JSON.stringify(exampleData10)}
                 }
             });
 
-            const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
+            const TextRenderer = ({ element, isDirectlySelected, isDragging, onContextMenu }) => {
                 const divRef = useRef(null);
                 const [size, setSize] = useState({ width: 0, height: 0 });
 
