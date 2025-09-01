@@ -4432,7 +4432,7 @@ ${JSON.stringify(exampleData10)}
                 }
                 if (resizingHandleInfo) {
                     const { id, handleIndex, type } = resizingHandleInfo;
-                    const snappedPos = isGridVisible ? getGridSnappedPoint(currentMousePos) : currentMousePos;
+                    const snappedPos = (isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(currentMousePos) : currentMousePos;
                     let newElements = [...historyOnActionStart.current.svgElements];
                     const elementIndex = newElements.findIndex(el => el.id === id);
                     if (elementIndex === -1) return;
