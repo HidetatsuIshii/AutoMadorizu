@@ -1133,7 +1133,7 @@
             }
             
             const text = ["LDK", "DK", "K", "居室", "和室"].includes(spaceType)
-                ? `${spaceType}\n◯.◯帖`
+                ? `${spaceType}\n約◯.◯帖`
                 : spaceType;
 
             const smallFontTypes = ["バルコニー", "トイレ", "浴室", "洗面所", "玄関", "収納", "廊下", ...SPACE_TYPES.sub];
@@ -1585,6 +1585,7 @@
             const dragTarget = useRef(null); // Ref to store the potential drag target
             const textEditAreaRef = useRef(null);
             const prevSelectedIdRef = useRef(null);
+            const isGridSnapStart = useRef(false);
             
             const selectedElement = svgElements.find(el => el.id === selectedId);
 
@@ -1666,7 +1667,7 @@
                             } else if (el.type === 'text') {
                                 // テキストのみ更新
                                 newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
-                                    ? `${updates.spaceType}\n◯.◯帖`
+                                    ? `${updates.spaceType}\n約◯.◯帖`
                                     : updates.spaceType;
                             }
                             // ★★★ 壁(wall)のスタイルはここでは変更しない ★★★
@@ -3870,6 +3871,9 @@ ${JSON.stringify(exampleData10)}
                         const finalStartPoint = snappedInfo
                             ? snappedInfo.point
                             : ((isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(clickPos) : clickPos);
+
+                        const wasWallOrVertexSnap = !!snappedInfo || !!activeSnapWallRef.current;
+                        isGridSnapStart.current = (isGridVisible && !isModifierKeyDown) && !wasWallOrVertexSnap;
             
                         if (drawingMode === 'fixture') {
                             setPendingFixture(finalStartPoint);
@@ -4677,18 +4681,78 @@ ${JSON.stringify(exampleData10)}
                     imageDragInfo.current = null;
                 }
             
-                // 1クリック目以降の、角度や反転などを確定させるためのクリック操作かどうかを判定します
                 const isFinalizingClick =
                     pendingFixture ||
                     pendingWindow ||
                     (drawingStartPoint && (drawingMode === 'door' || drawingMode === 'window' || drawingMode === 'compass'));
             
-                // 確定クリックの場合、または通常のクリック（キャンバス内でマウスダウンされている）の場合に処理を実行します
                 if (isFinalizingClick || mouseDownInfo.current) {
                     if (!isDragging && !resizingHandleInfo && !wasDraggingImage) {
-                        handleCanvasClick(e);
+                        // ▼▼▼ ここからが変更箇所です ▼▼▼
+                        // handleCanvasClick(e) の代わりに、描画完了のロジックをここに直接記述します。
+                        
+                        // 2クリック描画（線や四角形など）が開始されている場合
+                        if (drawingStartPoint) {
+                            const endPoint = getCanvasCoords(e);
+                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
+                            
+                            // 変更対象の変数を準備
+                            let startForCreate = { ...drawingStartPoint };
+                            let endForCreate = { ...finalEndPoint };
+            
+                            // 終了点がグリッドスナップされたかを判定
+                            const endPointWasGridSnapped = !snappedInfo && isGridVisible && !isModifierKeyDown;
+                            
+                            // ドアまたは窓の描画が、グリッドスナップで開始され、かつグリッドスナップで終了した場合のみ座標を補正
+                            const needsAdjustment = 
+                                (drawingMode === 'door' || drawingMode === 'window') &&
+                                isGridSnapStart.current &&
+                                endPointWasGridSnapped;
+                            
+                            if (needsAdjustment) {
+                                const halfGrid = gridSize / 2;
+            
+                                if (startForCreate.x < endForCreate.x) {
+                                    startForCreate.x += halfGrid;
+                                    endForCreate.x -= halfGrid;
+                                } else if (startForCreate.x > endForCreate.x) {
+                                    startForCreate.x -= halfGrid;
+                                    endForCreate.x += halfGrid;
+                                }
+            
+                                if (startForCreate.y < endForCreate.y) {
+                                    startForCreate.y += halfGrid;
+                                    endForCreate.y -= halfGrid;
+                                } else if (startForCreate.y > endForCreate.y) {
+                                    startForCreate.y -= halfGrid;
+                                    endForCreate.y += halfGrid;
+                                }
+                            }
+            
+                            // 空間（四角形）の場合の処理
+                            if (drawingMode === 'space' && spaceShape === 'rect') {
+                                const x1 = Math.min(startForCreate.x, endForCreate.x);
+                                const y1 = Math.min(startForCreate.y, endForCreate.y);
+                                const x2 = Math.max(startForCreate.x, endForCreate.x);
+                                const y2 = Math.max(startForCreate.y, endForCreate.y);
+                                const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
+                                createPolygonSpace(rectPoints);
+                            } else {
+                                // その他の2クリック描画
+                                createItem(startForCreate, endForCreate);
+                            }
+                            
+                            setDrawingStartPoint(null);
+                            setSnappedInfo(null);
+                            isGridSnapStart.current = false; // 記録をリセット
+            
+                        } else {
+                             // 1クリック描画や、多角形描画の途中クリックなどの場合は、従来通りhandleCanvasClickを呼ぶ
+                            handleCanvasClick(e);
+                        }
+                        // ▲▲▲ 変更箇所はここまでです ▲▲▲
                     } else {
-                        // ドラッグ終了時の処理（既存のロジックを維持）
+                        // ドラッグ終了時の処理（ここは変更なし）
                         const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
                         if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
                             setHistoryState(prevState => {
@@ -4711,7 +4775,7 @@ ${JSON.stringify(exampleData10)}
                     }
                 }
             
-                // 各種状態をリセット
+                // 各種状態をリセット（ここは変更なし）
                 setIsDragging(false);
                 setResizingHandleInfo(null);
                 dragTarget.current = null;
@@ -5160,6 +5224,7 @@ ${JSON.stringify(exampleData10)}
                 setPendingFixture(null);
                 setGuideLines([]);
                 activeSnapWallRef.current = null;
+                isGridSnapStart.current = false;
             }, [editorMode, drawingMode, spaceShape]);
 
             useEffect(() => {
