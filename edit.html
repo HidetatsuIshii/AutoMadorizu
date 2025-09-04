@@ -5424,54 +5424,47 @@ ${JSON.stringify(exampleData10)}
                 }
             });
 
-            const TextRenderer = ({ element, isDirectlySelected, isDragging, onContextMenu }) => {
+            const TextRenderer = ({ element, isDirectlySelected, isDragging, onContextMenu, dimensions, zoom }) => {
                 const textRef = useRef(null);
                 const [bbox, setBbox] = useState(null);
-                // 描画する行を保持するためのstate
                 const [lines, setLines] = useState([]);
             
-                // elementのプロパティが変更されたら、描画する行を再計算する
                 useLayoutEffect(() => {
                     if (!textRef.current) return;
             
-                    // 幅が指定されていて、テキストが存在する場合のみ自動折り返し処理を実行
-                    if (element.width && element.text) {
-                        // SVG要素を直接操作して、描画前にテキストの長さを測定
+                    // 幅が指定されていて、横書きの場合のみ自動折り返しを実行
+                    if (element.width && element.text && element.writingMode !== 'vertical') {
                         const tempTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                        // スタイルを適用しないと正確な幅が測れないので、一時的に非表示で追加
-                        tempTspan.style.visibility = 'hidden';
                         textRef.current.appendChild(tempTspan);
             
-                        const words = element.text.split(/\s+/); // 半角スペースや改行で単語に分割
+                        const words = element.text.split(/\s+/);
                         const newLines = [];
                         let currentLine = '';
             
                         words.forEach(word => {
-                            // 1単語ずつ追加して、指定幅を超えるかチェック
-                            tempTspan.textContent = currentLine ? `${currentLine} ${word}` : word;
+                            const testLine = currentLine ? `${currentLine} ${word}` : word;
+                            tempTspan.textContent = testLine;
                             if (tempTspan.getComputedTextLength() > element.width && currentLine !== '') {
-                                newLines.push(currentLine); // 幅を超えたら、その前の行を確定
-                                currentLine = word;         // 新しい行を現在の単語から開始
+                                newLines.push(currentLine);
+                                currentLine = word;
                             } else {
-                                currentLine = tempTspan.textContent; // 超えなければ行に単語を追加
+                                currentLine = testLine;
                             }
                         });
-                        newLines.push(currentLine); // 最後の行を追加
+                        if (currentLine) newLines.push(currentLine);
             
-                        textRef.current.removeChild(tempTspan); // 測定用のtspanを削除
-                        setLines(newLines); // 計算した行でstateを更新
+                        textRef.current.removeChild(tempTspan);
+                        setLines(newLines);
                     } else {
-                        // 幅が指定されていない場合は、改行コード(\n)のみで分割
                         setLines(element.text ? element.text.split('\n') : []);
                     }
                 }, [element.text, element.width, element.fontSize, element.fontFamily, element.writingMode]);
                 
-                // 描画される行が決まった後で、選択範囲の大きさを計算する
                 useLayoutEffect(() => {
                     if (textRef.current) {
                         setBbox(textRef.current.getBBox());
                     }
-                }, [lines, element.rotation, element.x, element.y]); // linesが変更されたら再計算
+                }, [lines, element.rotation, element.x, element.y, element.textAlign]);
             
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
@@ -5488,7 +5481,7 @@ ${JSON.stringify(exampleData10)}
                 };
             
                 return (
-                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`} onContextMenu={handleContextMenu}>
+                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`} onContextMenu={onContextMenu}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
                             <rect
                                 x={bbox.x - 4} y={bbox.y - 4}
@@ -5500,8 +5493,8 @@ ${JSON.stringify(exampleData10)}
                         )}
                         <text
                             ref={textRef}
-                            x={`${element.x}%`}
-                            y={`${element.y}%`}
+                            x={x_px}
+                            y={y_px}
                             fill={element.color}
                             fontSize={element.fontSize}
                             fontFamily={element.fontFamily}
@@ -5509,18 +5502,17 @@ ${JSON.stringify(exampleData10)}
                             textAnchor={textAnchor}
                             dominantBaseline="central"
                         >
-                            {/* 計算済みのlines配列を元にtspanを生成 */}
                             {lines.map((line, i) => {
                                 const isVertical = element.writingMode === 'vertical';
                                 return (
                                     <tspan
                                         key={i}
-                                        x={!isVertical || i === 0 ? `${element.x}%` : undefined}
-                                        y={isVertical && i > 0 ? `${element.y}%` : undefined}
-                                        dx={isVertical && i > 0 ? '-1.2em' : undefined}
+                                        x={!isVertical || i === 0 ? x_px : undefined}
+                                        y={isVertical && i > 0 ? y_px : undefined}
+                                        dx={isVertical && i > 0 ? `-${i * 1.2}em` : undefined}
                                         dy={!isVertical && i > 0 ? '1.2em' : undefined}
                                     >
-                                        {line}
+                                        {line || ' '}
                                     </tspan>
                                 );
                             })}
@@ -5551,10 +5543,6 @@ ${JSON.stringify(exampleData10)}
                     </g>
                 );
             };
-            
-            // 最後に、Editorコンポーネント内の<TextRenderer>を呼び出している箇所も修正します。
-            // onContextMenu={handleContextMenu} を渡すようにしてください。
-            return <TextRenderer key={el.id} element={el} isDirectlySelected={isDirectlySelected} isDragging={isDragging} onContextMenu={handleContextMenu} />;
 
             // 背景パターンを描画するためのコンポーネント
             const BackgroundRenderer = ({ element }) => {
