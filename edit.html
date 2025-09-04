@@ -6398,7 +6398,17 @@ ${JSON.stringify(exampleData10)}
                                                 return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} onContextMenu={handleContextMenu} />;
                                             }
                                             if (el.type === 'text') {
-                                                return <TextRenderer key={el.id} element={el} isDirectlySelected={isDirectlySelected} isDragging={isDragging} onContextMenu={handleContextMenu} />;
+                                                return (
+                                                    <TextRenderer 
+                                                        key={el.id} 
+                                                        element={el} 
+                                                        isDirectlySelected={isDirectlySelected} 
+                                                        isDragging={isDragging} 
+                                                        onContextMenu={handleContextMenu}
+                                                        dimensions={dimensions}
+                                                        zoom={zoom}
+                                                    />
+                                                );
                                             }
                                             if (el.type === 'compass') {
                                                 const cx = el.x / 100 * dimensions.width;
