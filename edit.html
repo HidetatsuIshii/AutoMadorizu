@@ -4756,6 +4756,35 @@ ${JSON.stringify(exampleData10)}
                 setSelectedId(null);
             }, [selectedId, svgElements]);
 
+            const handleUngroupWall = useCallback(() => {
+                if (!selectedId) return;
+                const wallToUngroup = svgElements.find(el => el.id === selectedId);
+                // グループに属していない壁の場合は何もしない
+                if (!wallToUngroup || !wallToUngroup.groupId) return;
+            
+                setHistoryState(prevState => {
+                    const newSvgElements = prevState.present.svgElements.map(el => {
+                        if (el.id === selectedId) {
+                            // groupIdとedgeIndexを削除して、独立した壁オブジェクトを返す
+                            const { groupId, edgeIndex, ...independentWall } = el;
+                            return independentWall;
+                        }
+                        return el;
+                    });
+            
+                    // 変更を履歴に保存
+                    return {
+                        past: [...prevState.past, prevState.present],
+                        present: { ...prevState.present, svgElements: newSvgElements },
+                        future: []
+                    };
+                });
+            
+                // 処理後に選択を解除
+                setSelectedId(null);
+            
+            }, [selectedId, svgElements]);
+
             const handleStairDirectionChange = (newDirection) => {
                 if (!selectedElement) return;
                 const groupId = selectedElement.groupId || selectedElement.id;
@@ -7459,42 +7488,31 @@ ${JSON.stringify(exampleData10)}
                                                 
                                                 {/* ▼▼▼ 壁が選択された時の編集パネル ▼▼▼ */}
                                                 {selectedElement?.type === 'wall' && (() => {
-                                                    // 壁が空間に属しているか（groupIdがあるか）で親のspace要素を探す
                                                     const parentSpace = selectedElement.groupId 
                                                         ? svgElements.find(el => el.id === selectedElement.groupId) 
                                                         : null;
                                                 
                                                     const isGroupedWall = !!parentSpace;
-                                                    // スタイルの参照元を決定（グループ化されていれば親space、独立していれば壁自身）
                                                     const styleSource = isGroupedWall ? parentSpace : selectedElement;
-                                                    
-                                                    // 更新に使う関数を決定
                                                     const updateFunction = isGroupedWall ? handleSelectedGroupUpdate : handleSelectedElementUpdate;
                                                     
                                                     const title = isGroupedWall ? "空間の壁を編集" : "壁を編集";
                                                     const subTitle = isGroupedWall ? "（同じ空間の壁に適用されます）" : "";
-                                                
-                                                    // --- ▼▼▼ ここからが重要な修正点 ▼▼▼ ---
-                                                    // 各スタイルプロパティが存在しない場合に備えて、デフォルト値を設定する
-                                                    // これにより value が undefined になることを防ぐ
+                                                    
                                                     const currentLineStyle = styleSource.lineStyle || 'solid';
                                                     const currentStrokeWidth = styleSource.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                    // 独立した古い壁は 'color' プロパティを持っている可能性があるため、それも考慮
                                                     const currentStroke = styleSource.stroke || styleSource.color || DEFAULT_STROKE_COLOR;
-                                                    // --- ▲▲▲ ここまでが重要な修正点 ▲▲▲ ---
                                                 
                                                     return (
                                                         <div className="mt-4 space-y-4">
                                                             <h3 className="text-md font-semibold mb-2">{title}</h3>
                                                             {subTitle && <p className="text-xs text-gray-500 -mt-2">{subTitle}</p>}
                                                             
-                                                            {/* 線の種類 */}
                                                             <LineStyleSelector
                                                                 selectedStyle={currentLineStyle}
                                                                 onChange={(value) => updateFunction({ lineStyle: value })}
                                                             />
-                                                
-                                                            {/* 線の太さ */}
+                                                            
                                                             <div>
                                                                 <label className="block text-sm font-medium text-gray-700">線の太さ: {currentStrokeWidth}px</label>
                                                                 <div className="flex items-center space-x-2 mt-1">
@@ -7512,8 +7530,7 @@ ${JSON.stringify(exampleData10)}
                                                                     />
                                                                 </div>
                                                             </div>
-                                                
-                                                            {/* 線の色 */}
+                                                            
                                                             <div>
                                                                 <label className="block text-sm font-medium text-gray-700">線の色</label>
                                                                 <input
@@ -7521,7 +7538,6 @@ ${JSON.stringify(exampleData10)}
                                                                     value={currentStroke}
                                                                     onChange={(e) => {
                                                                         const newColor = e.target.value;
-                                                                        // 独立した壁(color)と空間の壁(stroke)の両方に対応できるよう更新
                                                                         updateFunction({ stroke: newColor, color: newColor });
                                                                     }}
                                                                     onFocus={() => setIsPickingColor(true)}
@@ -7530,11 +7546,24 @@ ${JSON.stringify(exampleData10)}
                                                                 />
                                                             </div>
                                                             
-                                                            <div className="mt-6">
-                                                                <button onClick={deleteSelectedElement} className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">
-                                                                    {isGroupedWall ? "この壁を削除 (グループ解除)" : "この壁を削除"}
+                                                            {/* ▼▼▼ この部分が修正の核となります ▼▼▼ */}
+                                                            <div className="mt-6 space-y-2">
+                                                                {isGroupedWall && (
+                                                                    <button 
+                                                                        onClick={handleUngroupWall} 
+                                                                        className="w-full px-4 py-2 rounded bg-orange-500 text-white hover:bg-orange-600"
+                                                                    >
+                                                                        グループ解除
+                                                                    </button>
+                                                                )}
+                                                                <button 
+                                                                    onClick={() => deleteSelectedElement(selectedId)} 
+                                                                    className="w-full px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+                                                                >
+                                                                    この壁を削除
                                                                 </button>
                                                             </div>
+                                                            {/* ▲▲▲ 修正箇所ここまで ▲▲▲ */}
                                                         </div>
                                                     );
                                                 })()}
