@@ -4544,6 +4544,17 @@ ${JSON.stringify(exampleData10)}
             ]);
 
             const handleMouseUp = (e) => {
+                // サイドバー内でのクリックだった場合は、フォーカス解除処理を行わずに終了する
+                if (sidebarRef.current && sidebarRef.current.contains(e.target)) {
+                    // ドラッグ状態などはリセットしておく
+                    setIsDragging(false);
+                    setResizingHandleInfo(null);
+                    dragTarget.current = null;
+                    dragInfo.current = null;
+                    historyOnActionStart.current = null;
+                    mouseDownInfo.current = null;
+                    return; // ここで処理を中断
+                }
                 if (contextMenuRef.current && contextMenuRef.current.contains(e.target)) {
                     return;
                 }
