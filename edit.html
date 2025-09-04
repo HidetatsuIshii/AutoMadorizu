@@ -3701,210 +3701,122 @@ ${JSON.stringify(exampleData10)}
                             setEditorMode('edit');
                         }
                         return;
-                    } else if (drawingMode === 'window' || drawingMode === 'door') {
-                        const allWallSegments = [];
-                        svgElements.forEach(el => {
-                            if (el.type === 'wall') {
-                                allWallSegments.push({ ...el, p1: { x: el.x1, y: el.y1 }, p2: { x: el.x2, y: el.y2 } });
-                            } else if (el.type === 'space') {
-                                const points = el.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])}));
-                                for (let i = 0; i < points.length; i++) {
-                                    const p1 = points[i];
-                                    const p2 = points[(i + 1) % points.length];
-                                    allWallSegments.push({ ...el, p1, p2 });
-                                }
-                            }
-                        });
-                        if (drawingStartPoint) {
-                            // ▼▼▼ ここからがドア・窓の描画完了（2クリック目）のロジックです ▼▼▼
-                            const endPoint = getCanvasCoords(e);
-                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
-                            
-                            let startForCreate = { ...drawingStartPoint };
-                            let endForCreate = { ...finalEndPoint };
-            
-                            const endPointWasGridSnapped = !snappedInfo && isGridVisible && !isModifierKeyDown;
-                            
-                            // ドアまたは窓の描画が、グリッドスナップで開始・終了した場合のみ座標を補正
-                            const needsAdjustment = 
-                                (drawingMode === 'door' || drawingMode === 'window') &&
-                                isGridSnapStart.current &&
-                                endPointWasGridSnapped;
-                            
-                            if (needsAdjustment) {
-                                const halfGrid = gridSize / 2;
-                                const strokeOffset = 0.5; // 枠線の太さを考慮した微調整値 (通常1pxなのでその半分)
-            
-                                // X座標を補正
-                                const minX = Math.min(startForCreate.x, endForCreate.x);
-                                const maxX = Math.max(startForCreate.x, endForCreate.x);
-                                // 内側のグリッド線に合わせる
-                                const newMinX = Math.ceil(minX / gridSize) * gridSize + strokeOffset;
-                                const newMaxX = Math.floor(maxX / gridSize) * gridSize - strokeOffset;
-            
-                                if (startForCreate.x < endForCreate.x) {
-                                    startForCreate.x = newMinX;
-                                    endForCreate.x = newMaxX;
-                                } else {
-                                    startForCreate.x = newMaxX;
-                                    endForCreate.x = newMinX;
-                                }
-            
-                                // Y座標を補正
-                                const minY = Math.min(startForCreate.y, endForCreate.y);
-                                const maxY = Math.max(startForCreate.y, endForCreate.y);
-                                const newMinY = Math.ceil(minY / gridSize) * gridSize + strokeOffset;
-                                const newMaxY = Math.floor(maxY / gridSize) * gridSize - strokeOffset;
-            
-                                if (startForCreate.y < endForCreate.y) {
-                                    startForCreate.y = newMinY;
-                                    endForCreate.y = newMaxY;
-                                } else {
-                                    startForCreate.y = newMaxY;
-                                    endForCreate.y = newMinY;
-                                }
-                            }
-            
-                            setPendingWindow({ start: startForCreate, end: endForCreate });
-                            setDrawingStartPoint(null);
-                            setSnappedInfo(null);
-                            isGridSnapStart.current = false; // 記録をリセット
-                            return;
-                            // ▲▲▲ 変更箇所はここまでです ▲▲▲
-                        } else {
-                            let startPoint = null;
-                            let snappedWall = null;
-            
-                            if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
-                                let tempClosestPoint = null;
-                                let minDistanceSq = Infinity;
-                                let closestSegment = null;
-            
-                                for (const segment of allWallSegments) {
-                                    const {p1, p2} = segment;
-                                    const dx = p2.x - p1.x;
-                                    const dy = p2.y - p1.y;
-                                    if (dx === 0 && dy === 0) continue;
-                                    const t = ((clickPos.x - p1.x) * dx + (clickPos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                    const clampedT = Math.max(0, Math.min(1, t));
-                                    const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                    const distSq = (clickPos.x - pointOnLine.x) ** 2 + (clickPos.y - pointOnLine.y) ** 2;
-            
-                                    if (distSq < minDistanceSq) {
-                                        minDistanceSq = distSq;
-                                        tempClosestPoint = pointOnLine;
-                                        closestSegment = segment;
-                                    }
-                                }
-            
-                                if (minDistanceSq < (SNAP_THRESHOLD / zoom) ** 2) {
-                                    startPoint = tempClosestPoint;
-                                    snappedWall = closestSegment;
-                                } else {
-                                    return; 
-                                }
-                            } else {
-                                startPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
-                            }
-            
-                            if (startPoint) {
-                                setDrawingStartPoint(startPoint);
-                                if (snappedWall) {
-                                    activeSnapWallRef.current = {
-                                        x1: snappedWall.p1.x,
-                                        y1: snappedWall.p1.y,
-                                        x2: snappedWall.p2.x,
-                                        y2: snappedWall.p2.y,
-                                        strokeWidth: snappedWall.strokeWidth // ドア/窓の厚み計算のために必要
-                                    };
-                                }
-                                setSnappedInfo(null);
-                            }
-                            return;
-                        }
                     }
                     
                     if ((drawingMode === 'space' && spaceShape === 'line') || drawingMode === 'stairs') {
-                        const clickPos = getCanvasCoords(e);
-                        const clickedPoint = mousePos;
-
-                        // [修正点] 描画終了判定を先に行う
-                        if (linePoints.length > 1) { // 始点と折れ点が最低1つないと終了できない
-                            const lastPoint = linePoints[linePoints.length - 1];
-                            const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
-
-                            // 最後の点を再度クリックした場合
-                            if (distToLast < SNAP_THRESHOLD / zoom) {
-                                if (drawingMode === 'stairs') {
-                                    createStairs(linePoints); // 現在の点で階段を作成
-                                } else { // スペース描画は終了（閉じない）
-                                    createPolygonSpace(linePoints);
-                                }
-                                setLinePoints([]);
-                                setSnappedInfo(null);
-                                return; // 処理を終了
-                            }
-
-                            // スペース描画時に始点をクリックした場合
-                            if (drawingMode === 'space' && spaceShape === 'line') {
-                                const firstPoint = linePoints[0];
-                                const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
-                                if (distToStart < SNAP_THRESHOLD / zoom) {
-                                    createPolygonSpace([...linePoints, firstPoint]);
-                                    setLinePoints([]);
-                                    setSnappedInfo(null);
-                                    return;
-                                }
-                            }
-                        }
-
-                        // 階段モードで壁スナッププレビューが表示されている場合
-                        if (drawingMode === 'stairs' && stairSnapPreview && linePoints.length === 0) {
-                            setLinePoints([stairSnapPreview.center]); // プレビュー位置を始点として追加
-                            setStairSnapPreview(null);
-                            return;
-                        }
-
-                        // [修正点] 終了条件に合致しない場合は、点を追加する
-                        setLinePoints(prev => [...prev, clickedPoint]);
-                        setSnappedInfo(null);
-                        return;
-                    }
+                        const clickedPoint = mousePos;
             
+                        if (linePoints.length > 1) { 
+                            const lastPoint = linePoints[linePoints.length - 1];
+                            const distToLast = Math.sqrt(Math.pow(clickPos.x - lastPoint.x, 2) + Math.pow(clickPos.y - lastPoint.y, 2));
+            
+                            if (distToLast < SNAP_THRESHOLD / zoom) {
+                                if (drawingMode === 'stairs') {
+                                    createStairs(linePoints);
+                                } else { 
+                                    createPolygonSpace(linePoints);
+                                }
+                                setLinePoints([]);
+                                setSnappedInfo(null);
+                                return; 
+                            }
+            
+                            if (drawingMode === 'space' && spaceShape === 'line') {
+                                const firstPoint = linePoints[0];
+                                const distToStart = Math.sqrt(Math.pow(clickPos.x - firstPoint.x, 2) + Math.pow(clickPos.y - firstPoint.y, 2));
+                                if (distToStart < SNAP_THRESHOLD / zoom) {
+                                    createPolygonSpace([...linePoints, firstPoint]);
+                                    setLinePoints([]);
+                                    setSnappedInfo(null);
+                                    return;
+                                }
+                            }
+                        }
+                        if (drawingMode === 'stairs' && stairSnapPreview && linePoints.length === 0) {
+                            setLinePoints([stairSnapPreview.center]);
+                            setStairSnapPreview(null);
+                            return;
+                        }
+                        setLinePoints(prev => [...prev, clickedPoint]);
+                        setSnappedInfo(null);
+                        return;
+                    }
+                    
                     if (drawingStartPoint) {
                         const endPoint = getCanvasCoords(e);
-                        const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
-                        
-                        if (drawingMode === 'space' && spaceShape === 'rect') {
-                            const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
-                            const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
-                            const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
-                            const y2 = Math.max(drawingStartPoint.y, finalEndPoint.y);
+                        let finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
+                        let finalStartPoint = { ...drawingStartPoint };
+            
+                        // ▼▼▼ ドアと窓の座標補正ロジックをここに集約 ▼▼▼
+                        if (drawingMode === 'door' || drawingMode === 'window') {
+                            const endPointWasGridSnapped = !snappedInfo && isGridVisible && !isModifierKeyDown;
+                            const needsAdjustment = isGridSnapStart.current && endPointWasGridSnapped;
+                            
+                            if (needsAdjustment) {
+                                const halfGrid = gridSize / 2;
+                                // オフセット値を1pxにすることで、枠線(stroke)がグリッド線の内側に収まるようにします
+                                const strokeOffset = 1; 
+            
+                                // X座標を補正
+                                const minX = Math.min(finalStartPoint.x, finalEndPoint.x);
+                                const maxX = Math.max(finalStartPoint.x, finalEndPoint.x);
+                                const newMinX = Math.ceil(minX / gridSize) * gridSize + strokeOffset;
+                                const newMaxX = Math.floor(maxX / gridSize) * gridSize - strokeOffset;
+            
+                                if (finalStartPoint.x < finalEndPoint.x) {
+                                    finalStartPoint.x = newMinX;
+                                    finalEndPoint.x = newMaxX;
+                                } else {
+                                    finalStartPoint.x = newMaxX;
+                                    finalEndPoint.x = newMinX;
+                                }
+            
+                                // Y座標を補正
+                                const minY = Math.min(finalStartPoint.y, finalEndPoint.y);
+                                const maxY = Math.max(finalStartPoint.y, finalEndPoint.y);
+                                const newMinY = Math.ceil(minY / gridSize) * gridSize + strokeOffset;
+                                const newMaxY = Math.floor(maxY / gridSize) * gridSize - strokeOffset;
+            
+                                if (finalStartPoint.y < finalEndPoint.y) {
+                                    finalStartPoint.y = newMinY;
+                                    finalEndPoint.y = newMaxY;
+                                } else {
+                                    finalStartPoint.y = newMaxY;
+                                    finalEndPoint.y = newMinY;
+                                }
+                            }
+                            setPendingWindow({ start: finalStartPoint, end: finalEndPoint });
+                        } 
+                        // ▲▲▲ 補正ロジックここまで ▲▲▲
+                        else if (drawingMode === 'space' && spaceShape === 'rect') {
+                            const x1 = Math.min(finalStartPoint.x, finalEndPoint.x);
+                            const y1 = Math.min(finalStartPoint.y, finalEndPoint.y);
+                            const x2 = Math.max(finalStartPoint.x, finalEndPoint.x);
+                            const y2 = Math.max(finalStartPoint.y, finalEndPoint.y);
                             const rectPoints = [{x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}];
                             createPolygonSpace(rectPoints);
                         } else {
-                            createItem(drawingStartPoint, finalEndPoint);
+                            createItem(finalStartPoint, finalEndPoint);
                         }
                         
                         setDrawingStartPoint(null);
                         setSnappedInfo(null);
+                        isGridSnapStart.current = false;
                         return;
                     }
-            
-                    if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect')) {
+                    
+                    if (drawingMode === 'text' || drawingMode === 'compass' || drawingMode === 'fixture' || drawingMode === 'wall' || (drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'door' || drawingMode === 'window') {
                         const finalStartPoint = snappedInfo
                             ? snappedInfo.point
                             : ((isGridVisible && !isModifierKeyDown) ? getGridSnappedPoint(clickPos) : clickPos);
-
-                        const wasWallOrVertexSnap = !!snappedInfo || !!activeSnapWallRef.current;
-                        isGridSnapStart.current = (isGridVisible && !isModifierKeyDown) && !wasWallOrVertexSnap;
             
+                        const wasWallSnap = !!(snappedInfo && snappedInfo.type !== 'grid');
+                        isGridSnapStart.current = (isGridVisible && !isModifierKeyDown) && !wasWallSnap;
+                        
                         if (drawingMode === 'fixture') {
                             setPendingFixture(finalStartPoint);
-                        } else if ((drawingMode === 'space' && spaceShape === 'rect') || drawingMode === 'wall' || drawingMode === 'compass') {
-                            setDrawingStartPoint(finalStartPoint);
                         } else {
-                            createItem(finalStartPoint);
+                            setDrawingStartPoint(finalStartPoint);
                         }
                         setSnappedInfo(null);
                     }
@@ -3916,7 +3828,7 @@ ${JSON.stringify(exampleData10)}
                 fillColor, lineStyle, compassTemplateId, doorTemplateId, windowTemplateId, zoom,
                 backgroundPattern, createPolygonSpace, createItem, createStairs,
                 isSnapToWall, snappedInfo, fixtureRotation, fixtureFlip, isModifierKeyDown, finishDrawing,
-                stairSnapPreview, mousePos // 依存配列に追加
+                stairSnapPreview, mousePos
             ]);
 
             const createPolygonSpace = useCallback((points) => {
