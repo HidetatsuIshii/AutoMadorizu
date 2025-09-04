@@ -4559,45 +4559,28 @@ ${JSON.stringify(exampleData10)}
                         const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
                         
                         if (drawingMode === 'door' || drawingMode === 'window') {
-                            let startForCreate = { ...drawingStartPoint };
-                            let endForCreate = { ...finalEndPoint };
-            
-                            const endPointWasGridSnapped = !snappedInfo && isGridVisible && !isModifierKeyDown;
-                            const needsAdjustment = isGridSnapStart.current && endPointWasGridSnapped;
-                            
-                            if (needsAdjustment) {
-                                const halfGrid = gridSize / 2;
-                                // グリッドの内側に描画するためのオフセット量
-                                const strokeOffset = 100;
-            
-                                const minX = Math.min(startForCreate.x, endForCreate.x);
-                                const maxX = Math.max(startForCreate.x, endForCreate.x);
-                                const newMinX = Math.ceil(minX / gridSize) * gridSize + strokeOffset;
-                                const newMaxX = Math.floor(maxX / gridSize) * gridSize - strokeOffset;
-            
-                                if (startForCreate.x < endForCreate.x) {
-                                    startForCreate.x = newMinX;
-                                    endForCreate.x = newMaxX;
-                                } else {
-                                    startForCreate.x = newMaxX;
-                                    endForCreate.x = newMinX;
-                                }
-            
-                                const minY = Math.min(startForCreate.y, endForCreate.y);
-                                const maxY = Math.max(startForCreate.y, endForCreate.y);
-                                const newMinY = Math.ceil(minY / gridSize) * gridSize + strokeOffset;
-                                const newMaxY = Math.floor(maxY / gridSize) * gridSize - strokeOffset;
-            
-                                if (startForCreate.y < endForCreate.y) {
-                                    startForCreate.y = newMinY;
-                                    endForCreate.y = newMaxY;
-                                } else {
-                                    startForCreate.y = newMaxY;
-                                    endForCreate.y = newMinY;
-                                }
+                            let startForCreate = { ...drawingStartPoint };
+                            let endForCreate = { ...finalEndPoint };
+
+                            // 常に描画サイズを少し内側に縮めることで、壁へのはみ出しを防ぎます。
+                            const inset = 2.0; // 内側へのオフセット量(px)。この値を調整してください。
+                            const dx = endForCreate.x - startForCreate.x;
+                            const dy = endForCreate.y - startForCreate.y;
+                            const length = Math.sqrt(dx * dx + dy * dy);
+
+                            // 長さがオフセット量x2より大きい場合のみ縮小処理を行う
+                            if (length > inset * 2) {
+                                const unitX = dx / length;
+                                const unitY = dy / length;
+
+                                startForCreate.x += unitX * inset;
+                                startForCreate.y += unitY * inset;
+                                endForCreate.x -= unitX * inset;
+                                endForCreate.y -= unitY * inset;
                             }
-                            setPendingWindow({ start: startForCreate, end: endForCreate });
-                        } else if (drawingMode === 'space' && spaceShape === 'rect') {
+
+                            setPendingWindow({ start: startForCreate, end: endForCreate });
+                        } else if (drawingMode === 'space' && spaceShape === 'rect') {
                             const x1 = Math.min(drawingStartPoint.x, finalEndPoint.x);
                             const y1 = Math.min(drawingStartPoint.y, finalEndPoint.y);
                             const x2 = Math.max(drawingStartPoint.x, finalEndPoint.x);
