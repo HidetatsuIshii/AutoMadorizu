@@ -3716,37 +3716,61 @@ ${JSON.stringify(exampleData10)}
                             }
                         });
                         if (drawingStartPoint) {
-                            let clickedEndPoint;
-                            // 1. プレビューで表示されていたスナップ情報があれば、それを最優先で採用
-                            if (snappedInfo && snappedInfo.point) {
-                                clickedEndPoint = snappedInfo.point;
+                            // ▼▼▼ ここからがドア・窓の描画完了（2クリック目）のロジックです ▼▼▼
+                            const endPoint = getCanvasCoords(e);
+                            const finalEndPoint = snappedInfo ? snappedInfo.point : (isGridVisible && !isModifierKeyDown ? getGridSnappedPoint(endPoint) : endPoint);
                             
-                            // 2. スナップ情報がなく、壁スナップが有効な場合は壁の「辺」にスナップ (既存のロジック)
-                            } else if (isSnapToWall && !isModifierKeyDown && allWallSegments.length > 0) {
-                                let tempClosestPoint = null;
-                                let minDistanceSq = Infinity;
-                                for (const segment of allWallSegments) {
-                                    const {p1, p2} = segment;
-                                    const dx = p2.x - p1.x;
-                                    const dy = p2.y - p1.y;
-                                    if (dx === 0 && dy === 0) continue;
-                                    const t = ((clickPos.x - p1.x) * dx + (clickPos.y - p1.y) * dy) / (dx * dx + dy * dy);
-                                    const clampedT = Math.max(0, Math.min(1, t));
-                                    const pointOnLine = { x: p1.x + clampedT * dx, y: p1.y + clampedT * dy };
-                                    const distSq = (clickPos.x - pointOnLine.x) ** 2 + (clickPos.y - pointOnLine.y) ** 2;
-                                    if (distSq < minDistanceSq) {
-                                        minDistanceSq = distSq;
-                                        tempClosestPoint = pointOnLine;
-                                    }
+                            let startForCreate = { ...drawingStartPoint };
+                            let endForCreate = { ...finalEndPoint };
+            
+                            const endPointWasGridSnapped = !snappedInfo && isGridVisible && !isModifierKeyDown;
+                            
+                            // ドアまたは窓の描画が、グリッドスナップで開始・終了した場合のみ座標を補正
+                            const needsAdjustment = 
+                                (drawingMode === 'door' || drawingMode === 'window') &&
+                                isGridSnapStart.current &&
+                                endPointWasGridSnapped;
+                            
+                            if (needsAdjustment) {
+                                const halfGrid = gridSize / 2;
+                                const strokeOffset = 0.5; // 枠線の太さを考慮した微調整値 (通常1pxなのでその半分)
+            
+                                // X座標を補正
+                                const minX = Math.min(startForCreate.x, endForCreate.x);
+                                const maxX = Math.max(startForCreate.x, endForCreate.x);
+                                // 内側のグリッド線に合わせる
+                                const newMinX = Math.ceil(minX / gridSize) * gridSize + strokeOffset;
+                                const newMaxX = Math.floor(maxX / gridSize) * gridSize - strokeOffset;
+            
+                                if (startForCreate.x < endForCreate.x) {
+                                    startForCreate.x = newMinX;
+                                    endForCreate.x = newMaxX;
+                                } else {
+                                    startForCreate.x = newMaxX;
+                                    endForCreate.x = newMinX;
                                 }
-                                clickedEndPoint = tempClosestPoint;
-                            } else {
-                                clickedEndPoint = isGridVisible ? getGridSnappedPoint(clickPos) : clickPos;
+            
+                                // Y座標を補正
+                                const minY = Math.min(startForCreate.y, endForCreate.y);
+                                const maxY = Math.max(startForCreate.y, endForCreate.y);
+                                const newMinY = Math.ceil(minY / gridSize) * gridSize + strokeOffset;
+                                const newMaxY = Math.floor(maxY / gridSize) * gridSize - strokeOffset;
+            
+                                if (startForCreate.y < endForCreate.y) {
+                                    startForCreate.y = newMinY;
+                                    endForCreate.y = newMaxY;
+                                } else {
+                                    startForCreate.y = newMaxY;
+                                    endForCreate.y = newMinY;
+                                }
                             }
-                            setPendingWindow({ start: drawingStartPoint, end: clickedEndPoint });
+            
+                            setPendingWindow({ start: startForCreate, end: endForCreate });
                             setDrawingStartPoint(null);
                             setSnappedInfo(null);
+                            isGridSnapStart.current = false; // 記録をリセット
                             return;
+                            // ▲▲▲ 変更箇所はここまでです ▲▲▲
                         } else {
                             let startPoint = null;
                             let snappedWall = null;
