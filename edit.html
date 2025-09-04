@@ -5424,47 +5424,17 @@ ${JSON.stringify(exampleData10)}
                 }
             });
 
-            const TextRenderer = ({ element, isDirectlySelected, isDragging, onContextMenu, dimensions, zoom }) => {
+            const TextRenderer = ({ element, isDirectlySelected, isDragging }) => {
                 const textRef = useRef(null);
                 const [bbox, setBbox] = useState(null);
-                const [lines, setLines] = useState([]);
-            
-                useLayoutEffect(() => {
-                    if (!textRef.current) return;
-            
-                    // 幅が指定されていて、横書きの場合のみ自動折り返しを実行
-                    if (element.width && element.text && element.writingMode !== 'vertical') {
-                        const tempTspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                        textRef.current.appendChild(tempTspan);
-            
-                        const words = element.text.split(/\s+/);
-                        const newLines = [];
-                        let currentLine = '';
-            
-                        words.forEach(word => {
-                            const testLine = currentLine ? `${currentLine} ${word}` : word;
-                            tempTspan.textContent = testLine;
-                            if (tempTspan.getComputedTextLength() > element.width && currentLine !== '') {
-                                newLines.push(currentLine);
-                                currentLine = word;
-                            } else {
-                                currentLine = testLine;
-                            }
-                        });
-                        if (currentLine) newLines.push(currentLine);
-            
-                        textRef.current.removeChild(tempTspan);
-                        setLines(newLines);
-                    } else {
-                        setLines(element.text ? element.text.split('\n') : []);
-                    }
-                }, [element.text, element.width, element.fontSize, element.fontFamily, element.writingMode]);
                 
+                // ... (useLayoutEffectや、textAnchor, x_px, y_px などの定義は元のまま)
                 useLayoutEffect(() => {
                     if (textRef.current) {
-                        setBbox(textRef.current.getBBox());
+                        const textBbox = textRef.current.getBBox();
+                        setBbox(textBbox);
                     }
-                }, [lines, element.rotation, element.x, element.y, element.textAlign]);
+                }, [element.text, element.fontSize, element.fontFamily, element.textAlign, element.x, element.y, element.rotation, element.writingMode, element.letterSpacing]); // 依存配列に letterSpacing を追加
             
                 let textAnchor = 'start';
                 if (element.textAlign === 'center') textAnchor = 'middle';
@@ -5481,7 +5451,7 @@ ${JSON.stringify(exampleData10)}
                 };
             
                 return (
-                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`} onContextMenu={onContextMenu}>
+                    <g data-id={element.id} transform={`rotate(${element.rotation || 0} ${x_px} ${y_px})`} onContextMenu={handleContextMenu}>
                         {bbox && element.backgroundColor && element.backgroundColor !== 'none' && (
                             <rect
                                 x={bbox.x - 4} y={bbox.y - 4}
@@ -5493,26 +5463,28 @@ ${JSON.stringify(exampleData10)}
                         )}
                         <text
                             ref={textRef}
-                            x={x_px}
-                            y={y_px}
+                            x={`${element.x}%`}
+                            y={`${element.y}%`}
                             fill={element.color}
                             fontSize={element.fontSize}
                             fontFamily={element.fontFamily}
                             style={textStyle}
                             textAnchor={textAnchor}
                             dominantBaseline="central"
+                            // ▼▼▼ この行を追加 ▼▼▼
+                            letterSpacing={element.letterSpacing} 
                         >
-                            {lines.map((line, i) => {
+                            {element.text.split('\n').map((line, i) => {
                                 const isVertical = element.writingMode === 'vertical';
                                 return (
                                     <tspan
                                         key={i}
-                                        x={!isVertical || i === 0 ? x_px : undefined}
-                                        y={isVertical && i > 0 ? y_px : undefined}
+                                        x={!isVertical || i === 0 ? `${element.x}%` : undefined}
+                                        y={isVertical && i > 0 ? `${element.y}%` : undefined}
                                         dx={isVertical && i > 0 ? `-${i * 1.2}em` : undefined}
                                         dy={!isVertical && i > 0 ? '1.2em' : undefined}
                                     >
-                                        {line || ' '}
+                                        {line}
                                     </tspan>
                                 );
                             })}
@@ -7935,30 +7907,24 @@ ${JSON.stringify(exampleData10)}
 
                                                         <div>
                                                             <label className="block text-sm font-medium text-gray-700">
-                                                                幅 (自動折り返し): {selectedElement.width ? `${selectedElement.width}px` : '自動'}
+                                                                字間: {selectedElement.letterSpacing || 0}px
                                                             </label>
                                                             <div className="flex items-center space-x-2 mt-1">
                                                                 <input
                                                                     type="range"
-                                                                    min="50" // 折り返しの最小幅
-                                                                    max="500" // 折り返しの最大幅
+                                                                    min="-5"    // 字間を詰める
+                                                                    max="20"    // 字間を広げる
                                                                     step="1"
-                                                                    // 幅が設定されていない場合はスライダーを最小値に
-                                                                    value={selectedElement.width || 50} 
-                                                                    onChange={(e) => {
-                                                                        const newWidth = parseInt(e.target.value);
-                                                                        // スライダーが最小値なら幅設定を解除（自動に戻す）
-                                                                        handleSelectedElementUpdate({ width: newWidth <= 50 ? undefined : newWidth });
-                                                                    }}
+                                                                    value={selectedElement.letterSpacing || 0}
+                                                                    onChange={(e) => handleSelectedElementUpdate({ letterSpacing: parseInt(e.target.value) })}
                                                                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                                                 />
-                                                                <button 
-                                                                    onClick={() => handleSelectedElementUpdate({ width: undefined })}
-                                                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300 flex-shrink-0 text-sm"
-                                                                    title="幅の設定を解除して自動幅に戻します"
-                                                                >
-                                                                    自動
-                                                                </button>
+                                                                <input
+                                                                    type="number"
+                                                                    value={selectedElement.letterSpacing || 0}
+                                                                    onChange={(e) => handleSelectedElementUpdate({ letterSpacing: parseInt(e.target.value) || 0 })}
+                                                                    className="w-20 p-1 border border-gray-300 rounded-md text-sm"
+                                                                />
                                                             </div>
                                                         </div>
                                                         
