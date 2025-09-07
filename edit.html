@@ -1388,6 +1388,74 @@
             </div>
         );
 
+        const CustomLineRenderer = ({ id, x1, y1, x2, y2, stroke, strokeWidth, lineStyle, onContextMenu }) => {
+            const style = LINE_STYLES.find(s => s.id === lineStyle);
+        
+            // 実線または二重線の場合は、このコンポーネントでは何も描画しない（元のロジックに任せる）
+            if (!style || !style.dashArray || style.dashArray === 'none' || style.id === 'double') {
+                return null;
+            }
+        
+            // dashArrayが '2, 5' のような文字列なので、数値の配列に変換
+            const pattern = style.dashArray.split(/[\s,]+/).map(Number);
+            if (pattern.length === 0) return null;
+        
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        
+            if (length === 0) return null;
+        
+            const dashes = [];
+            let currentPosition = 0;
+            let patternIndex = 0;
+        
+            while (currentPosition < length) {
+                const dashLength = pattern[patternIndex % pattern.length];
+        
+                // パターンの奇数番目（0から数える）が線分、偶数番目が空白
+                if (patternIndex % 2 === 0) {
+                    // 描画する線分の実際の長さを計算（線の終端を超えないように）
+                    const actualDashLength = Math.min(dashLength, length - currentPosition);
+                    
+                    // 線分の開始位置を計算
+                    const startX = x1 + (currentPosition / length) * dx;
+                    const startY = y1 + (currentPosition / length) * dy;
+        
+                    dashes.push(
+                        <rect
+                            key={`${id}-dash-${dashes.length}`}
+                            x="0"
+                            y={-strokeWidth / 2} // 中心に配置
+                            width={actualDashLength}
+                            height={strokeWidth}
+                            fill={stroke}
+                            transform={`translate(${startX} ${startY}) rotate(${angle})`}
+                        />
+                    );
+                }
+        
+                currentPosition += dashLength;
+                patternIndex++;
+            }
+        
+            return (
+                <g data-id={id} onContextMenu={onContextMenu} style={{ cursor: 'pointer' }}>
+                    {/* 描画されるダッシュ */}
+                    <g style={{ pointerEvents: 'none' }}>
+                        {dashes}
+                    </g>
+                    {/* クリック判定用の透明な線 */}
+                    <line
+                        x1={x1} y1={y1} x2={x2} y2={y2}
+                        stroke="transparent"
+                        strokeWidth={Math.max(strokeWidth, 10)}
+                    />
+                </g>
+            );
+        };
+
         // --- メインエディタコンポーネント ---
         const UploadModal = ({ isOpen, onClose, onSubmit, isLoading, loadingMessage, modalRef }) => {
             if (!isOpen) return null;
@@ -6195,95 +6263,58 @@ ${JSON.stringify(exampleData10)}
                                                 if (el.groupId && el.lineStyle === 'double') {
                                                     return null;
                                                 }
-                                                const isPartOfSpace = !!el.groupId;
-                                                const isWallSelected = selectedId === el.id;
-                                                const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
-                                                const isHighlighted = isWallSelected || isSpaceSelected;
-                                                
-                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
-                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const finalLineStyleId = el.lineStyle || 'solid';
-                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
+                                                const isPartOfSpace = !!el.groupId;
+                                                const isWallSelected = selectedId === el.id;
+                                                const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
+                                                const isHighlighted = isWallSelected || isSpaceSelected;
+                                                
+                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
+                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                const finalLineStyleId = el.lineStyle || 'solid';
+                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
                                             
-                                                // 二重線の描画ロジック
-                                                if (finalLineStyleId === 'double') {
+                                                // 実線または二重線の場合のみ、従来の<line>要素で描画
+                                                if (finalLineStyleId === 'solid' || finalLineStyleId === 'double') {
+                                                    const isDouble = finalLineStyleId === 'double';
+                                                    const singleLineWidth = 1;
+                                                    const innerSpaceWidth = finalStrokeW - (singleLineWidth * 2);
+                                                    const offsetDistance = (finalStrokeW / 2) - (singleLineWidth / 2);
+                                            
                                                     const dx = el.x2 - el.x1;
                                                     const dy = el.y2 - el.y1;
                                                     const len = Math.sqrt(dx * dx + dy * dy);
-                                                    if (len === 0) return null;
-                                                
-                                                    const singleLineWidth = 1; // 枠線1本あたりの太さ（調整可能）
-                                                    // 壁の全幅(finalStrokeW)から2本の枠線幅を引いたものが、中央の白い空間の幅
-                                                    const innerSpaceWidth = finalStrokeW - (singleLineWidth * 2);
-                                                
-                                                    // オフセット距離は、線の中心から各枠線の中心までの距離
-                                                    // (壁の全幅 / 2) - (枠線1本の幅 / 2)
-                                                    const offsetDistance = (finalStrokeW / 2) - (singleLineWidth / 2);
-                                                
-                                                    const offsetX = -dy / len * offsetDistance;
-                                                    const offsetY = dx / len * offsetDistance;
-                                                
+                                                    const offsetX = len > 0 ? -dy / len * offsetDistance : 0;
+                                                    const offsetY = len > 0 ? dx / len * offsetDistance : 0;
+                                            
                                                     return (
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            {/* 1. まず、中央の白い塗りつぶし部分を描画 */}
-                                                            {/* 壁の全幅 (finalStrokeW) - 枠線2本分の幅 + わずかなオーバーラップで隙間対策 */}
-                                                            <line
-                                                                x1={el.x1} y1={el.y1}
-                                                                x2={el.x2} y2={el.y2}
-                                                                stroke="white"
-                                                                strokeWidth={innerSpaceWidth + 2} // 白い部分の幅 + わずかに太くして枠線を越えない範囲で隙間を埋める
-                                                                strokeLinecap="butt" // 角の処理をより正確にする
-                                                                strokeLinejoin="miter" // 線が結合する箇所をマイター結合にする
-                                                                style={{ pointerEvents: 'none' }}
-                                                            />
-                                                            {/* 2. 外側の枠線を描画（交差部分が繋がるように） */}
-                                                            <line
-                                                                x1={el.x1 + offsetX} y1={el.y1 + offsetY}
-                                                                x2={el.x2 + offsetX} y2={el.y2 + offsetY}
-                                                                stroke={finalStroke}
-                                                                strokeWidth={singleLineWidth}
-                                                                strokeLinecap="butt" // 角の処理を正確にする
-                                                                strokeLinejoin="miter" // 線が結合する箇所をマイター結合にする
-                                                                style={{ pointerEvents: 'none' }}
-                                                            />
-                                                            <line
-                                                                x1={el.x1 - offsetX} y1={el.y1 - offsetY}
-                                                                x2={el.x2 - offsetX} y2={el.y2 - offsetY}
-                                                                stroke={finalStroke}
-                                                                strokeWidth={singleLineWidth}
-                                                                strokeLinecap="butt"
-                                                                strokeLinejoin="miter"
-                                                                style={{ pointerEvents: 'none' }}
-                                                            />
-                                                            {/* 3. クリック判定用の透明な太い線（これは元のまま） */}
-                                                            <line
-                                                                x1={el.x1} y1={el.y1}
-                                                                x2={el.x2} y2={el.y2}
-                                                                stroke="transparent"
-                                                                strokeWidth={Math.max(finalStrokeW, 10)}
-                                                            />
+                                                            {isDouble ? (
+                                                                <g style={{ pointerEvents: 'none' }}>
+                                                                    <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="white" strokeWidth={innerSpaceWidth + 2} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                    <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                    <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                </g>
+                                                            ) : (
+                                                                <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
+                                                            )}
+                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
                                                         </g>
                                                     );
+                                                } else {
+                                                    // それ以外の線（点線、破線など）は新しいコンポーネントで描画
+                                                    return (
+                                                        <CustomLineRenderer
+                                                            key={el.id}
+                                                            id={el.id}
+                                                            x1={el.x1} y1={el.y1}
+                                                            x2={el.x2} y2={el.y2}
+                                                            stroke={finalStroke}
+                                                            strokeWidth={finalStrokeW}
+                                                            lineStyle={finalLineStyleId}
+                                                            onContextMenu={handleContextMenu}
+                                                        />
+                                                    );
                                                 }
-                                            
-                                                // 通常の線（実線、破線など）の描画
-                                                return (
-                                                    <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke={finalStroke} 
-                                                            strokeWidth={finalStrokeW} 
-                                                            strokeDasharray={finalStyle?.dashArray} 
-                                                            strokeLinecap="square"
-                                                            style={{ pointerEvents: 'none' }} 
-                                                        />
-                                                        <line 
-                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} 
-                                                            stroke="transparent" 
-                                                            strokeWidth={Math.max(finalStrokeW, 10)} 
-                                                        />
-                                                    </g>
-                                                );
                                             }
                                             if (el.type === 'stairs') {
                                                 return <StairsRenderer key={el.id} element={{...el, color: stroke, strokeWidth: strokeW}} onContextMenu={handleContextMenu} />;
