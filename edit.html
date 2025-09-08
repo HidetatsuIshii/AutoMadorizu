@@ -6349,23 +6349,50 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             }
                                             if (el.type === 'wall') {
-                                                if (el.groupId && el.lineStyle === 'double') {
-                                                    return null;
-                                                }
                                                 const isPartOfSpace = !!el.groupId;
                                                 const isWallSelected = selectedId === el.id;
                                                 const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
                                                 const isHighlighted = isWallSelected || isSpaceSelected;
+                                            
+                                                // ▼▼▼【ここからが変更箇所です】▼▼▼
                                                 
+                                                // 空間に属する壁で、スタイルが二重線の場合の特別処理
+                                                if (el.groupId && el.lineStyle === 'double') {
+                                                    return (
+                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
+                                                            {/* 1. クリックや右クリックのイベントを受け取るための、透明な太い線 */}
+                                                            <line
+                                                                x1={el.x1} y1={el.y1}
+                                                                x2={el.x2} y2={el.y2}
+                                                                stroke="transparent"
+                                                                strokeWidth={Math.max(el.strokeWidth || 0, 10)} // クリックしやすいように最低10pxの幅を確保
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            {/* 2. この壁が「直接」選択された場合のみ、ハイライト線を描画 */}
+                                                            {isWallSelected && (
+                                                                <line
+                                                                    x1={el.x1} y1={el.y1}
+                                                                    x2={el.x2} y2={el.y2}
+                                                                    stroke={SELECTED_ELEMENT_COLOR}
+                                                                    strokeWidth={el.strokeWidth}
+                                                                    strokeLinejoin="miter" // 結合部を滑らかにする
+                                                                    style={{ pointerEvents: 'none' }} // ハイライト自体はクリックイベントを拾わない
+                                                                />
+                                                            )}
+                                                        </g>
+                                                    );
+                                                }
+                                                
+                                                // --- 通常の壁（独立した壁や、二重線以外の空間の壁）の描画処理 ---
                                                 const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
                                                 const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
                                                 const finalLineStyleId = el.lineStyle || 'solid';
                                                 const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
                                             
-                                                // 実線または二重線の場合のみ、従来の<line>要素で描画
+                                                // 実線または二重線の場合 (CustomLineRendererを使わない場合)
                                                 if (finalLineStyleId === 'solid' || finalLineStyleId === 'double') {
                                                     const isDouble = finalLineStyleId === 'double';
-                                                    const singleLineWidth = 1;
+                                                    const singleLineWidth = 1.5;
                                                     const innerSpaceWidth = finalStrokeW - (singleLineWidth * 2);
                                                     const offsetDistance = (finalStrokeW / 2) - (singleLineWidth / 2);
                                             
