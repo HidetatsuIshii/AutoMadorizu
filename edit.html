@@ -1388,6 +1388,79 @@
             </div>
         );
 
+        const processDoubleLineIntersections = (walls) => {
+            const doubleLines = walls.filter(w => w.lineStyle === 'double' && !w.groupId);
+            const otherElements = walls.filter(w => w.lineStyle !== 'double' || w.groupId);
+            const processedLines = [];
+        
+            // 各二重線について交点を計算
+            doubleLines.forEach((line, i) => {
+                const intersections = [];
+                for (let j = 0; j < doubleLines.length; j++) {
+                    if (i === j) continue;
+        
+                    const otherLine = doubleLines[j];
+                    const p1 = { x: line.x1, y: line.y1 };
+                    const p2 = { x: line.x2, y: line.y2 };
+                    const p3 = { x: otherLine.x1, y: otherLine.y1 };
+                    const p4 = { x: otherLine.x2, y: otherLine.y2 };
+        
+                    const intersectPoint = getLineIntersectionWithCheck(p1, p2, p3, p4);
+                    if (intersectPoint) {
+                        // 交点と、交差相手の線の幅を保存
+                        intersections.push({ point: intersectPoint, partnerWidth: otherLine.strokeWidth });
+                    }
+                }
+                
+                // 交点がなければ元の線を追加
+                if (intersections.length === 0) {
+                    processedLines.push(line);
+                    return;
+                }
+        
+                // 交点を始点からの距離でソート
+                intersections.sort((a, b) => {
+                    const distA = (a.point.x - line.x1) ** 2 + (a.point.y - line.y1) ** 2;
+                    const distB = (b.point.x - line.x1) ** 2 + (b.point.y - line.y1) ** 2;
+                    return distA - distB;
+                });
+        
+                // 線分を分割
+                let currentPoint = { x: line.x1, y: line.y1 };
+                intersections.forEach(intersect => {
+                    const segmentVec = { x: intersect.point.x - currentPoint.x, y: intersect.point.y - currentPoint.y };
+                    const segmentLen = Math.sqrt(segmentVec.x ** 2 + segmentVec.y ** 2);
+                    
+                    // 交差点の中心にできる隙間の半径（相手の線の太さの半分）
+                    const gapRadius = intersect.partnerWidth / 2;
+        
+                    if (segmentLen > gapRadius) {
+                        const ratio = (segmentLen - gapRadius) / segmentLen;
+                        const endPoint = {
+                            x: currentPoint.x + segmentVec.x * ratio,
+                            y: currentPoint.y + segmentVec.y * ratio,
+                        };
+                        processedLines.push({ ...line, id: `${line.id}-seg-${processedLines.length}`, x1: currentPoint.x, y1: currentPoint.y, x2: endPoint.x, y2: endPoint.y });
+                    }
+                    
+                    // 次の線分の始点を更新（交差点の隙間の分だけ進める）
+                    const startRatio = (segmentLen + gapRadius) / segmentLen;
+                     currentPoint = {
+                        x: currentPoint.x + segmentVec.x * startRatio,
+                        y: currentPoint.y + segmentVec.y * startRatio,
+                    };
+                });
+        
+                // 最後の交点から元の終点までの線分を追加
+                const lastSegmentVec = { x: line.x2 - currentPoint.x, y: line.y2 - currentPoint.y };
+                if (Math.sqrt(lastSegmentVec.x ** 2 + lastSegmentVec.y ** 2) > 1) {
+                    processedLines.push({ ...line, id: `${line.id}-seg-last`, x1: currentPoint.x, y1: currentPoint.y, x2: line.x2, y2: line.y2 });
+                }
+            });
+        
+            return [...processedLines, ...otherElements];
+        };
+
         const CustomLineRenderer = ({ id, x1, y1, x2, y2, stroke, strokeWidth, lineStyle, onContextMenu }) => {
             const style = LINE_STYLES.find(s => s.id === lineStyle);
         
@@ -5650,11 +5723,17 @@ ${JSON.stringify(exampleData10)}
             const StairsRenderer = ({ element, onContextMenu }) => {
                 const { points: pointsStr, width, color, strokeWidth } = element;
             
-                const getLineIntersection = (p1, p2, p3, p4) => {
+                const getLineIntersectionWithCheck = (p1, p2, p3, p4) => {
                     const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                    if (Math.abs(d) < 1e-8) { return null; }
+                    if (Math.abs(d) < 1e-8) return null;
+                
                     const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
-                    return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+                    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
+                
+                    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+                    }
+                    return null;
                 };
             
                 const points = pointsStr.split(' ').map(p => { const [x, y] = p.split(',').map(parseFloat); return { x, y }; });
@@ -6123,6 +6202,22 @@ ${JSON.stringify(exampleData10)}
                 displayDrawingOpacity = 1;
             }
 
+            // 描画する前に、二重線の交差処理を行う
+            // これにより、交差する二重線が適切に分割された新しい要素リストが生成される
+            const elementsToRender = processDoubleLineIntersections(svgElements);
+            
+            // レイヤー順のソートも、処理後のリストに対して行う
+            const finalOriginalIndexMap = new Map(elementsToRender.map((el, index) => [el.id, index]));
+            const finalSortedElements = [...elementsToRender].sort((a, b) => {
+                const levelA = getLayerLevel(a.type);
+                const levelB = getLayerLevel(b.type);
+                if (levelA !== levelB) {
+                    return levelA - levelB;
+                } else {
+                    return finalOriginalIndexMap.get(a.id) - finalOriginalIndexMap.get(b.id);
+                }
+            });
+
             return (                    
                 <div className="flex flex-col h-screen" onClick={() => setContextMenu({ visible: false })}>
                     <ContextMenu />
@@ -6214,7 +6309,6 @@ ${JSON.stringify(exampleData10)}
                                             if (el.type === 'space') {
                                                 return (
                                                     <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
-                                                        {/* 既存の塗りつぶしと背景パターン */}
                                                         <polygon
                                                             data-id={el.id}
                                                             points={el.points}
@@ -6223,10 +6317,41 @@ ${JSON.stringify(exampleData10)}
                                                             style={{ pointerEvents: isHighlighted ? 'all' : 'auto', cursor: 'pointer' }}
                                                         />
                                                         <BackgroundRenderer element={el} />
+                                                        
+                                                        {el.lineStyle === 'double' && (() => {
+                                                            const wallStroke = (isHighlighted && !isPickingColor) ? SELECTED_ELEMENT_COLOR : (el.stroke || DEFAULT_STROKE_COLOR);
+                                                            const wallWidth = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                            const singleLineWidth = 1.5;
+                                                            const whiteLineWidth = Math.max(0, wallWidth - (singleLineWidth * 2));
+                                            
+                                                            return (
+                                                                <g style={{ pointerEvents: 'none' }}>
+                                                                    {/* 1. 外側の枠線 (マイター結合を指定) */}
+                                                                    <polygon
+                                                                        points={el.points}
+                                                                        fill="none"
+                                                                        stroke={wallStroke}
+                                                                        strokeWidth={wallWidth}
+                                                                        strokeLinejoin="miter" // ← ★★★マイター結合を指定
+                                                                    />
+                                                                    {/* 2. 内側の白い線 (マイター結合を指定) */}
+                                                                    <polygon
+                                                                        points={el.points}
+                                                                        fill="none"
+                                                                        stroke="white"
+                                                                        strokeWidth={whiteLineWidth}
+                                                                        strokeLinejoin="miter" // ← ★★★マイター結合を指定
+                                                                    />
+                                                                </g>
+                                                            );
+                                                        })()}
                                                     </g>
                                                 );
                                             }
                                             if (el.type === 'wall') {
+                                                if (el.groupId && el.lineStyle === 'double') {
+                                                    return null;
+                                                }
                                                 const isPartOfSpace = !!el.groupId;
                                                 const isWallSelected = selectedId === el.id;
                                                 const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
