@@ -1788,51 +1788,58 @@
 
 
             const handleSelectedGroupUpdate = useCallback((updates) => {
-                const activeGroupId = selectedElement?.groupId || (selectedElement?.type === 'space' ? selectedElement.id : null);
-                if (!activeGroupId) return;
-            
-                setHistoryState(prevState => {
-                    const updatedSvgElements = prevState.present.svgElements.map(el => {
-                        if (el.groupId !== activeGroupId) {
-                            return el;
-                        }
-            
-                        let newEl = { ...el };
-            
-                        // [ケース1] 空間タイプが変更された場合
-                        if (updates.spaceType) {
-                            const preset = SPACE_STYLE_PRESETS[updates.spaceType] || SPACE_STYLE_PRESETS['default'];
-                            if (el.type === 'space') {
-                                // 空間に関するプロパティのみ更新
-                                newEl = { ...newEl, fill: preset.fill, backgroundPattern: preset.background, spaceType: updates.spaceType };
-                            } else if (el.type === 'text') {
-                                // テキストのみ更新
-                                newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
-                                    ? `${updates.spaceType}\n約◯.◯帖`
-                                    : updates.spaceType;
-                            }
-                            // ★★★ 壁(wall)のスタイルはここでは変更しない ★★★
-                        } 
-                        // [ケース2] 空間タイプ以外の変更 (壁スタイルや塗りつぶし色など、個別の変更)
-                        else {
-                            // 壁のスタイルに関する更新は、wall要素にのみ適用する
-                            if (el.type === 'wall' && (updates.lineStyle !== undefined || updates.strokeWidth !== undefined || updates.stroke !== undefined)) {
-                                newEl = { ...newEl, ...updates };
-                            }
-                            // 空間のスタイルに関する更新は、space要素にのみ適用する
-                            if (el.type === 'space' && (updates.fill !== undefined || updates.backgroundPattern !== undefined)) {
-                                 newEl = { ...newEl, ...updates };
-                            }
-                        }
-                        return newEl;
-                    });
-                    return {
-                        past: [...prevState.past, prevState.present],
-                        present: { ...prevState.present, svgElements: updatedSvgElements },
-                        future: []
-                    };
-                });
-            }, [selectedElement]);
+                const activeGroupId = selectedElement?.groupId || (selectedElement?.type === 'space' ? selectedElement.id : null);
+                if (!activeGroupId) return;
+            
+                setHistoryState(prevState => {
+                    const updatedSvgElements = prevState.present.svgElements.map(el => {
+                        if (el.groupId !== activeGroupId) {
+                            return el;
+                        }
+            
+                        let newEl = { ...el };
+            
+                        // ▼▼▼【ここからが新しいロジックです】▼▼▼
+            
+                        // 1. 壁のスタイルに関する更新 (線の種類、太さ、色)
+                        // これらはグループ内の 'space' と 'wall' の両方に適用する必要がある
+                        if (updates.lineStyle !== undefined || updates.strokeWidth !== undefined || updates.stroke !== undefined) {
+                            if (el.type === 'space' || el.type === 'wall') {
+                                // 渡された更新内容（updates）を現在の要素（newEl）に統合する
+                                newEl = { ...newEl, ...updates };
+                            }
+                        }
+            
+                        // 2. 空間固有の更新 (塗りつぶし、背景、空間タイプ)
+                        if (updates.fill !== undefined || updates.backgroundPattern !== undefined || updates.spaceType !== undefined) {
+                            // これらの更新は 'space' 要素にのみ適用
+                            if (el.type === 'space') {
+                                newEl = { ...newEl, ...updates };
+                            }
+                            // 空間タイプが変更された場合、関連するテキストも更新する
+                            if (updates.spaceType && el.type === 'text') {
+                                newEl.text = ["LDK", "DK", "K", "居室", "和室"].includes(updates.spaceType)
+                                    ? `${updates.spaceType}\n約◯.◯帖`
+                                    : updates.spaceType;
+                            }
+                        }
+                        // ▲▲▲【ここまで】▲▲▲
+            
+                        return newEl;
+                    });
+                    
+                    // 変更がなければ履歴を更新しない
+                    if (JSON.stringify(prevState.present.svgElements) === JSON.stringify(updatedSvgElements)) {
+                        return prevState;
+                    }
+                    
+                    return {
+                        past: [...prevState.past, prevState.present],
+                        present: { ...prevState.present, svgElements: updatedSvgElements },
+                        future: []
+                    };
+                });
+            }, [selectedElement]);
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
