@@ -4759,16 +4759,31 @@ ${JSON.stringify(exampleData10)}
                     const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
                     if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
                         setHistoryState(prevState => {
-                            const updatedElements = prevState.present.svgElements.map(el => {
-                                if (el.id === selectedId) {
-                                    const { groupId, edgeIndex, ...independentWall } = el;
+                            const groupIdToExplode = draggedElement.groupId;
+                            
+                            // 1. これから分解されるグループに属していた元の要素（壁、空間、テキスト）を取得
+                            const originalGroupElements = historyOnActionStart.current.svgElements.filter(el => el.groupId === groupIdToExplode);
+                            
+                            // 2. グループに属していた壁を、独立した壁として再生成する
+                            //    このとき、ドラッグされた壁は移動後の新しい座標を使い、他は元の座標を使う
+                            const newIndependentWalls = originalGroupElements
+                                .filter(el => el.type === 'wall')
+                                .map(originalWall => {
+                                    const currentVersionOfWall = prevState.present.svgElements.find(e => e.id === originalWall.id);
+                                    // groupId と edgeIndex を削除して独立させる
+                                    const { groupId, edgeIndex, ...independentWall } = currentVersionOfWall;
                                     return independentWall;
-                                }
-                                return el;
-                            });
+                                });
+                            
+                            // 3. 元の描画リストから、分解対象のグループ要素（空間、壁、テキスト全て）を削除
+                            const elementsWithoutGroup = prevState.present.svgElements.filter(el => el.groupId !== groupIdToExplode);
+                            
+                            // 4. 削除後のリストに、新しく作った独立した壁線たちを追加
+                            const finalElements = [...elementsWithoutGroup, ...newIndependentWalls];
+                            
                             return {
-                                past: [...prevState.past, historyOnActionStart.current],
-                                present: { ...prevState.present, svgElements: updatedElements },
+                                past: [...prevState.past, historyOnActionStart.current], // ドラッグ前の状態を過去の履歴として保存
+                                present: { ...prevState.present, svgElements: finalElements },
                                 future: []
                             };
                         });
