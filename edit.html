@@ -4773,76 +4773,17 @@ ${JSON.stringify(exampleData10)}
                     const draggedElement = historyOnActionStart.current?.svgElements.find(el => el.id === selectedId);
                     if (draggedElement && draggedElement.type === 'wall' && draggedElement.groupId && isDragging) {
                         setHistoryState(prevState => {
-                            const oldGroupId = draggedElement.groupId;
-                            const wallToUngroupId = draggedElement.id;
-                    
-                            const originalGroupElements = historyOnActionStart.current.svgElements.filter(el => el.groupId === oldGroupId);
-                            const originalSpace = originalGroupElements.find(el => el.type === 'space');
-                            const originalWalls = originalGroupElements.filter(el => el.type === 'wall').sort((a, b) => a.edgeIndex - b.edgeIndex);
-                    
-                            if (!originalSpace || originalWalls.length < 3) {
-                                // 安全策: 空間が三角形未満になる場合は単純に分解する
-                                const newIndependentWalls = originalGroupElements.filter(el => el.type === 'wall').map(wall => {
-                                    const currentVersion = prevState.present.svgElements.find(e => e.id === wall.id) || wall;
-                                    const { groupId, edgeIndex, ...independentWall } = currentVersion;
+                            const updatedElements = prevState.present.svgElements.map(el => {
+                                if (el.id === selectedId) {
+                                    // ドラッグされた壁のgroupIdとedgeIndexを削除して独立させるだけ
+                                    const { groupId, edgeIndex, ...independentWall } = el;
                                     return independentWall;
-                                });
-                                const elementsWithoutGroup = prevState.present.svgElements.filter(el => el.groupId !== oldGroupId && el.id !== oldGroupId);
-                                const finalElements = [...elementsWithoutGroup, ...newIndependentWalls];
-                                return { past: [...prevState.past, historyOnActionStart.current], present: { ...prevState.present, svgElements: finalElements }, future: [] };
-                            }
-                    
-                            // 1. ドラッグされた壁を独立させる
-                            const currentDraggedWall = prevState.present.svgElements.find(el => el.id === wallToUngroupId);
-                            const { groupId, edgeIndex, ...newIndependentWall } = currentDraggedWall;
-                    
-                            // 2. 元の空間ポリゴンの頂点を配列に
-                            const oldPoints = originalSpace.points.split(' ').map(p_str => ({ x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1]) }));
-                            
-                            // 3. 削除する壁のインデックスを取得
-                            const removedEdgeIndex = originalWalls.findIndex(w => w.id === wallToUngroupId);
-                            
-                            // 4. 新しいポリゴンの頂点リストを作成（削除された壁の終点をリストから抜く）
-                            const newPolygonPoints = oldPoints.filter((_, index) => index !== ((removedEdgeIndex + 1) % oldPoints.length));
-                            
-                            const newGroupId = `space-group-${Date.now()}`;
-                            
-                            // 5. 全要素を走査して新しい状態を構築
-                            let finalElements = prevState.present.svgElements.map(el => {
-                                if (el.id === wallToUngroupId) return newIndependentWall; // 独立した壁
-                                if (el.groupId !== oldGroupId) return el; // 関係ない要素
-                    
-                                if (el.id === oldGroupId) { // space要素
-                                    return {
-                                        ...el,
-                                        id: newGroupId,
-                                        groupId: newGroupId,
-                                        points: newPolygonPoints.map(p => `${p.x},${p.y}`).join(' ')
-                                    };
                                 }
-                                if (el.type === 'text') { // text要素
-                                    const newCentroid = getPolygonCentroid([...newPolygonPoints]);
-                                    return {
-                                        ...el,
-                                        groupId: newGroupId,
-                                        x: (newCentroid.x / dimensions.width) * 100,
-                                        y: (newCentroid.y / dimensions.height) * 100
-                                    };
-                                }
-                                if (el.type === 'wall') { // 残った壁
-                                     const oldIndex = originalWalls.findIndex(w => w.id === el.id);
-                                     if (oldIndex > removedEdgeIndex) {
-                                        return { ...el, groupId: newGroupId, edgeIndex: oldIndex - 1 };
-                                     } else if (oldIndex < removedEdgeIndex) {
-                                        return { ...el, groupId: newGroupId };
-                                     }
-                                }
-                                return null; // 削除対象の壁（の古い情報）
-                            }).filter(Boolean);
-                    
+                                return el;
+                            });
                             return {
                                 past: [...prevState.past, historyOnActionStart.current],
-                                present: { ...prevState.present, svgElements: finalElements },
+                                present: { ...prevState.present, svgElements: updatedElements },
                                 future: []
                             };
                         });
@@ -6455,43 +6396,20 @@ ${JSON.stringify(exampleData10)}
                                                 const isWallSelected = selectedId === el.id;
                                                 const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
                                                 const isHighlighted = isWallSelected || isSpaceSelected;
-                                            
-                                                // ▼▼▼【ここからが変更箇所です】▼▼▼
                                                 
-                                                // 空間に属する壁で、スタイルが二重線の場合の特別処理
-                                                if (el.groupId && el.lineStyle === 'double') {
-                                                    return (
-                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
-                                                            {/* 1. クリックや右クリックのイベントを受け取るための、透明な太い線 */}
-                                                            <line
-                                                                x1={el.x1} y1={el.y1}
-                                                                x2={el.x2} y2={el.y2}
-                                                                stroke="transparent"
-                                                                strokeWidth={Math.max(el.strokeWidth || 0, 10)} // クリックしやすいように最低10pxの幅を確保
-                                                                style={{ cursor: 'pointer' }}
-                                                            />
-                                                            {/* 2. この壁が「直接」選択された場合のみ、ハイライト線を描画 */}
-                                                            {isWallSelected && (
-                                                                <line
-                                                                    x1={el.x1} y1={el.y1}
-                                                                    x2={el.x2} y2={el.y2}
-                                                                    stroke={SELECTED_ELEMENT_COLOR}
-                                                                    strokeWidth={el.strokeWidth}
-                                                                    strokeLinejoin="miter" // 結合部を滑らかにする
-                                                                    style={{ pointerEvents: 'none' }} // ハイライト自体はクリックイベントを拾わない
-                                                                />
-                                                            )}
-                                                        </g>
-                                                    );
+                                                let styleSource = el;
+                                                // グループ化された壁の場合、スタイルは親のspace要素から取得する
+                                                if (el.groupId) {
+                                                    const parentSpace = svgElements.find(e => e.id === el.groupId);
+                                                    if (parentSpace) styleSource = parentSpace;
                                                 }
-                                                
-                                                // --- 通常の壁（独立した壁や、二重線以外の空間の壁）の描画処理 ---
-                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
-                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const finalLineStyleId = el.lineStyle || 'solid';
+                                            
+                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (styleSource.stroke || styleSource.color || DEFAULT_STROKE_COLOR);
+                                                const finalStrokeW = styleSource.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                const finalLineStyleId = styleSource.lineStyle || 'solid';
                                                 const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
                                             
-                                                // 実線または二重線の場合 (CustomLineRendererを使わない場合)
+                                                // 実線または二重線の場合
                                                 if (finalLineStyleId === 'solid' || finalLineStyleId === 'double') {
                                                     const isDouble = finalLineStyleId === 'double';
                                                     const singleLineWidth = 1.5;
@@ -6508,28 +6426,25 @@ ${JSON.stringify(exampleData10)}
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
                                                             {isDouble ? (
                                                                 <g style={{ pointerEvents: 'none' }}>
-                                                                    <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="white" strokeWidth={innerSpaceWidth + 2} strokeLinecap="butt" strokeLinejoin="miter" />
-                                                                    <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
-                                                                    <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                    <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="white" strokeWidth={innerSpaceWidth + 2} strokeLinecap="butt" />
+                                                                    <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" />
+                                                                    <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" />
                                                                 </g>
                                                             ) : (
                                                                 <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
                                                             )}
+                                                            {/* クリック判定用の透明な線 */}
                                                             <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
                                                         </g>
                                                     );
                                                 } else {
-                                                    // それ以外の線（点線、破線など）は新しいコンポーネントで描画
+                                                    // 点線、破線などの場合
                                                     return (
                                                         <CustomLineRenderer
-                                                            key={el.id}
-                                                            id={el.id}
-                                                            x1={el.x1} y1={el.y1}
-                                                            x2={el.x2} y2={el.y2}
-                                                            stroke={finalStroke}
-                                                            strokeWidth={finalStrokeW}
-                                                            lineStyle={finalLineStyleId}
-                                                            onContextMenu={handleContextMenu}
+                                                            key={el.id} id={el.id}
+                                                            x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
+                                                            stroke={finalStroke} strokeWidth={finalStrokeW}
+                                                            lineStyle={finalLineStyleId} onContextMenu={handleContextMenu}
                                                         />
                                                     );
                                                 }
