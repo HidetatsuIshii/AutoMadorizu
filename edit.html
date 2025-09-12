@@ -1065,6 +1065,19 @@
             };
         };
 
+        const getLineIntersectionWithCheck = (p1, p2, p3, p4) => {
+            const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+            if (Math.abs(d) < 1e-8) return null;
+        
+            const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+            const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
+        
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+            }
+            return null;
+        };
+
         const getCenterPointForElement = (el, dimensions) => {
                     switch (el.type) {
                         case 'text':
