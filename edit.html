@@ -5730,19 +5730,6 @@ ${JSON.stringify(exampleData10)}
             const StairsRenderer = ({ element, onContextMenu }) => {
                 const { points: pointsStr, width, color, strokeWidth } = element;
             
-                const getLineIntersectionWithCheck = (p1, p2, p3, p4) => {
-                    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-                    if (Math.abs(d) < 1e-8) return null;
-                
-                    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
-                    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
-                
-                    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-                        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
-                    }
-                    return null;
-                };
-            
                 const points = pointsStr.split(' ').map(p => { const [x, y] = p.split(',').map(parseFloat); return { x, y }; });
                 if (points.length < 2) return null;
             
@@ -5904,6 +5891,20 @@ ${JSON.stringify(exampleData10)}
                     if (Math.abs(d) < 1e-8) { return null; }
                     const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
                     return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+                };
+
+                const getLineIntersectionWithCheck = (p1, p2, p3, p4) => {
+                    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+                    if (Math.abs(d) < 1e-8) return null;
+                
+                    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+                    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
+                
+                    // 線分上での交差をチェック
+                    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+                    }
+                    return null;
                 };
             
                 const outlines = [[], []];
