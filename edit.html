@@ -1871,15 +1871,15 @@
 画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力すること。
 
 【思考プロセス】
-あなたの思考プロセスは、最終的なJSON出力の一部として "thought" フィールドに記述してください。以下に示す思考プロセスを厳密に実行し、その要約を記述します。
+あなたの思考プロセスは、最終的なJSON出力の一部として thought フィールドに記述してください。以下に示す思考プロセスを厳密に実行し、その要約を記述します。
 
 1. **[ステップ1: 全体の輪郭把握]** まず、建物全体の最も外側にある壁（外壁）を特定し、その内側のラインに沿って建物全体のマスターポリゴンを頭の中で描く。
 2. **[ステップ2: 内部の壁（内壁）の特定]** 次に、マスターポリゴン内にある全ての壁の線（内壁）を線分として認識する。
 3. **[ステップ3: 内壁による空間の分割]** 内壁がマスターポリゴンをどのように分割しているかを分析し、閉じた領域（＝部屋）がいくつ生成されるかを確認する。
 4. **[ステップ4: 各空間のポリゴン生成とラベル付け]** 分割された各々の閉じた領域に対して、一つずつ処理を実行する。
     - **輪郭の精密トレース:** その領域を囲む壁の「内側の線」だけを、ピクセル単位の精度で忠実に、時計回りに一筆書きでなぞり、ポリゴン座標のリストを作成する。**この際、L字型の窪みや柱による凹凸など、形状の細部を絶対に見逃さない。**
-    - **テキストの関連付け:** そのポリゴン領域内に存在するテキストラベル（例：「LDK」「洋室 約7帖」）を正確に読み取り、"Text"フィールドに格納する。
-    - **タイプの決定:** 読み取ったテキストに基づいて、"type"を決定する。
+    - **テキストの関連付け:** そのポリゴン領域内に存在するテキストラベル（例：「LDK」「洋室 約7帖」）を正確に読み取り、Textフィールドに格納する。
+    - **タイプの決定:** 読み取ったテキストに基づいて、typeを決定する。
 5. **[ステップ5: 全空間の網羅と最終検証]** 全ての閉じた領域についてステップ4が完了したかを確認する。特に、テキストラベルがないために見逃されがちな「廊下」「洗面所」「小さな収納」などが残っていないか、厳しく自己検証する。
 6. **[ステップ6: ポリゴン座標の自己修正]** **最終出力の直前に、生成した全てのポリゴンの頂点リストを再度見直す。頂点の順序が間違っていて線が交差していないか？時計回りに並んでいるか？などを確認し、もし間違いがあれば即座に修正する。**
 
@@ -1940,9 +1940,11 @@ ${JSON.stringify(exampleData10)}
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
+                        // ★★★【修正点 1】responseSchemaの構造を修正 ★★★
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
+                                "thought": { "type": "STRING" },
                                 "imageSize": {
                                     type: "OBJECT",
                                     properties: {
@@ -1986,18 +1988,21 @@ ${JSON.stringify(exampleData10)}
                                                 required: ["Polygon"]
                                             }
                                         },
-                                        required: ["thought", "imageSize", "drawingBbox", "Blocks"]
+                                        // この階層のrequiredが正しくpropertiesと対応するように修正
+                                        required: ["type", "Text", "Geometry"] 
                                     }
                                 }
                             },
-                            required: ["imageSize", "drawingBbox", "Blocks"]
+                            // この階層のrequiredが正しくpropertiesと対応するように修正
+                            required: ["thought", "imageSize", "drawingBbox", "Blocks"]
                         }
                     }
                 };
             
                 try {
                     const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    // ★★★【修正点 2】モデル名を精度重視の `pro` に修正 ★★★
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`;
             
                     const response = await fetch(apiUrl, {
                         method: 'POST',
@@ -2007,30 +2012,28 @@ ${JSON.stringify(exampleData10)}
             
                     if (!response.ok) {
                         const errorBody = await response.text();
-                        throw new Error(`API Error: ${response.status} ${errorBody}`);
+                        const errorJson = JSON.parse(errorBody);
+                        console.error("API Error Body:", errorJson);
+                        throw new Error(`API Error: ${response.status}\n${errorJson.error.message}`);
                     }
             
                     const result = await response.json();
             
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
-                        console.log("AIからのレスポンス(生テキスト):", jsonText);  
-                        try {
-                            const parsedJson = JSON.parse(jsonText);
-                            console.log("AIからのレスポンス(パース後):", parsedJson);
-                            return parsedJson;
-                        } catch (e) {
-                            console.error("JSONのパースに失敗しました:", e);
-                            console.error("パースしようとしたテキスト:", jsonText);
-                            return null;
-                        }
+                        const parsedJson = JSON.parse(jsonText);
+                        // AIの思考プロセスもコンソールに出力してデバッグしやすくする
+                        console.log("AIからの思考プロセス:", parsedJson.thought);
+                        console.log("AIからのレスポンス(パース後):", parsedJson);
+                        return parsedJson;
                     } else {
                         console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
                         throw new Error("AIからの応答が予期した形式ではありません。");
                     }
                 } catch (error) {
                     console.error("AIの解析中にエラーが発生しました:", error);
-                    alert("AIの解析に失敗しました。時間をおいて再度お試しください。");
+                    // エラーメッセージをアラートで表示
+                    alert(`AIの解析に失敗しました。\n${error.message}`);
                     return null;
                 }
             };
