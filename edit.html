@@ -2030,51 +2030,71 @@
             };
 
             const straightenAndAlignPolygon = (points, globalXMap, globalYMap) => {
-                if (points.length < 3) return points;
-        
-                // ステップ1: グローバルな基準線に頂点をスナップさせる
-                const globalXKeys = Object.keys(globalXMap).map(parseFloat);
-                const globalYKeys = Object.keys(globalYMap).map(parseFloat);
-        
-                let snappedPoints = points.map(p => ({
-                    x: globalXMap[findClosestValue(p.x, globalXKeys)],
-                    y: globalYMap[findClosestValue(p.y, globalYKeys)]
-                }));
-        
-                // ステップ2: 冗長な頂点を削除する
-                let finalPoints = [];
-                if (snappedPoints.length > 2) {
-                    // 連続する重複点をまず削除
-                    const uniquePoints = snappedPoints.filter((point, i) => {
-                        const prev = snappedPoints[i === 0 ? snappedPoints.length - 1 : i - 1];
-                        return point.x !== prev.x || point.y !== prev.y;
-                    });
-        
-                    if (uniquePoints.length > 2) {
-                        // 直線上の不要な中間点を削除
-                        for (let i = 0; i < uniquePoints.length; i++) {
-                            const p_prev = uniquePoints[i === 0 ? uniquePoints.length - 1 : i - 1];
-                            const p_curr = uniquePoints[i];
-                            const p_next = uniquePoints[(i + 1) % uniquePoints.length];
-        
-                            // 外積を計算して3点が同一直線上にあるかチェック
-                            const crossProduct = (p_curr.y - p_prev.y) * (p_next.x - p_curr.x) - (p_curr.x - p_prev.x) * (p_next.y - p_curr.y);
-        
-                            // 同一直線上にない点（つまり角）だけをfinalPointsに追加
-                            if (Math.abs(crossProduct) > 1e-6) {
-                                finalPoints.push(p_curr);
-                            }
-                        }
-                    } else {
-                        finalPoints = uniquePoints;
-                    }
-                } else {
-                    finalPoints = snappedPoints;
-                }
-        
-                // 頂点数が3未満になったら元のデータを返すことで、図形が消えるのを防ぐ
-                return finalPoints.length >= 3 ? finalPoints : points;
-            };
+                if (points.length < 3) return points;
+            
+                // ステップ1: グローバルな基準線に頂点をスナップさせる
+                const globalXKeys = Object.keys(globalXMap).map(parseFloat);
+                const globalYKeys = Object.keys(globalYMap).map(parseFloat);
+            
+                if (globalXKeys.length === 0 || globalYKeys.length === 0) return points;
+            
+                let snappedPoints = points.map(p => ({
+                    x: globalXMap[findClosestValue(p.x, globalXKeys)],
+                    y: globalYMap[findClosestValue(p.y, globalYKeys)]
+                }));
+            
+                // ステップ2: 冗長な頂点を、角を保護しながら削除する
+                let finalPoints = [];
+                if (snappedPoints.length > 2) {
+                    // 連続する重複点をまず削除
+                    const uniquePoints = snappedPoints.filter((point, i) => {
+                        const prev = snappedPoints[i === 0 ? snappedPoints.length - 1 : i - 1];
+                        return Math.abs(point.x - prev.x) > 0.1 || Math.abs(point.y - prev.y) > 0.1;
+                    });
+            
+                    if (uniquePoints.length > 2) {
+                        // 各頂点が「重要な角」かどうかを判定
+                        const isCorner = uniquePoints.map((p_curr, i) => {
+                            const p_prev = uniquePoints[i === 0 ? uniquePoints.length - 1 : i - 1];
+                            const p_next = uniquePoints[(i + 1) % uniquePoints.length];
+            
+                            const vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
+                            const vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
+            
+                            // 2つのベクトルのなす角度が、ほぼ180度（または0度）でない場合は角とみなす
+                            const dotProduct = vec_in.x * vec_out.x + vec_in.y * vec_out.y;
+                            const len_in = Math.sqrt(vec_in.x**2 + vec_in.y**2);
+                            const len_out = Math.sqrt(vec_out.x**2 + vec_out.y**2);
+            
+                            if (len_in < 1e-6 || len_out < 1e-6) return false;
+                            
+                            const cosAngle = dotProduct / (len_in * len_out);
+                            
+                            // cos(angle)が-1に近い(ほぼ180度)場合は直線上
+                            return cosAngle > -0.999;
+                        });
+            
+                        // 「重要な角」と判断された点のみを残す
+                        uniquePoints.forEach((point, i) => {
+                            if (isCorner[i]) {
+                                finalPoints.push(point);
+                            }
+                        });
+    
+                        // もし全ての点が直線と判断されてしまった場合（あり得ないが念の為）、元の図形を返す
+                        if (finalPoints.length < 3) {
+                           finalPoints = uniquePoints;
+                        }
+                    } else {
+                        finalPoints = uniquePoints;
+                    }
+                } else {
+                    finalPoints = snappedPoints;
+                }
+            
+                // 頂点数が3未満になったら元のデータを返すことで、図形が消えるのを防ぐ
+                return finalPoints.length >= 3 ? finalPoints : points;
+            };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
                 if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
