@@ -995,9 +995,41 @@
                 previewPath: 'M0,-5 V5 M40,-5 V5'
             },
         ];
-
-
+        
         // --- ヘルパー関数 ---
+        const clusterValues = (values, threshold) => {
+            values.sort((a, b) => a - b);
+            const clusters = [];
+            if (values.length === 0) return {};
+    
+            let currentCluster = [values[0]];
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] - currentCluster[currentCluster.length - 1] <= threshold) {
+                    currentCluster.push(values[i]);
+                } else {
+                    clusters.push(currentCluster);
+                    currentCluster = [values[i]];
+                }
+            }
+            clusters.push(currentCluster);
+    
+            const map = {};
+            clusters.forEach(cluster => {
+                // 中央値ではなく平均値を使うことで、より安定した結果を期待
+                const representative = cluster.reduce((sum, val) => sum + val, 0) / cluster.length;
+                cluster.forEach(val => {
+                    map[val] = Math.round(representative);
+                });
+            });
+            return map;
+        };
+
+        const findClosestValue = (value, candidates) => {
+            return candidates.reduce((prev, curr) => {
+                return (Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev);
+            });
+        };
+
         const isPointOnSegment = (point, lineStart, lineEnd, tolerance = 1) => {
             const dxL = lineEnd.x - lineStart.x;
             const dyL = lineEnd.y - lineStart.y;
@@ -1996,77 +2028,183 @@
                     return null;
                 }
             };
+            
 
-            const straightenAndAlignPolygon = (points, threshold = 15) => {
-                if (points.length < 3) return points;
-            
-                // 座標の「揺れ」を吸収するためのクラスタリング関数
-                const clusterValues = (values, threshold) => {
-                    values.sort((a, b) => a - b);
-                    const clusters = [];
-                    if (values.length === 0) return {};
-            
-                    let currentCluster = [values[0]];
-                    for (let i = 1; i < values.length; i++) {
-                        if (values[i] - currentCluster[currentCluster.length - 1] <= threshold) {
-                            currentCluster.push(values[i]);
-                        } else {
-                            clusters.push(currentCluster);
-                            currentCluster = [values[i]];
-                        }
-                    }
-                    clusters.push(currentCluster);
-            
-                    const map = {};
-                    clusters.forEach(cluster => {
-                        const representative = cluster[Math.floor(cluster.length / 2)]; // 中央値を代表値とする
-                        cluster.forEach(val => {
-                            map[val] = representative;
-                        });
-                    });
-                    return map;
-                };
-            
-                const allX = [...new Set(points.map(p => p.x))];
-                const allY = [...new Set(points.map(p => p.y))];
-            
-                const xMap = clusterValues(allX, threshold);
-                const yMap = clusterValues(allY, threshold);
-                
-                let newPoints = points.map(p => ({
-                    x: xMap[p.x],
-                    y: yMap[p.y]
-                }));
-            
-                // 連続する重複頂点を削除
-                newPoints = newPoints.filter((point, i) => {
-                    const prev = newPoints[i === 0 ? newPoints.length - 1 : i - 1];
-                    return point.x !== prev.x || point.y !== prev.y;
-                });
-                
-                // 3点以上が直線上に並んでしまう中間点を削除
-                const finalPoints = [];
-                if (newPoints.length > 2) {
-                    for (let i = 0; i < newPoints.length; i++) {
-                        const p1 = newPoints[i];
-                        const p2 = newPoints[(i + 1) % newPoints.length];
-                        const p3 = newPoints[(i + 2) % newPoints.length];
-            
-                        // 3点が同じX座標またはY座標を持つ場合、中間点(p2)をスキップ
-                        const isCollinear = (p1.x === p2.x && p2.x === p3.x) || (p1.y === p2.y && p2.y === p3.y);
-                        if (!isCollinear) {
-                            finalPoints.push(p2);
-                        }
-                    }
-                } else {
-                    return newPoints;
-                }
-                
-                // フィルター処理で点が減りすぎた場合のフォールバック
-                if(finalPoints.length < 3) return newPoints;
-            
-                return finalPoints;
-            };
+            const straightenAndAlignPolygon = (points, globalXMap, globalYMap) => {
+                if (points.length < 3) return points;
+        
+                // ステップ1: グローバルな基準線に頂点をスナップさせる
+                const globalXKeys = Object.keys(globalXMap).map(parseFloat);
+                const globalYKeys = Object.keys(globalYMap).map(parseFloat);
+        
+                let snappedPoints = points.map(p => ({
+                    x: globalXMap[findClosestValue(p.x, globalXKeys)],
+                    y: globalYMap[findClosestValue(p.y, globalYKeys)]
+                }));
+        
+                // ステップ2: 冗長な頂点を削除する
+                let finalPoints = [];
+                if (snappedPoints.length > 2) {
+                    // 連続する重複点をまず削除
+                    const uniquePoints = snappedPoints.filter((point, i) => {
+                        const prev = snappedPoints[i === 0 ? snappedPoints.length - 1 : i - 1];
+                        return point.x !== prev.x || point.y !== prev.y;
+                    });
+        
+                    if (uniquePoints.length > 2) {
+                        // 直線上の不要な中間点を削除
+                        for (let i = 0; i < uniquePoints.length; i++) {
+                            const p_prev = uniquePoints[i === 0 ? uniquePoints.length - 1 : i - 1];
+                            const p_curr = uniquePoints[i];
+                            const p_next = uniquePoints[(i + 1) % uniquePoints.length];
+        
+                            // 外積を計算して3点が同一直線上にあるかチェック
+                            const crossProduct = (p_curr.y - p_prev.y) * (p_next.x - p_curr.x) - (p_curr.x - p_prev.x) * (p_next.y - p_curr.y);
+        
+                            // 同一直線上にない点（つまり角）だけをfinalPointsに追加
+                            if (Math.abs(crossProduct) > 1e-6) {
+                                finalPoints.push(p_curr);
+                            }
+                        }
+                    } else {
+                        finalPoints = uniquePoints;
+                    }
+                } else {
+                    finalPoints = snappedPoints;
+                }
+        
+                // 頂点数が3未満になったら元のデータを返すことで、図形が消えるのを防ぐ
+                return finalPoints.length >= 3 ? finalPoints : points;
+            };
+
+            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
+                if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
+        
+                // --- 改善点: 全ての頂点からグローバルな基準線を計算 ---
+                const allPoints = aiData.Blocks.flatMap(block => block.Geometry.Polygon || []);
+                if (allPoints.length === 0) return [];
+        
+                const allX = allPoints.map(p => p.x);
+                const allY = allPoints.map(p => p.y);
+        
+                const coordinateThreshold = 15; // 15px以内の座標は同じと見なす
+                const globalXMap = clusterValues(allX, coordinateThreshold);
+                const globalYMap = clusterValues(allY, coordinateThreshold);
+        
+                // --- 座標変換の安定化 ---
+                let bbox = aiData.drawingBbox;
+                if (!bbox || !bbox.width || !bbox.height) {
+                    const minX = Math.min(...allX);
+                    const minY = Math.min(...allY);
+                    const maxX = Math.max(...allX);
+                    const maxY = Math.max(...allY);
+                    bbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+                }
+        
+                const canvasWidth = dimensions.width;
+                const canvasHeight = dimensions.height;
+        
+                const aiDrawingWidth = bbox.width;
+                const aiDrawingHeight = bbox.height;
+        
+                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
+        
+                const scaleX = canvasWidth / aiDrawingWidth;
+                const scaleY = canvasHeight / aiDrawingHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.9;
+        
+                const displayedWidth = aiDrawingWidth * fitScale;
+                const displayedHeight = aiDrawingHeight * fitScale;
+                const offsetX = (canvasWidth - displayedWidth) / 2;
+                const offsetY = (canvasHeight - displayedHeight) / 2;
+        
+                const newElements = [];
+                aiData.Blocks.forEach((block, index) => {
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
+        
+                    const originalPoints = block.Geometry.Polygon;
+        
+                    // 新しい整形関数を呼び出す（引数にグローバルマップを追加）
+                    let points = straightenAndAlignPolygon(originalPoints, globalXMap, globalYMap);
+        
+                    if (points.length < 3) return;
+        
+                    // 座標変換
+                    points = points.map(p => ({
+                        x: ((p.x - bbox.x) * fitScale) + offsetX,
+                        y: ((p.y - bbox.y) * fitScale) + offsetY
+                    }));
+        
+                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
+        
+                    // (以降の spaceElement, wall, textElement の生成ロジックは元のままでOK)
+                  // ... (既存のコードをここにコピー) ...
+                    // 部屋のタイプ名を変換
+                    let spaceType = block.type;
+                    const text = block.Text || "";
+                    if (spaceType === "Room") {
+                        if (text.includes("LDK")) spaceType = "LDK";
+                        else if (text.includes("洋室")) spaceType = "居室";
+                        else if (text.includes("和室")) spaceType = "和室";
+                        else if (text.includes("洗面")) spaceType = "洗面所";
+                        else if (text.includes("浴室")) spaceType = "浴室";
+                        else if (text.includes("トイレ")) spaceType = "トイレ";
+                        else if (text.includes("玄関")) spaceType = "玄関";
+                        else spaceType = "居室";
+                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
+                        spaceType = "収納";
+                    } else if (spaceType === "Balcony") {
+                        spaceType = "バルコニー";
+                    }
+            
+                    const spaceElement = {
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: spaceType,
+                        groupId: subGroupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
+                        backgroundPattern: 'none'
+                    };
+                    newElements.push(spaceElement);
+            
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
+                        newElements.push({
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
+                    }
+            
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    newElements.push(labelElement);
+
+                });
+        
+                return newElements;
+            }, [dimensions]);
 
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
                 // 【改善点 3】AIの出力に基づいて座標変換を計算
