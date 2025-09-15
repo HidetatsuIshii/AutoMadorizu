@@ -1970,7 +1970,6 @@ ${JSON.stringify(exampleData10)}
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // ★★★【改善点 2】レスポンススキーマの更新 ★★★
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -2017,7 +2016,7 @@ ${JSON.stringify(exampleData10)}
                                                 required: ["Polygon"]
                                             }
                                         },
-                                        required: ["type", "Text", "Geometry"]
+                                        required: ["thought", "imageSize", "drawingBbox", "Blocks"]
                                     }
                                 }
                             },
@@ -2066,7 +2065,7 @@ ${JSON.stringify(exampleData10)}
                 }
             };
 
-            const straightenAndAlignPolygon = (points, threshold = 10) => {
+            const straightenAndAlignPolygon = (points, threshold = 15) => {
                 if (points.length < 3) return points;
             
                 // 座標の「揺れ」を吸収するためのクラスタリング関数
