@@ -2028,7 +2028,6 @@
                     return null;
                 }
             };
-            
 
             const straightenAndAlignPolygon = (points, globalXMap, globalYMap) => {
                 if (points.length < 3) return points;
@@ -2162,7 +2161,7 @@
                         type: 'space',
                         shape: 'polygon',
                         spaceType: spaceType,
-                        groupId: subGroupId,
+              _B_INDENT_LEVEL_1_B_          groupId: subGroupId,
                         points: points.map(p => `${p.x},${p.y}`).join(' '),
                         fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
                         backgroundPattern: 'none'
@@ -2205,110 +2204,6 @@
         
                 return newElements;
             }, [dimensions]);
-
-            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                // 【改善点 3】AIの出力に基づいて座標変換を計算
-                if (!aiData.Blocks || aiData.Blocks.length === 0 || !aiData.drawingBbox) return [];
-            
-                const canvasWidth = dimensions.width;
-                const canvasHeight = dimensions.height;
-            
-                // AIが返したバウンディングボックスを使用
-                const bbox = aiData.drawingBbox;
-                const aiDrawingWidth = bbox.width;
-                const aiDrawingHeight = bbox.height;
-            
-                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
-            
-                const scaleX = canvasWidth / aiDrawingWidth;
-                const scaleY = canvasHeight / aiDrawingHeight;
-                const fitScale = Math.min(scaleX, scaleY) * 0.9; // 余白を90%に設定
-            
-                const displayedWidth = aiDrawingWidth * fitScale;
-                const displayedHeight = aiDrawingHeight * fitScale;
-                const offsetX = (canvasWidth - displayedWidth) / 2;
-                const offsetY = (canvasHeight - displayedHeight) / 2;
-            
-                const newElements = [];
-                aiData.Blocks.forEach((block, index) => {
-                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
-            
-                    // 座標変換の基準点をbboxの左上(bbox.x, bbox.y)に変更
-                    let points = block.Geometry.Polygon.map(p => ({
-                        x: ((p.x - bbox.x) * fitScale) + offsetX,
-                        y: ((p.y - bbox.y) * fitScale) + offsetY
-                    }));
-                    
-                    points = straightenAndAlignPolygon(points);
-            
-                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
-            
-                    // ... (以降のSVG要素を生成する部分は変更なし) ...
-                    // 部屋のタイプ名を変換
-                    let spaceType = block.type;
-                    const text = block.Text || "";
-                    if (spaceType === "Room") {
-                        if (text.includes("LDK")) spaceType = "LDK";
-                        else if (text.includes("洋室")) spaceType = "居室";
-                        else if (text.includes("和室")) spaceType = "和室";
-                        else if (text.includes("洗面")) spaceType = "洗面所";
-                        else if (text.includes("浴室")) spaceType = "浴室";
-                        else if (text.includes("トイレ")) spaceType = "トイレ";
-                        else if (text.includes("玄関")) spaceType = "玄関";
-                        else spaceType = "居室";
-                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
-                        spaceType = "収納";
-                    } else if (spaceType === "Balcony") {
-                        spaceType = "バルコニー";
-                    }
-            
-                    const spaceElement = {
-                        id: subGroupId,
-                        type: 'space',
-                        shape: 'polygon',
-                        spaceType: spaceType,
-                        groupId: subGroupId,
-                        points: points.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
-                        backgroundPattern: 'none'
-                    };
-                    newElements.push(spaceElement);
-            
-                    for (let i = 0; i < points.length; i++) {
-                        const p1 = points[i];
-                        const p2 = points[(i + 1) % points.length];
-                        newElements.push({
-                            id: `wall-ai-${Date.now()}-${index}-${i}`,
-                            type: 'wall',
-                            groupId: subGroupId,
-                            edgeIndex: i,
-                            x1: p1.x, y1: p1.y,
-                            x2: p2.x, y2: p2.y,
-                            color: DEFAULT_STROKE_COLOR,
-                            strokeWidth: DEFAULT_STROKE_WIDTH,
-                            lineStyle: 'solid'
-                        });
-                    }
-            
-                    const centroid = getPolygonCentroid(points);
-                    const labelElement = {
-                        id: `text-ai-${Date.now()}-${index}`,
-                        type: 'text',
-                        groupId: subGroupId,
-                        x: (centroid.x / dimensions.width) * 100,
-                        y: (centroid.y / dimensions.height) * 100,
-                        text: block.Text,
-                        color: '#000000',
-                        backgroundColor: 'none',
-                        fontSize: 16,
-                        fontFamily: 'sans-serif',
-                        textAlign: 'center',
-                    };
-                    newElements.push(labelElement);
-                });
-            
-                return newElements;
-            }, [dimensions, straightenAndAlignPolygon]);
 
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
                 const img = new Image();
