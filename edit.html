@@ -1855,6 +1855,8 @@
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
+            
+                // --- お手本データ (変更の必要はありません) ---
                 const exampleData1 = {"Blocks":[{"type":"LDK","Text":"LDK","Geometry":{"Polygon":[{"x":310,"y":35},{"x":630,"y":35},{"x":630,"y":195},{"x":565,"y":195},{"x":565,"y":265},{"x":580,"y":265},{"x":580,"y":460},{"x":310,"y":460}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":565,"y":195},{"x":630,"y":195},{"x":630,"y":265},{"x":565,"y":265}]}},{"type":"トイレ","Text":"トイレ","Geometry":{"Polygon":[{"x":645,"y":295},{"x":710,"y":295},{"x":710,"y":390},{"x":645,"y":390}]}},{"type":"浴室","Text":"浴室","Geometry":{"Polygon":[{"x":580,"y":390},{"x":710,"y":390},{"x":710,"y":515},{"x":580,"y":515}]}},{"type":"洗面所","Text":"洗面所","Geometry":{"Polygon":[{"x":580,"y":295},{"x":645,"y":295},{"x":645,"y":390},{"x":580,"y":390}]}},{"type":"居室","Text":"洋室 約7帖","Geometry":{"Polygon":[{"x":310,"y":460},{"x":515,"y":460},{"x":515,"y":785},{"x":310,"y":785}]}},{"type":"居室","Text":"洋室 約5帖","Geometry":{"Polygon":[{"x":515,"y":460},{"x":710,"y":460},{"x":710,"y":715},{"x":580,"y":715},{"x":580,"y":515},{"x":515,"y":515}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":310,"y":785},{"x":710,"y":785},{"x":710,"y":820},{"x":310,"y":820}]}}]};
                 const exampleData2 = {"Blocks":[{"type":"LDK","Text":"LDK 約 13.5 帖","Geometry":{"Polygon":[{"x":170,"y":275},{"x":450,"y":275},{"x":450,"y":480},{"x":395,"y":480},{"x":395,"y":450},{"x":365,"y":450},{"x":365,"y":385},{"x":395,"y":385},{"x":395,"y":275},{"x":170,"y":275}]}},{"type":"居室","Text":"洋室 約 4.9帖","Geometry":{"Polygon":[{"x":450,"y":275},{"x":630,"y":275},{"x":630,"y":410},{"x":450,"y":410}]}},{"type":"居室","Text":"洋室 約 4.4帖","Geometry":{"Polygon":[{"x":450,"y":480},{"x":630,"y":480},{"x":630,"y":600},{"x":450,"y":600}]}},{"type":"居室","Text":"洋室 約 5.5帖","Geometry":{"Polygon":[{"x":450,"y":600},{"x":630,"y":600},{"x":630,"y":715},{"x":450,"y":715}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":450,"y":195},{"x":630,"y":195},{"x":630,"y":275},{"x":450,"y":275}]}},{"type":"洗面所","Text":"洗面室","Geometry":{"Polygon":[{"x":170,"y":195},{"x":395,"y":195},{"x":395,"y":275},{"x":170,"y":275}]}},{"type":"浴室","Text":"浴室","Geometry":{"Polygon":[{"x":170,"y":385},{"x":365,"y":385},{"x":365,"y":450},{"x":170,"y":450}]}},{"type":"収納","Text":"収納","Geometry":{"Polygon":[{"x":365,"y":385},{"x":395,"y":385},{"x":395,"y":450},{"x":365,"y":450}]}},{"type":"トイレ","Text":"トイレ","Geometry":{"Polygon":[{"x":365,"y":305},{"x":395,"y":305},{"x":395,"y":385},{"x":365,"y":385}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":450,"y":410},{"x":540,"y":410},{"x":540,"y":480},{"x":450,"y":480}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":540,"y":410},{"x":630,"y":410},{"x":630,"y":480},{"x":540,"y":480}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":450,"y":600},{"x":530,"y":600},{"x":530,"y":650},{"x":450,"y":650}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":160,"y":770},{"x":640,"y":770},{"x":640,"y":805},{"x":160,"y":805}]}}]};
                 const exampleData3 = {"Blocks":[{"type":"LDK","Text":"LD 12.2帖\nK 3.2帖","Geometry":{"Polygon":[{"x":60,"y":555},{"x":470,"y":555},{"x":470,"y":710},{"x":60,"y":710}]}},{"type":"居室","Text":"洋室 6.0帖","Geometry":{"Polygon":[{"x":330,"y":100},{"x":470,"y":100},{"x":470,"y":310},{"x":330,"y":310}]}},{"type":"居室","Text":"洋室 5.0帖","Geometry":{"Polygon":[{"x":60,"y":100},{"x":255,"y":100},{"x":255,"y":310},{"x":60,"y":310}]}},{"type":"居室","Text":"洋室 5.0帖","Geometry":{"Polygon":[{"x":330,"y":410},{"x":470,"y":410},{"x":470,"y":540},{"x":330,"y":540}]}},{"type":"廊下","Text":"","Geometry":{"Polygon":[{"x":255,"y":230},{"x":315,"y":230},{"x":315,"y":555},{"x":255,"y":555}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":270,"y":100},{"x":315,"y":100},{"x":315,"y":230},{"x":270,"y":230}]}},{"type":"洗面所","Text":"洗","Geometry":{"Polygon":[{"x":60,"y":380},{"x":220,"y":380},{"x":220,"y":440},{"x":60,"y":440}]}},{"type":"浴室","Text":"","Geometry":{"Polygon":[{"x":60,"y":455},{"x":220,"y":455},{"x":220,"y":540},{"x":60,"y":540}]}},{"type":"トイレ","Text":"T","Geometry":{"Polygon":[{"x":255,"y":115},{"x":270,"y":115},{"x":270,"y":165},{"x":255,"y":165}]}},{"type":"収納","Text":"CL CL","Geometry":{"Polygon":[{"x":60,"y":310},{"x":220,"y":310},{"x":220,"y":360},{"x":60,"y":360}]}},{"type":"収納","Text":"CL CL","Geometry":{"Polygon":[{"x":330,"y":310},{"x":380,"y":310},{"x":380,"y":340},{"x":330,"y":340}]}},{"type":"収納","Text":"ウォークイン\nクローゼット","Geometry":{"Polygon":[{"x":380,"y":340},{"x":470,"y":340},{"x":470,"y":395},{"x":380,"y":395}]}},{"type":"収納","Text":"物入","Geometry":{"Polygon":[{"x":255,"y":340},{"x":315,"y":340},{"x":315,"y":410},{"x":255,"y":410}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":60,"y":725},{"x":470,"y":725},{"x":470,"y":760},{"x":60,"y":760}]}}]};
@@ -1865,71 +1867,34 @@
                 const exampleData8 = {"Blocks":[{"type":"LDK","Text":"LDK 14.3帖","Geometry":{"Polygon":[{"x":295,"y":42},{"x":473,"y":42},{"x":473,"y":597},{"x":295,"y":597}]}},{"type":"居室","Text":"洋室 5.3帖","Geometry":{"Polygon":[{"x":52,"y":691},{"x":229,"y":691},{"x":229,"y":855},{"x":52,"y":855}]}},{"type":"居室","Text":"洋室 5.5帖","Geometry":{"Polygon":[{"x":546,"y":42},{"x":724,"y":42},{"x":724,"y":278},{"x":546,"y":278}]}},{"type":"居室","Text":"洋室 5帖","Geometry":{"Polygon":[{"x":546,"y":646},{"x":724,"y":646},{"x":724,"y":782},{"x":546,"y":782}]}},{"type":"廊下","Text":"UP","Geometry":{"Polygon":[{"x":52,"y":494},{"x":229,"y":494},{"x":229,"y":600},{"x":52,"y":600}]}},{"type":"廊下","Text":"DN UP","Geometry":{"Polygon":[{"x":295,"y":600},{"x":473,"y":600},{"x":473,"y":855},{"x":295,"y":855}]}},{"type":"廊下","Text":"DN","Geometry":{"Polygon":[{"x":546,"y":363},{"x":724,"y":363},{"x":724,"y":560},{"x":546,"y":560}]}},{"type":"トイレ","Text":"トイレ","Geometry":{"Polygon":[{"x":52,"y":394},{"x":139,"y":394},{"x":139,"y":489},{"x":52,"y":489}]}},{"type":"トイレ","Text":"トイレ","Geometry":{"Polygon":[{"x":645,"y":320},{"x":724,"y":320},{"x":724,"y":409},{"x":645,"y":409}]}},{"type":"洗面所","Text":"洗","Geometry":{"Polygon":[{"x":52,"y":295},{"x":163,"y":295},{"x":163,"y":389},{"x":52,"y":389}]}},{"type":"浴室","Text":"浴室","Geometry":{"Polygon":[{"x":52,"y":184},{"x":182,"y":184},{"x":182,"y":290},{"x":52,"y":290}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":187,"y":184},{"x":229,"y":184},{"x":229,"y":290},{"x":187,"y":290}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":52,"y":604},{"x":145,"y":604},{"x":145,"y":686},{"x":52,"y":686}]}},{"type":"収納","Text":"下駄箱","Geometry":{"Polygon":[{"x":167,"y":295},{"x":229,"y":295},{"x":229,"y":389},{"x":167,"y":389}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":546,"y":281},{"x":640,"y":281},{"x":640,"y":360},{"x":546,"y":360}]}},{"type":"収納","Text":"クローゼット","Geometry":{"Polygon":[{"x":546,"y":563},{"x":640,"y":563},{"x":640,"y":643},{"x":546,"y":643}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":546,"y":785},{"x":724,"y":785},{"x":724,"y":846},{"x":546,"y":846}]}}]};
                 const exampleData9 = {"Blocks":[{"type":"LDK","Text":"LDK(18.2帖)","Geometry":{"Polygon":[{"x":122,"y":331},{"x":500,"y":331},{"x":500,"y":432},{"x":536,"y":432},{"x":536,"y":458},{"x":562,"y":458},{"x":562,"y":591},{"x":122,"y":591}]}},{"type":"居室","Text":"洋室(5.5帖)","Geometry":{"Polygon":[{"x":594,"y":490},{"x":716,"y":490},{"x":716,"y":608},{"x":594,"y":608}]}},{"type":"居室","Text":"洋室(5.1帖)","Geometry":{"Polygon":[{"x":594,"y":360},{"x":716,"y":360},{"x":716,"y":480},{"x":594,"y":480}]}},{"type":"居室","Text":"洋室(7.5帖)","Geometry":{"Polygon":[{"x":720,"y":440},{"x":865,"y":440},{"x":865,"y":608},{"x":720,"y":608}]}},{"type":"廊下","Text":"","Geometry":{"Polygon":[{"x":716,"y":360},{"x":780,"y":360},{"x":780,"y":480},{"x":720,"y":480},{"x":720,"y":440},{"x":716,"y":440}]}},{"type":"トイレ","Text":"","Geometry":{"Polygon":[{"x":720,"y":405},{"x":780,"y":405},{"x":780,"y":480},{"x":720,"y":480}]}},{"type":"収納","Text":"WIC(3帖)","Geometry":{"Polygon":[{"x":790,"y":380},{"x":865,"y":380},{"x":865,"y":480},{"x":790,"y":480}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":122,"y":140},{"x":240,"y":140},{"x":240,"y":280},{"x":122,"y":280}]}},{"type":"洗面所","Text":"洗面","Geometry":{"Polygon":[{"x":302,"y":140},{"x":400,"y":140},{"x":400,"y":252},{"x":302,"y":252}]}},{"type":"浴室","Text":"浴室","Geometry":{"Polygon":[{"x":400,"y":140},{"x":500,"y":140},{"x":500,"y":252},{"x":400,"y":252}]}},{"type":"トイレ","Text":"","Geometry":{"Polygon":[{"x":248,"y":140},{"x":302,"y":140},{"x":302,"y":252},{"x":248,"y":252}]}},{"type":"廊下","Text":"","Geometry":{"Polygon":[{"x":240,"y":280},{"x":370,"y":280},{"x":370,"y":331},{"x":240,"y":331}]}},{"type":"バルコニー","Text":"","Geometry":{"Polygon":[{"x":80,"y":140},{"x":122,"y":140},{"x":122,"y":280},{"x":80,"y":280}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":80,"y":591},{"x":122,"y":591},{"x":122,"y":702},{"x":80,"y":702}]}}]};
                 const exampleData10 = {"Blocks":[{"type":"LDK","Text":"LDK(18.2帖)","Geometry":{"Polygon":[{"x":122,"y":331},{"x":500,"y":331},{"x":500,"y":432},{"x":536,"y":432},{"x":536,"y":458},{"x":562,"y":458},{"x":562,"y":591},{"x":122,"y":591}]}},{"type":"居室","Text":"洋室(5.5帖)","Geometry":{"Polygon":[{"x":594,"y":490},{"x":716,"y":490},{"x":716,"y":608},{"x":594,"y":608}]}},{"type":"居室","Text":"洋室(5.1帖)","Geometry":{"Polygon":[{"x":594,"y":360},{"x":716,"y":360},{"x":716,"y":480},{"x":594,"y":480}]}},{"type":"居室","Text":"洋室(7.5帖)","Geometry":{"Polygon":[{"x":720,"y":440},{"x":865,"y":440},{"x":865,"y":608},{"x":720,"y":608}]}},{"type":"廊下","Text":"","Geometry":{"Polygon":[{"x":716,"y":360},{"x":780,"y":360},{"x":780,"y":480},{"x":720,"y":480},{"x":720,"y":440},{"x":716,"y":440}]}},{"type":"トイレ","Text":"","Geometry":{"Polygon":[{"x":720,"y":405},{"x":780,"y":405},{"x":780,"y":480},{"x":720,"y":480}]}},{"type":"収納","Text":"WIC(3帖)","Geometry":{"Polygon":[{"x":790,"y":380},{"x":865,"y":380},{"x":865,"y":480},{"x":790,"y":480}]}},{"type":"玄関","Text":"玄関","Geometry":{"Polygon":[{"x":122,"y":140},{"x":240,"y":140},{"x":240,"y":280},{"x":122,"y":280}]}},{"type":"洗面所","Text":"洗面","Geometry":{"Polygon":[{"x":302,"y":140},{"x":400,"y":140},{"x":400,"y":252},{"x":302,"y":252}]}},{"type":"浴室","Text":"浴室","Geometry":{"Polygon":[{"x":400,"y":140},{"x":500,"y":140},{"x":500,"y":252},{"x":400,"y":252}]}},{"type":"トイレ","Text":"","Geometry":{"Polygon":[{"x":248,"y":140},{"x":302,"y":140},{"x":302,"y":252},{"x":248,"y":252}]}},{"type":"廊下","Text":"","Geometry":{"Polygon":[{"x":240,"y":280},{"x":370,"y":280},{"x":370,"y":331},{"x":240,"y":331}]}},{"type":"バルコニー","Text":"","Geometry":{"Polygon":[{"x":80,"y":140},{"x":122,"y":140},{"x":122,"y":280},{"x":80,"y":280}]}},{"type":"バルコニー","Text":"バルコニー","Geometry":{"Polygon":[{"x":80,"y":591},{"x":122,"y":591},{"x":122,"y":702},{"x":80,"y":702}]}}]};
-                const finalPrompt = `あなたは、20年以上の経験を持つ日本のベテラン建築士であり、どんな複雑な手書き図面でもミリ単位の精度でデジタル化できる「マエストロ」です。あなたの使命は、提供された間取り図画像を完璧に解析し、指定されたJSON形式で出力することです。一切の妥協は許されません。
-
-【最重要タスク】
-画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力すること。
-
-【思考プロセス】
-あなたの思考プロセスは、最終的なJSON出力の一部として thought フィールドに記述してください。以下に示す思考プロセスを厳密に実行し、その要約を記述します。
-
-1. **[ステップ1: 全体の輪郭把握]** まず、建物全体の最も外側にある壁（外壁）を特定し、その内側のラインに沿って建物全体のマスターポリゴンを頭の中で描く。
-2. **[ステップ2: 内部の壁（内壁）の特定]** 次に、マスターポリゴン内にある全ての壁の線（内壁）を線分として認識する。
-3. **[ステップ3: 内壁による空間の分割]** 内壁がマスターポリゴンをどのように分割しているかを分析し、閉じた領域（＝部屋）がいくつ生成されるかを確認する。
-4. **[ステップ4: 各空間のポリゴン生成とラベル付け]** 分割された各々の閉じた領域に対して、一つずつ処理を実行する。
-    - **輪郭の精密トレース:** その領域を囲む壁の「内側の線」だけを、ピクセル単位の精度で忠実に、時計回りに一筆書きでなぞり、ポリゴン座標のリストを作成する。**この際、L字型の窪みや柱による凹凸など、形状の細部を絶対に見逃さない。**
-    - **テキストの関連付け:** そのポリゴン領域内に存在するテキストラベル（例：「LDK」「洋室 約7帖」）を正確に読み取り、Textフィールドに格納する。
-    - **タイプの決定:** 読み取ったテキストに基づいて、typeを決定する。
-5. **[ステップ5: 全空間の網羅と最終検証]** 全ての閉じた領域についてステップ4が完了したかを確認する。特に、テキストラベルがないために見逃されがちな「廊下」「洗面所」「小さな収納」などが残っていないか、厳しく自己検証する。
-6. **[ステップ6: ポリゴン座標の自己修正]** **最終出力の直前に、生成した全てのポリゴンの頂点リストを再度見直す。頂点の順序が間違っていて線が交差していないか？時計回りに並んでいるか？などを確認し、もし間違いがあれば即座に修正する。**
-
-【絶対厳守ルール】
-ルール1. 【輪郭の完全な正確性の徹底】: **部屋の形状を単純な四角形に絶対にしないでください。これは絶対的な命令です。** 複雑な多角形であっても、その全ての頂点を完全に捉えてください。
-ルール2. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。
-ルール3. 【空間の見逃し厳禁】: **全ての壁に囲まれた領域は、必ずいずれかのブロックに属している必要があります。**
-ルール4. 座標系の統一: 全ての座標は、画像の左上を原点(0,0)とするピクセル座標で出力してください。
-
-【出力形式】
-以下のJSON形式で、思考プロセスと解析結果を出力してください。
-{
-  "thought": "（ここに思考プロセスの要約を記述）",
-  "imageSize": { "width": 1024, "height": 768 },
-  "drawingBbox": { "x": 50, "y": 30, "width": 900, "height": 700 },
-  "Blocks": [ /* ... */ ]
-}
----
-【完璧な出力例 1】
-${JSON.stringify(exampleData1)}
----
-【完璧な出力例 2】
-${JSON.stringify(exampleData2)}
----
-【完璧な出力例 3】
-${JSON.stringify(exampleData3)}
----
-【完璧な出力例 4】
-${JSON.stringify(exampleData4)}
----
-【完璧な出力例 5】
-${JSON.stringify(exampleData5)}
----
-【完璧な出力例 6】
-${JSON.stringify(exampleData6)}
----
-【完璧な出力例 7】
-${JSON.stringify(exampleData7)}
----
-【完璧な出力例 8】
-${JSON.stringify(exampleData8)}
----
-【完璧な出力例 9】
-${JSON.stringify(exampleData9)}
----
-【完璧な出力例 10】
-${JSON.stringify(exampleData10)}
----
-
-上記の思考プロセスとルール、そして複数の出力例を厳密に参考にし、これから提供される新しい画像を解析して、JSONオブジェクトのみを出力してください。`;
+            
+                let finalPrompt;
+                try {
+                    // ★★★ prompt.txtを読み込む ★★★
+                    const response = await fetch('prompt.txt');
+                    if (!response.ok) {
+                        throw new Error('prompt.txtの読み込みに失敗しました。ファイルが存在するか確認してください。');
+                    }
+                    finalPrompt = await response.text();
+            
+                    // ★★★ 読み込んだテキストにexampleDataを埋め込む ★★★
+                    finalPrompt = finalPrompt
+                        .replace('${JSON.stringify(exampleData1)}', JSON.stringify(exampleData1))
+                        .replace('${JSON.stringify(exampleData2)}', JSON.stringify(exampleData2))
+                        .replace('${JSON.stringify(exampleData3)}', JSON.stringify(exampleData3))
+                        .replace('${JSON.stringify(exampleData4)}', JSON.stringify(exampleData4))
+                        .replace('${JSON.stringify(exampleData5)}', JSON.stringify(exampleData5))
+                        .replace('${JSON.stringify(exampleData6)}', JSON.stringify(exampleData6))
+                        .replace('${JSON.stringify(exampleData7)}', JSON.stringify(exampleData7))
+                        .replace('${JSON.stringify(exampleData8)}', JSON.stringify(exampleData8))
+                        .replace('${JSON.stringify(exampleData9)}', JSON.stringify(exampleData9))
+                        .replace('${JSON.stringify(exampleData10)}', JSON.stringify(exampleData10));
+            
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message);
+                    return null;
+                }
             
                 const payload = {
                     contents: [{
@@ -1940,7 +1905,6 @@ ${JSON.stringify(exampleData10)}
                     }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // ★★★【修正点 1】responseSchemaの構造を修正 ★★★
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -1988,12 +1952,10 @@ ${JSON.stringify(exampleData10)}
                                                 required: ["Polygon"]
                                             }
                                         },
-                                        // この階層のrequiredが正しくpropertiesと対応するように修正
-                                        required: ["type", "Text", "Geometry"] 
+                                        required: ["type", "Text", "Geometry"]
                                     }
                                 }
                             },
-                            // この階層のrequiredが正しくpropertiesと対応するように修正
                             required: ["thought", "imageSize", "drawingBbox", "Blocks"]
                         }
                     }
@@ -2001,7 +1963,6 @@ ${JSON.stringify(exampleData10)}
             
                 try {
                     const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
-                    // ★★★【修正点 2】モデル名を精度重視の `pro` に修正 ★★★
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`;
             
                     const response = await fetch(apiUrl, {
@@ -2022,7 +1983,6 @@ ${JSON.stringify(exampleData10)}
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
                         const parsedJson = JSON.parse(jsonText);
-                        // AIの思考プロセスもコンソールに出力してデバッグしやすくする
                         console.log("AIからの思考プロセス:", parsedJson.thought);
                         console.log("AIからのレスポンス(パース後):", parsedJson);
                         return parsedJson;
@@ -2032,7 +1992,6 @@ ${JSON.stringify(exampleData10)}
                     }
                 } catch (error) {
                     console.error("AIの解析中にエラーが発生しました:", error);
-                    // エラーメッセージをアラートで表示
                     alert(`AIの解析に失敗しました。\n${error.message}`);
                     return null;
                 }
