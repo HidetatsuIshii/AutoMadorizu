@@ -2097,38 +2097,37 @@
             };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!aiData.walls || !aiData.Blocks) return [];
-    
-                // --- 座標変換ロジック ---
-                const allPoints = aiData.walls.flatMap(wall => [wall.p1, wall.p2]);
-                if (allPoints.length === 0) return [];
-    
-                const minX = Math.min(...allPoints.map(p => p.x));
-                const minY = Math.min(...allPoints.map(p => p.y));
-                const maxX = Math.max(...allPoints.map(p => p.x));
-                const maxY = Math.max(...allPoints.map(p => p.y));
-    
-                const bbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-                
-                if (bbox.width === 0 || bbox.height === 0) return [];
-    
+                if (!aiData || !aiData.Blocks) {
+                    console.error("AIデータまたはBlocksがありません。");
+                    return [];
+                }
+            
+                // --- 座標変換ロジック (ここは変更なし) ---
+                // 画像上の座標を、エディタのキャンバス座標に変換するための準備
+                const drawingBbox = aiData.drawingBbox;
+                if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) {
+                     console.error("drawingBboxが無効です。");
+                    return [];
+                }
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
-                const fitScale = Math.min(canvasWidth / bbox.width, canvasHeight / bbox.height) * 0.9;
-                const offsetX = (canvasWidth - (bbox.width * fitScale)) / 2;
-                const offsetY = (canvasHeight - (bbox.height * fitScale)) / 2;
-    
+                const fitScale = Math.min(canvasWidth / drawingBbox.width, canvasHeight / drawingBbox.height) * 0.9;
+                const offsetX = (canvasWidth - (drawingBbox.width * fitScale)) / 2;
+                const offsetY = (canvasHeight - (drawingBbox.height * fitScale)) / 2;
+            
                 const transformPoint = (p) => ({
-                    x: ((p.x - bbox.x) * fitScale) + offsetX,
-                    y: ((p.y - bbox.y) * fitScale) + offsetY
+                    x: ((p.x - drawingBbox.x) * fitScale) + offsetX,
+                    y: ((p.y - drawingBbox.y) * fitScale) + offsetY
                 });
+    
+                // --- 全ての頂点を集めてスナップするための準備 (ここは変更なし) ---
+                const allPoints = aiData.Blocks.flatMap(block => block.Geometry.Polygon || []);
+                if (allPoints.length === 0) return [];
                 
-                // --- グローバルな座標スナップ ---
                 const allTransformedPoints = allPoints.map(transformPoint);
                 const allX = allTransformedPoints.map(p => p.x);
                 const allY = allTransformedPoints.map(p => p.y);
-                
-                const coordinateThreshold = 10; // 10px以内の座標は同じと見なす
+                const coordinateThreshold = 10;
                 const xMap = clusterValues(allX, coordinateThreshold);
                 const yMap = clusterValues(allY, coordinateThreshold);
     
@@ -2137,90 +2136,59 @@
                     y: yMap[findClosestValue(p.y, Object.keys(yMap).map(parseFloat))] || p.y
                 });
     
-                // --- SVG要素の生成 ---
                 const newElements = [];
-                const wallElements = [];
     
-                // 1. 壁要素を先にすべて生成
-                aiData.walls.forEach((wall, index) => {
-                    const p1 = snapPoint(transformPoint(wall.p1));
-                    const p2 = snapPoint(transformPoint(wall.p2));
-                    
-                    wallElements.push({
-                        id: `wall-ai-${Date.now()}-${index}`,
-                        type: 'wall',
-                        x1: p1.x, y1: p1.y,
-                        x2: p2.x, y2: p2.y,
-                        stroke: DEFAULT_STROKE_COLOR,
-                        strokeWidth: DEFAULT_STROKE_WIDTH,
-                        lineStyle: 'solid'
-                    });
-                });
-    
-                // 2. 部屋（space）要素を生成
                 aiData.Blocks.forEach((block, index) => {
-                    const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const roomWalls = block.wall_indices.map(i => wallElements[i]);
-    
-                    // ポリゴンを構成する頂点を壁から再構築
-                    const pointMap = new Map();
-                    const adjacency = new Map();
-    
-                    roomWalls.forEach(wall => {
-                        const key1 = `${wall.x1},${wall.y1}`;
-                        const key2 = `${wall.x2},${wall.y2}`;
-                        pointMap.set(key1, {x: wall.x1, y: wall.y1});
-                        pointMap.set(key2, {x: wall.x2, y: wall.y2});
-                        if (!adjacency.has(key1)) adjacency.set(key1, []);
-                        if (!adjacency.has(key2)) adjacency.set(key2, []);
-                        adjacency.get(key1).push(key2);
-                        adjacency.get(key2).push(key1);
-                    });
-                    
-                    // 連結した頂点を順に並べる
-                    let orderedPoints = [];
-                    if (pointMap.size > 0) {
-                        const startKey = pointMap.keys().next().value;
-                        let currentKey = startKey;
-                        const visited = new Set();
-                        while(orderedPoints.length < pointMap.size && !visited.has(currentKey)) {
-                             orderedPoints.push(pointMap.get(currentKey));
-                             visited.add(currentKey);
-                             const neighbors = adjacency.get(currentKey);
-                             const nextNeighbor = neighbors.find(n => !visited.has(n));
-                             if (nextNeighbor) {
-                                 currentKey = nextNeighbor;
-                             } else {
-                                 break; // ループの終点
-                             }
-                        }
+                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) {
+                        return; // ポリゴンデータがないブロックはスキップ
                     }
-                    
-                    if (orderedPoints.length < 3) return;
     
-                    const spaceType = block.type; // 型変換は前回同様に行う
+                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+    
+                    // AIからのポリゴンデータを直接使い、座標変換とスナップを適用
+                    const polygonPoints = block.Geometry.Polygon.map(p => snapPoint(transformPoint(p)));
+    
+                    const spaceType = block.type; // 必要であればここで型名を変換
                     const preset = SPACE_STYLE_PRESETS[spaceType] || SPACE_STYLE_PRESETS['default'];
                     
-                    newElements.push({
+                    // 1. Space要素の作成
+                    const spaceElement = {
                         id: groupId,
                         type: 'space',
                         shape: 'polygon',
                         spaceType: spaceType,
                         groupId: groupId,
-                        points: orderedPoints.map(p => `${p.x},${p.y}`).join(' '),
+                        points: polygonPoints.map(p => `${p.x},${p.y}`).join(' '),
                         fill: preset.fill,
                         backgroundPattern: preset.background,
                         stroke: preset.strokeColor,
                         strokeWidth: preset.strokeWidth,
                         lineStyle: preset.lineStyle
-                    });
-    
-                    // 各壁要素にgroupIdを付与
-                    roomWalls.forEach(wall => {
-                        wall.groupId = groupId;
-                    });
+                    };
+                    newElements.push(spaceElement);
                     
-                    const centroid = getPolygonCentroid(orderedPoints);
+                    // 2. Space要素の各辺からWall要素を作成
+                    for (let i = 0; i < polygonPoints.length; i++) {
+                        const p1 = polygonPoints[i];
+                        const p2 = polygonPoints[(i + 1) % polygonPoints.length]; // 最後の点と最初の点を結ぶ
+                        
+                        if (p1.x === p2.x && p1.y === p2.y) continue;
+    
+                        newElements.push({
+                            id: `wall-${groupId}-${i}`,
+                            type: 'wall',
+                            groupId: groupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            stroke: preset.strokeColor,
+                            strokeWidth: preset.strokeWidth,
+                            lineStyle: preset.lineStyle
+                        });
+                    }
+                    
+                    // 3. Text要素の作成
+                    const centroid = getPolygonCentroid(polygonPoints);
                     newElements.push({
                         id: `text-ai-${Date.now()}-${index}`,
                         type: 'text',
@@ -2236,8 +2204,8 @@
                     });
                 });
     
-                // 最終的に壁要素と部屋要素を結合
-                return [...newElements, ...wallElements];
+                return newElements;
+    
             }, [dimensions]);
 
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
