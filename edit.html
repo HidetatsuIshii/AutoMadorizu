@@ -2029,62 +2029,91 @@
                 }
             };
 
-            const straightenAndAlignPolygon = (points, globalXMap, globalYMap) => {
-                if (points.length < 3) return points;
-            
-                // ステップ1: グローバルな基準線に頂点をスナップさせる (変更なし)
-                const globalXKeys = Object.keys(globalXMap).map(parseFloat);
-                const globalYKeys = Object.keys(globalYMap).map(parseFloat);
-                if (globalXKeys.length === 0 || globalYKeys.length === 0) return points;
-            
-                let snappedPoints = points.map(p => ({
-                    x: globalXMap[findClosestValue(p.x, globalXKeys)],
-                    y: globalYMap[findClosestValue(p.y, globalYKeys)]
-                }));
+            // 点がポリゴンの内側にあるか判定するヘルパー関数
+            const isPointInPolygon = (point, polygon) => {
+                let isInside = false;
+                for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                    const xi = polygon[i].x, yi = polygon[i].y;
+                    const xj = polygon[j].x, yj = polygon[j].y;
+                    const intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                    if (intersect) isInside = !isInside;
+                }
+                return isInside;
+            };
     
-                // ▼▼▼【ここから追加】不要な頂点を削除するロジック▼▼▼
+            // 壁データから閉じた領域（部屋）を見つけ出すメインのロジック
+            const findClosedRegions = (walls) => {
+                const points = {};
+                const pointToKey = p => `${p.x},${p.y}`;
     
-                // ステップ2: 連続する重複した頂点を削除
-                let uniquePoints = snappedPoints.filter((point, i) => {
-                    const prev = snappedPoints[i === 0 ? snappedPoints.length - 1 : i - 1];
-                    // 非常に近い点も重複とみなす
-                    return Math.abs(point.x - prev.x) > 1 || Math.abs(point.y - prev.y) > 1;
+                walls.forEach(wall => {
+                    const key1 = pointToKey(wall.p1);
+                    const key2 = pointToKey(wall.p2);
+                    if (!points[key1]) points[key1] = { p: wall.p1, connections: [] };
+                    if (!points[key2]) points[key2] = { p: wall.p2, connections: [] };
+                    points[key1].connections.push(points[key2]);
+                    points[key2].connections.push(points[key1]);
                 });
     
-                if (uniquePoints.length < 3) return uniquePoints.length > 0 ? uniquePoints : points;
+                Object.values(points).forEach(point => {
+                    point.connections.sort((a, b) => {
+                        const angleA = Math.atan2(a.p.y - point.p.y, a.p.x - point.p.x);
+                        const angleB = Math.atan2(b.p.y - point.p.y, b.p.x - point.p.x);
+                        return angleA - angleB;
+                    });
+                });
     
-                // ステップ3: 直線上にある中間点を削除
-                let finalPoints = [];
-                if (uniquePoints.length > 2) {
-                    for (let i = 0; i < uniquePoints.length; i++) {
-                        const p_prev = uniquePoints[i === 0 ? uniquePoints.length - 1 : i - 1];
-                        const p_curr = uniquePoints[i];
-                        const p_next = uniquePoints[(i + 1) % uniquePoints.length];
+                const regions = [];
+                const visitedEdges = new Set();
     
-                        const vec_in = { x: p_curr.x - p_prev.x, y: p_curr.y - p_prev.y };
-                        const vec_out = { x: p_next.x - p_curr.x, y: p_next.y - p_curr.y };
+                for (const startNodeKey in points) {
+                    const startNode = points[startNodeKey];
+                    for (const endNode of startNode.connections) {
+                        const edgeKey = [pointToKey(startNode.p), pointToKey(endNode.p)].sort().join('-');
+                        if (visitedEdges.has(edgeKey)) continue;
+    
+                        const path = [startNode];
+                        let currentNode = endNode;
+                        let prevNode = startNode;
+    
+                        while (currentNode !== startNode && path.length < Object.keys(points).length) {
+                            path.push(currentNode);
+                            const { connections } = currentNode;
+                            const prevIndex = connections.findIndex(conn => conn.p.x === prevNode.p.x && conn.p.y === prevNode.p.y);
+                            
+                            // 時計回りで次のノードを選択
+                            const nextNode = connections[(prevIndex + 1) % connections.length];
+                            
+                            const currentEdgeKey = [pointToKey(currentNode.p), pointToKey(nextNode.p)].sort().join('-');
+                            visitedEdges.add(currentEdgeKey);
+    
+                            prevNode = currentNode;
+                            currentNode = nextNode;
+                        }
                         
-                        // 2つのベクトルの外積を計算。ほぼ0なら直線上にあると判断
-                        const crossProduct = vec_in.x * vec_out.y - vec_in.y * vec_out.x;
-    
-                        // 重要な角（直線上にない点）のみを残す
-                        if (Math.abs(crossProduct) > 1e-6) {
-                            finalPoints.push(p_curr);
+                        if (currentNode === startNode && path.length > 2) {
+                            const polygonPoints = path.map(node => node.p);
+                            // ポリゴンが小さすぎないかチェック
+                            const xs = polygonPoints.map(p => p.x);
+                            const ys = polygonPoints.map(p => p.y);
+                            const width = Math.max(...xs) - Math.min(...xs);
+                            const height = Math.max(...ys) - Math.min(...ys);
+                            if (width > 5 && height > 5) {
+                               regions.push(polygonPoints);
+                            }
                         }
                     }
-                } else {
-                    finalPoints = uniquePoints;
                 }
-                // ▲▲▲【追加ここまで】▲▲▲
-            
-                // 頂点数が3未満になったら元のデータを返すことで、図形が消えるのを防ぐ
-                return finalPoints.length >= 3 ? finalPoints : points;
+                return regions;
             };
-
-            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!aiData || !aiData.Blocks) return [];
+    
+            const generateDrawingFromAi = useCallback((aiData, dimensions) => {
+                if (!aiData || !aiData.walls || !aiData.labels) {
+                    console.error("AIデータに必要なwallsまたはlabelsがありません。");
+                    return [];
+                }
             
-                // --- 座標変換ロジック (変更なし) ---
+                // --- 座標変換ロジック ---
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
                 const canvasWidth = dimensions.width;
@@ -2098,77 +2127,108 @@
                     y: ((p.y - drawingBbox.y) * fitScale) + offsetY
                 });
     
-                // --- 全ての頂点を集めてスナップするための準備 (変更なし) ---
-                const allPoints = aiData.Blocks.flatMap(block => block.Geometry.Polygon || []);
-                if (allPoints.length === 0) return [];
-                const allTransformedPoints = allPoints.map(transformPoint);
-                const allX = allTransformedPoints.map(p => p.x);
-                const allY = allTransformedPoints.map(p => p.y);
+                // --- 壁データの整形 ---
+                const allEndpoints = aiData.walls.flatMap(wall => [wall.p1, wall.p2]);
+                if (allEndpoints.length === 0) return [];
+    
+                const allTransformedEndpoints = allEndpoints.map(transformPoint);
+                const allX = allTransformedEndpoints.map(p => p.x);
+                const allY = allTransformedEndpoints.map(p => p.y);
+                
                 const coordinateThreshold = 10;
                 const xMap = clusterValues(allX, coordinateThreshold);
                 const yMap = clusterValues(allY, coordinateThreshold);
-            
+    
+                const processedWalls = aiData.walls.map(wall => {
+                    const p1 = transformPoint(wall.p1);
+                    const p2 = transformPoint(wall.p2);
+                    return {
+                        p1: {
+                            x: xMap[findClosestValue(p1.x, Object.keys(xMap).map(parseFloat))] || p1.x,
+                            y: yMap[findClosestValue(p1.y, Object.keys(yMap).map(parseFloat))] || p1.y
+                        },
+                        p2: {
+                            x: xMap[findClosestValue(p2.x, Object.keys(xMap).map(parseFloat))] || p2.x,
+                            y: yMap[findClosestValue(p2.y, Object.keys(yMap).map(parseFloat))] || p2.y
+                        }
+                    };
+                }).filter(wall => (wall.p1.x !== wall.p2.x || wall.p1.y !== wall.p2.y)); // 長さゼロの壁を削除
+    
+                // --- 閉じた領域（部屋）を探索 ---
+                const regions = findClosedRegions(processedWalls);
                 const newElements = [];
-            
-                aiData.Blocks.forEach((block, index) => {
-                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
     
-                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+                // --- 領域にラベルを割り当て、SVG要素を生成 ---
+                regions.forEach((polygonPoints, index) => {
+                    const centroid = getPolygonCentroid(polygonPoints);
+                    let assignedLabel = { Text: "不明", type: "その他" };
+                    let minDistance = Infinity;
     
-                    // ★★★★★ ここで後処理を実行 ★★★★★
-                    const transformedPolygon = block.Geometry.Polygon.map(transformPoint);
-                    const processedPoints = straightenAndAlignPolygon(transformedPolygon, xMap, yMap);
-                    // ★★★★★★★★★★★★★★★★★★★★
-    
-                    if (processedPoints.length < 3) return; // 処理後にポリゴンが成立しない場合はスキップ
+                    aiData.labels.forEach(label => {
+                        const labelPos = transformPoint(label.center);
+                        if (isPointInPolygon(labelPos, polygonPoints)) {
+                            const dist = Math.sqrt(Math.pow(labelPos.x - centroid.x, 2) + Math.pow(labelPos.y - centroid.y, 2));
+                            if (dist < minDistance) {
+                                minDistance = dist;
+                                let type = "その他";
+                                if (label.Text.includes("LDK")) type = "LDK";
+                                else if (label.Text.includes("洋室") || label.Text.includes("寝室")) type = "居室";
+                                else if (label.Text.includes("和室")) type = "和室";
+                                else if (label.Text.includes("浴室") || label.Text.includes("バス")) type = "浴室";
+                                else if (label.Text.includes("洗面")) type = "洗面所";
+                                else if (label.Text.includes("トイレ")) type = "トイレ";
+                                else if (label.Text.includes("収納") || label.Text.includes("クロ") || label.Text.includes("WIC")) type = "収納";
+                                else if (label.Text.includes("玄関")) type = "玄関";
+                                else if (label.Text.includes("廊下")) type = "廊下";
+                                else if (label.Text.includes("バルコニー") || label.Text.includes("テラス")) type = "バルコニー";
+                                else if (label.Text.includes("PS")) type = "PS";
+                                else if (label.Text.includes("MB")) type = "MB";
+                                
+                                assignedLabel = { ...label, type: type };
+                            }
+                        }
+                    });
                     
-                    const spaceType = block.type;
+                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+                    const spaceType = assignedLabel.type;
                     const preset = SPACE_STYLE_PRESETS[spaceType] || SPACE_STYLE_PRESETS['default'];
                     
-                    // 1. Space要素の作成
-                    const spaceElement = {
+                    newElements.push({
                         id: groupId,
                         type: 'space',
                         shape: 'polygon',
                         spaceType: spaceType,
                         groupId: groupId,
-                        points: processedPoints.map(p => `${p.x},${p.y}`).join(' '), // 処理後の頂点を使用
+                        points: polygonPoints.map(p => `${p.x},${p.y}`).join(' '),
                         fill: preset.fill,
                         backgroundPattern: preset.background,
                         stroke: preset.strokeColor,
                         strokeWidth: preset.strokeWidth,
                         lineStyle: preset.lineStyle
-                    };
-                    newElements.push(spaceElement);
-                    
-                    // 2. Wall要素の作成
-                    for (let i = 0; i < processedPoints.length; i++) {
-                        const p1 = processedPoints[i];
-                        const p2 = processedPoints[(i + 1) % processedPoints.length];
-                        if (p1.x === p2.x && p1.y === p2.y) continue;
+                    });
+    
+                    for (let i = 0; i < polygonPoints.length; i++) {
+                        const p1 = polygonPoints[i];
+                        const p2 = polygonPoints[(i + 1) % polygonPoints.length];
                         newElements.push({
                             id: `wall-${groupId}-${i}`,
                             type: 'wall',
                             groupId: groupId,
                             edgeIndex: i,
-                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
                             stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
                         });
                     }
                     
-                    // 3. Text要素の作成
-                    const centroid = getPolygonCentroid(processedPoints);
-                    newElements.push({
-                        id: `text-ai-${Date.now()}-${index}`,
-                        type: 'text',
-                        groupId: groupId,
-                        x: (centroid.x / dimensions.width) * 100,
-                        y: (centroid.y / dimensions.height) * 100,
-                        text: block.Text, color: '#000000', backgroundColor: 'none', fontSize: 16,
-                        fontFamily: 'sans-serif', textAlign: 'center',
-                    });
+                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions);
+                    if (textLabel) {
+                        textLabel.groupId = groupId;
+                        textLabel.text = assignedLabel.Text; // AIが認識したテキストをそのまま使用
+                        newElements.push(textLabel);
+                    }
                 });
-                
+    
                 return newElements;
             }, [dimensions]);
 
