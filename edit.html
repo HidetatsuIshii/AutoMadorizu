@@ -1966,65 +1966,40 @@
 
             const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
-            
-                // exampleDataはお手本データとして使われるため、プロンプトの形式に合わせてダミーで良いので定義しておきます。
-                const exampleData = {
-                  "thought": "ステップ1で壁の中心線を抽出し、ステップ2でテキストラベルとその中心座標を抽出しました。ステップ3で最終検証を行い、漏れがないことを確認しました。",
-                  "imageSize": { "width": 768, "height": 1024 },
-                  "drawingBbox": { "x": 100, "y": 100, "width": 420, "height": 630 },
-                  "walls": [ { "p1": { "x": 105, "y": 102 }, "p2": { "x": 518, "y": 102 } } ],
-                  "labels": [ { "Text": "LDK", "center": { "x": 311, "y": 264 } } ]
-                };
+                
+                // プロンプトが参照するダミーデータ
+                const exampleData1 = {"walls":[{"p1":{"x":310,"y":35},"p2":{"x":630,"y":35}},{"p1":{"x":630,"y":35},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":565,"y":265}},{"p1":{"x":565,"y":265},"p2":{"x":630,"y":265}},{"p1":{"x":580,"y":265},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":460},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":35},"p2":{"x":310,"y":460}},{"p1":{"x":630,"y":195},"p2":{"x":630,"y":265}},{"p1":{"x":645,"y":295},"p2":{"x":710,"y":295}},{"p1":{"x":710,"y":295},"p2":{"x":710,"y":390}},{"p1":{"x":645,"y":390},"p2":{"x":710,"y":390}},{"p1":{"x":645,"y":295},"p2":{"x":645,"y":390}},{"p1":{"x":580,"y":390},"p2":{"x":710,"y":390}},{"p1":{"x":710,"y":390},"p2":{"x":710,"y":515}},{"p1":{"x":580,"y":515},"p2":{"x":710,"y":515}},{"p1":{"x":580,"y":390},"p2":{"x":580,"y":515}},{"p1":{"x":580,"y":295},"p2":{"x":645,"y":295}},{"p1":{"x":310,"y":460},"p2":{"x":515,"y":460}},{"p1":{"x":515,"y":460},"p2":{"x":515,"y":785}},{"p1":{"x":310,"y":785},"p2":{"x":515,"y":785}},{"p1":{"x":515,"y":460},"p2":{"x":710,"y":460}},{"p1":{"x":710,"y":460},"p2":{"x":710,"y":715}},{"p1":{"x":580,"y":715},"p2":{"x":710,"y":715}},{"p1":{"x":580,"y":515},"p2":{"x":580,"y":715}},{"p1":{"x":515,"y":515},"p2":{"x":580,"y":515}},{"p1":{"x":515,"y":460},"p2":{"x":515,"y":515}},{"p1":{"x":310,"y":785},"p2":{"x":710,"y":785}},{"p1":{"x":710,"y":785},"p2":{"x":710,"y":820}},{"p1":{"x":310,"y":820},"p2":{"x":710,"y":820}},{"p1":{"x":310,"y":785},"p2":{"x":310,"y":820}}],"Blocks":[{"type":"LDK","Text":"LDK","wall_indices":[0,1,2,3,5,6,7],"Geometry":{"Polygon":[]}},{"type":"玄関","Text":"玄関","wall_indices":[2,3,4,8],"Geometry":{"Polygon":[]}},{"type":"トイレ","Text":"トイレ","wall_indices":[9,10,11,12],"Geometry":{"Polygon":[]}},{"type":"浴室","Text":"浴室","wall_indices":[13,14,15,16],"Geometry":{"Polygon":[]}},{"type":"洗面所","Text":"洗面所","wall_indices":[12,13,16,17],"Geometry":{"Polygon":[]}},{"type":"居室","Text":"洋室 約7帖","wall_indices":[6,18,19,20],"Geometry":{"Polygon":[]}},{"type":"居室","Text":"洋室 約5帖","wall_indices":[14,16,21,22,23,24,25,26],"Geometry":{"Polygon":[]}},{"type":"バルコニー","Text":"バルコニー","wall_indices":[27,28,29,30],"Geometry":{"Polygon":[]}}]};
+    
     
                 let finalPrompt;
                 try {
                     const response = await fetch('prompt.txt');
-                    if (!response.ok) {
-                        throw new Error('prompt.txtの読み込みに失敗しました。');
-                    }
+                    if (!response.ok) throw new Error('prompt.txtの読み込みに失敗しました。');
                     finalPrompt = await response.text();
-                    
-                    // prompt.txt内の ${JSON.stringify(exampleData...)} の部分をダミーデータで置換します
-                    // （prompt.txtの例が1つだけになったので、1回だけ置換します）
-                    finalPrompt = finalPrompt.replace(/\$\{JSON\.stringify\(exampleData\d*\)\}/g, JSON.stringify(exampleData));
-    
+                    finalPrompt = finalPrompt.replace('${JSON.stringify(exampleData1)}', JSON.stringify(exampleData1));
                 } catch (error) {
                     console.error(error);
                     alert(error.message);
                     return null;
                 }
             
-                // ▼▼▼【ここからが修正箇所です】▼▼▼
                 const payload = {
-                    contents: [{
-                        parts: [
-                            { text: finalPrompt },
-                            { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
-                        ]
-                    }],
+                    contents: [{ parts: [ { text: finalPrompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } } ] }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // 新しいプロンプトの出力形式に合わせたスキーマ定義
+                        // ▼▼▼【ここを修正】新しいプロンプトの出力形式に合わせたスキーマ定義▼▼▼
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
                                 "thought": { "type": "STRING" },
                                 "imageSize": {
                                     type: "OBJECT",
-                                    properties: {
-                                        "width": { "type": "NUMBER" },
-                                        "height": { "type": "NUMBER" }
-                                    },
+                                    properties: { "width": { "type": "NUMBER" }, "height": { "type": "NUMBER" } },
                                     required: ["width", "height"]
                                 },
                                 "drawingBbox": {
                                     type: "OBJECT",
-                                    properties: {
-                                        "x": { "type": "NUMBER" },
-                                        "y": { "type": "NUMBER" },
-                                        "width": { "type": "NUMBER" },
-                                        "height": { "type": "NUMBER" }
-                                    },
+                                    properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" }, "width": { "type": "NUMBER" }, "height": { "type": "NUMBER" } },
                                     required: ["x", "y", "width", "height"]
                                 },
                                 "walls": {
@@ -2032,45 +2007,47 @@
                                     items: {
                                         type: "OBJECT",
                                         properties: {
-                                            "p1": {
-                                                type: "OBJECT",
-                                                properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } },
-                                                required: ["x", "y"]
-                                            },
-                                            "p2": {
-                                                type: "OBJECT",
-                                                properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } },
-                                                required: ["x", "y"]
-                                            }
+                                            "p1": { type: "OBJECT", properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } }, required: ["x", "y"] },
+                                            "p2": { type: "OBJECT", properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } }, required: ["x", "y"] }
                                         },
                                         required: ["p1", "p2"]
                                     }
                                 },
-                                "labels": {
+                                "Blocks": {
                                     type: "ARRAY",
                                     items: {
                                         type: "OBJECT",
                                         properties: {
+                                            "type": { "type": "STRING" },
                                             "Text": { "type": "STRING" },
-                                            "center": {
+                                            "wall_indices": { type: "ARRAY", items: { "type": "NUMBER" } },
+                                            "Geometry": {
                                                 type: "OBJECT",
-                                                properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } },
-                                                required: ["x", "y"]
+                                                properties: {
+                                                    "Polygon": {
+                                                        type: "ARRAY",
+                                                        items: {
+                                                            type: "OBJECT",
+                                                            properties: { "x": { "type": "NUMBER" }, "y": { "type": "NUMBER" } },
+                                                            required: ["x", "y"]
+                                                        }
+                                                    }
+                                                },
+                                                required: ["Polygon"]
                                             }
                                         },
-                                        required: ["Text", "center"]
+                                        required: ["type", "Text", "wall_indices", "Geometry"]
                                     }
                                 }
                             },
-                            required: ["thought", "imageSize", "drawingBbox", "walls", "labels"]
+                            required: ["thought", "imageSize", "drawingBbox", "walls", "Blocks"]
                         }
                     }
                 };
-                // ▲▲▲【修正箇所ここまで】▲▲▲
+                // ▲▲▲【修正ここまで】▲▲▲
             
                 try {
-                    // !!注意!! APIキーは本来サーバーサイドで管理すべきです
-                    const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg"; 
+                    const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             
                     const response = await fetch(apiUrl, {
@@ -2081,7 +2058,7 @@
             
                     if (!response.ok) {
                         const errorBody = await response.text();
-                        console.error("API Error Body:", errorBody); // エラー内容をコンソールに出力
+                        console.error("API Error Body:", errorBody);
                         throw new Error(`API Error: ${response.status}`);
                     }
             
@@ -2181,13 +2158,14 @@
             };
     
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!aiData || !aiData.walls || !aiData.labels) {
-                    console.error("AIデータに必要なwallsまたはlabelsがありません。");
+                if (!aiData || !aiData.Blocks) {
+                    console.error("AIデータまたはBlocksがありません。");
                     return [];
                 }
             
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
+            
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
                 const fitScale = Math.min(canvasWidth / drawingBbox.width, canvasHeight / drawingBbox.height) * 0.9;
@@ -2198,103 +2176,47 @@
                     x: ((p.x - drawingBbox.x) * fitScale) + offsetX,
                     y: ((p.y - drawingBbox.y) * fitScale) + offsetY
                 });
-    
-                const allEndpoints = aiData.walls.flatMap(wall => [wall.p1, wall.p2]);
-                if (allEndpoints.length === 0) return [];
-    
-                const allTransformedEndpoints = allEndpoints.map(transformPoint);
-                const allX = allTransformedEndpoints.map(p => p.x);
-                const allY = allTransformedEndpoints.map(p => p.y);
-                
-                const coordinateThreshold = 10;
-                const xMap = clusterValues(allX, coordinateThreshold);
-                const yMap = clusterValues(allY, coordinateThreshold);
-    
-                let processedWalls = aiData.walls.map(wall => {
-                    const p1 = transformPoint(wall.p1);
-                    const p2 = transformPoint(wall.p2);
-                    return {
-                        p1: {
-                            x: xMap[findClosestValue(p1.x, Object.keys(xMap).map(parseFloat))] || p1.x,
-                            y: yMap[findClosestValue(p1.y, Object.keys(yMap).map(parseFloat))] || p1.y
-                        },
-                        p2: {
-                            x: xMap[findClosestValue(p2.x, Object.keys(xMap).map(parseFloat))] || p2.x,
-                            y: yMap[findClosestValue(p2.y, Object.keys(yMap).map(parseFloat))] || p2.y
-                        }
-                    };
-                });
-                
-                // ▼▼▼【ここからクリーンアップ処理を追加】▼▼▼
-                // 1. 近くの端点を結合
-                processedWalls = connectNearbyEndpoints(processedWalls, 15);
-                // 2. 一直線上の壁を統合
-                processedWalls = mergeCollinearWalls(processedWalls);
-                // 3. 長さがゼロになった壁を削除
-                processedWalls = processedWalls.filter(wall => (Math.abs(wall.p1.x - wall.p2.x) > 1 || Math.abs(wall.p1.y - wall.p2.y) > 1));
-                // ▲▲▲【クリーンアップここまで】▲▲▲
-    
-                const regions = findClosedRegions(processedWalls);
+            
                 const newElements = [];
-                
-                regions.forEach((polygonPoints, index) => {
-                    const centroid = getPolygonCentroid(polygonPoints);
-                    let assignedLabel = { Text: "不明", type: "その他" };
-                    let minDistance = Infinity;
+            
+                aiData.Blocks.forEach((block, index) => {
+                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) {
+                        return; 
+                    }
     
-                    aiData.labels.forEach(label => {
-                        const labelPos = transformPoint(label.center);
-                        if (isPointInPolygon(labelPos, polygonPoints)) {
-                            const dist = Math.sqrt(Math.pow(labelPos.x - centroid.x, 2) + Math.pow(labelPos.y - centroid.y, 2));
-                            if (dist < minDistance) {
-                                minDistance = dist;
-                                let type = "その他";
-                                // タイプ判定ロジック（変更なし）
-                                if (label.Text.includes("LDK")) type = "LDK";
-                                else if (label.Text.includes("洋室") || label.Text.includes("寝室")) type = "居室";
-                                else if (label.Text.includes("和室")) type = "和室";
-                                else if (label.Text.includes("浴室") || label.Text.includes("バス")) type = "浴室";
-                                else if (label.Text.includes("洗面")) type = "洗面所";
-                                else if (label.Text.includes("トイレ")) type = "トイレ";
-                                else if (label.Text.includes("収納") || label.Text.includes("クロ") || label.Text.includes("WIC")) type = "収納";
-                                else if (label.Text.includes("玄関")) type = "玄関";
-                                else if (label.Text.includes("廊下")) type = "廊下";
-                                else if (label.Text.includes("バルコニー") || label.Text.includes("テラス")) type = "バルコニー";
-                                else if (label.Text.includes("PS")) type = "PS";
-                                else if (label.Text.includes("MB")) type = "MB";
-                                assignedLabel = { ...label, type: type };
-                            }
-                        }
-                    });
-                    
                     const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const spaceType = assignedLabel.type;
+                    const polygonPoints = block.Geometry.Polygon.map(transformPoint);
+                    
+                    const spaceType = block.type;
                     const preset = SPACE_STYLE_PRESETS[spaceType] || SPACE_STYLE_PRESETS['default'];
                     
-                    newElements.push({
-                        id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId: groupId,
-                        points: polygonPoints.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: preset.fill, backgroundPattern: preset.background, stroke: preset.strokeColor,
-                        strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
-                    });
+                    const spaceElement = {
+                        id: groupId, type: 'space', shape: 'polygon', spaceType, groupId,
+                        points: polygonPoints.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' '),
+                        fill: preset.fill, backgroundPattern: preset.background,
+                        stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
+                    };
+                    newElements.push(spaceElement);
     
                     for (let i = 0; i < polygonPoints.length; i++) {
                         const p1 = polygonPoints[i];
                         const p2 = polygonPoints[(i + 1) % polygonPoints.length];
+                        if (Math.abs(p1.x - p2.x) < 1 && Math.abs(p1.y - p2.y) < 1) continue;
+    
                         newElements.push({
-                            id: `wall-${groupId}-${i}`, type: 'wall', groupId: groupId, edgeIndex: i,
+                            id: `wall-${groupId}-${i}`, type: 'wall', groupId, edgeIndex: i,
                             x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
                             stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
                         });
                     }
                     
-                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions, groupId, assignedLabel.Text);
+                    const centroid = getPolygonCentroid(polygonPoints);
+                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions, groupId, block.Text);
                     if (textLabel) {
                         textLabel.groupId = groupId;
                         newElements.push(textLabel);
                     }
                 });
-    
                 return newElements;
             }, [dimensions]);
 
