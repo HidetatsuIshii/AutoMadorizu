@@ -2231,52 +2231,56 @@
                 img.onload = async () => {
                     const imageWidth = img.naturalWidth;
                     const imageHeight = img.naturalHeight;
-
+    
                     setOriginalImageDimensions({ width: imageWidth, height: imageHeight });
-
+    
                     const canvasWidth = dimensions.width;
-                    const canvasHeight = dimensions.height;
-                    const scaleX = canvasWidth / imageWidth;
-                    const scaleY = canvasHeight / imageHeight;
-                    const fitScale = Math.min(scaleX, scaleY);
-                    
-                    setImageUrl(imageDataUrl);
-                    setImageScale(fitScale);
-                    setImagePosition({ x: 0, y: 0 });
-                    
-                    if (useAi) {
-                        setIsLoading(true);
-                        try {
+                    const canvasHeight = dimensions.height;
+                    const scaleX = canvasWidth / imageWidth;
+                    const scaleY = canvasHeight / imageHeight;
+                    const fitScale = Math.min(scaleX, scaleY);
+                    
+                    setImageUrl(imageDataUrl);
+                    setImageScale(fitScale);
+                    setImagePosition({ x: 0, y: 0 });
+                    
+                    if (useAi) {
+                        setIsLoading(true);
+                        try {
                             setLoadingMessage('AIが間取り図を解析中...');
                             const finalOcrData = await analyzeImageWithAI(imageDataUrl);
-    
-                            if (finalOcrData && finalOcrData.Blocks) {
-                                const newElements = generateDrawingFromAi(finalOcrData, dimensions);
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: {
-                                        ...prev.present,
-                                        svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData // 最終的なデータを保存
-                                    },
-                                    future: []
-                                }));
-                            } else {
-                                throw new Error("AIからの応答が不正、または空です。");
-                            }
-                        } catch (err) {
-                            console.error("AI処理エラー:", err);
-                            alert(`エラーが発生しました: ${err.message}`);
-                        } finally {
-                            setIsLoading(false);
-                            setUploadModalOpen(false);
-                        }
+            
+                            // ▼▼▼【ここを修正しました】▼▼▼
+                            // 古いチェック: if (finalOcrData && finalOcrData.Blocks)
+                            // 新しいチェック: walls と labels が存在するかを確認
+                            if (finalOcrData && finalOcrData.walls && finalOcrData.labels) {
+                            // ▲▲▲【修正ここまで】▲▲▲
+                                const newElements = generateDrawingFromAi(finalOcrData, dimensions);
+                                setHistoryState(prev => ({
+                                    past: [...prev.past, prev.present],
+                                    present: {
+                                        ...prev.present,
+                                        svgElements: [...prev.present.svgElements, ...newElements],
+                                        ocrData: finalOcrData 
+                                    },
+                                    future: []
+                                }));
+                            } else {
+                                throw new Error("AIからの応答が不正、または空です。");
+                            }
+                        } catch (err) {
+                            console.error("AI処理エラー:", err);
+                            alert(`エラーが発生しました: ${err.message}`);
+                        } finally {
+                            setIsLoading(false);
+                            setUploadModalOpen(false);
+                        }
                     } else {
-                    setUploadModalOpen(false);
+                        setUploadModalOpen(false);
                     }
-                };
-                img.src = imageDataUrl;
-            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
+                };
+                img.src = imageDataUrl;
+            }, [dimensions, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
