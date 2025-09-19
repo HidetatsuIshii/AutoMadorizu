@@ -2231,7 +2231,7 @@
                     const canvasWidth = dimensions.width;
                     const canvasHeight = dimensions.height;
                     const scaleX = canvasWidth / imageWidth;
-                    const scaleY = canvasHeight / imageHeight;
+                    const scaleY = imageHeight > 0 ? canvasHeight / imageHeight : 0;
                     const fitScale = Math.min(scaleX, scaleY);
                     
                     setImageUrl(imageDataUrl);
@@ -2244,21 +2244,23 @@
                             setLoadingMessage('AIが間取り図を解析中...');
                             const finalOcrData = await analyzeImageWithAI(imageDataUrl);
             
-                            // ▼▼▼【ここを修正しました】▼▼▼
-                            // 古いチェック: if (finalOcrData && finalOcrData.Blocks)
-                            // 新しいチェック: walls と labels が存在するかを確認
-                            if (finalOcrData && finalOcrData.walls && finalOcrData.labels) {
+                            // ▼▼▼【ここを修正】チェックするプロパティを 'labels' から 'Blocks' に変更▼▼▼
+                            if (finalOcrData && finalOcrData.walls && finalOcrData.Blocks) {
                             // ▲▲▲【修正ここまで】▲▲▲
                                 const newElements = generateDrawingFromAi(finalOcrData, dimensions);
-                                setHistoryState(prev => ({
-                                    past: [...prev.past, prev.present],
-                                    present: {
-                                        ...prev.present,
-                                        svgElements: [...prev.present.svgElements, ...newElements],
-                                        ocrData: finalOcrData 
-                                    },
-                                    future: []
-                                }));
+                                if (newElements && newElements.length > 0) {
+                                    setHistoryState(prev => ({
+                                        past: [...prev.past, prev.present],
+                                        present: {
+                                            ...prev.present,
+                                            svgElements: [...prev.present.svgElements, ...newElements],
+                                            ocrData: finalOcrData 
+                                        },
+                                        future: []
+                                    }));
+                                } else {
+                                    throw new Error("AIからのデータから図形を生成できませんでした。");
+                                }
                             } else {
                                 throw new Error("AIからの応答が不正、または空です。");
                             }
@@ -2274,7 +2276,7 @@
                     }
                 };
                 img.src = imageDataUrl;
-            }, [dimensions, generateDrawingFromAi]);
+            }, [dimensions, analyzeImageWithAI, generateDrawingFromAi]);
 
             const getCanvasCoords = useCallback((event) => {
                 const svg = svgRef.current;
