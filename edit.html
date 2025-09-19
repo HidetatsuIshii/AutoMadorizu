@@ -2093,62 +2093,85 @@
     
             // 壁データから閉じた領域（部屋）を見つけ出すメインのロジック
             const findClosedRegions = (walls) => {
-                const points = {};
-                const pointToKey = p => `${p.x},${p.y}`;
-    
-                walls.forEach(wall => {
-                    const key1 = pointToKey(wall.p1);
-                    const key2 = pointToKey(wall.p2);
-                    if (!points[key1]) points[key1] = { p: wall.p1, connections: [] };
-                    if (!points[key2]) points[key2] = { p: wall.p2, connections: [] };
-                    points[key1].connections.push(points[key2]);
-                    points[key2].connections.push(points[key1]);
+            const points = {};
+            const pointToKey = p => `${Math.round(p.x)},${Math.round(p.y)}`;
+
+            walls.forEach(wall => {
+                const key1 = pointToKey(wall.p1);
+                const key2 = pointToKey(wall.p2);
+                if (!points[key1]) points[key1] = { p: wall.p1, connections: [] };
+                if (!points[key2]) points[key2] = { p: wall.p2, connections: [] };
+                points[key1].connections.push(points[key2]);
+                points[key2].connections.push(points[key1]);
+            });
+            
+            // 各接続点を角度順にソート（変更なし）
+            Object.values(points).forEach(point => {
+                point.connections.sort((a, b) => {
+                    const angleA = Math.atan2(a.p.y - point.p.y, a.p.x - point.p.x);
+                    const angleB = Math.atan2(b.p.y - point.p.y, b.p.x - point.p.x);
+                    return angleA - angleB;
                 });
-    
-                Object.values(points).forEach(point => {
-                    point.connections.sort((a, b) => {
-                        const angleA = Math.atan2(a.p.y - point.p.y, a.p.x - point.p.x);
-                        const angleB = Math.atan2(b.p.y - point.p.y, b.p.x - point.p.x);
-                        return angleA - angleB;
-                    });
-                });
-    
-                const regions = [];
-                const visitedEdges = new Set();
+            });
+
+            const regions = [];
+                const visitedSegments = new Set(); // 訪問済みの「有向セグメント」を記録
     
                 for (const startNodeKey in points) {
                     const startNode = points[startNodeKey];
                     for (const endNode of startNode.connections) {
-                        const edgeKey = [pointToKey(startNode.p), pointToKey(endNode.p)].sort().join('-');
-                        if (visitedEdges.has(edgeKey)) continue;
+                        const segmentKey = `${pointToKey(startNode.p)}>${pointToKey(endNode.p)}`;
+    
+                        if (visitedSegments.has(segmentKey)) continue;
     
                         const path = [startNode];
                         let currentNode = endNode;
                         let prevNode = startNode;
+                        let isValidPath = true;
     
-                        while (currentNode !== startNode && path.length < Object.keys(points).length) {
+                        while (pointToKey(currentNode.p) !== pointToKey(startNode.p)) {
+                            if (path.length > walls.length * 2) { // 無限ループ防止
+                               isValidPath = false;
+                               break;
+                            }
+                            
                             path.push(currentNode);
                             const { connections } = currentNode;
-                            const prevIndex = connections.findIndex(conn => conn.p.x === prevNode.p.x && conn.p.y === prevNode.p.y);
-                            
-                            // 時計回りで次のノードを選択
-                            const nextNode = connections[(prevIndex + 1) % connections.length];
-                            
-                            const currentEdgeKey = [pointToKey(currentNode.p), pointToKey(nextNode.p)].sort().join('-');
-                            visitedEdges.add(currentEdgeKey);
+                            const prevIndex = connections.findIndex(conn => pointToKey(conn.p) === pointToKey(prevNode.p));
     
+                            if (prevIndex === -1) {
+                               isValidPath = false;
+                               break;
+                            }
+                            
+                            // 最も左に曲がる（反時計回り）次のノードを選択
+                            const nextNode = connections[(prevIndex + connections.length - 1) % connections.length];
+                            
+                            const currentSegmentKey = `${pointToKey(currentNode.p)}>${pointToKey(nextNode.p)}`;
+                            if (visitedSegments.has(currentSegmentKey)) {
+                               isValidPath = false;
+                               break; 
+                            }
+                            visitedSegments.add(currentSegmentKey);
+                            
                             prevNode = currentNode;
                             currentNode = nextNode;
                         }
                         
-                        if (currentNode === startNode && path.length > 2) {
+                        if (isValidPath && path.length > 2) {
                             const polygonPoints = path.map(node => node.p);
-                            // ポリゴンが小さすぎないかチェック
-                            const xs = polygonPoints.map(p => p.x);
-                            const ys = polygonPoints.map(p => p.y);
-                            const width = Math.max(...xs) - Math.min(...xs);
-                            const height = Math.max(...ys) - Math.min(...ys);
-                            if (width > 5 && height > 5) {
+                            
+                            // ポリゴンの面積を計算して小さすぎるものを除外
+                            let area = 0;
+                            for (let i = 0; i < polygonPoints.length; i++) {
+                                const p1 = polygonPoints[i];
+                                const p2 = polygonPoints[(i + 1) % polygonPoints.length];
+                                area += (p1.x * p2.y - p2.x * p1.y);
+                            }
+                            area /= 2;
+    
+                            // 反時計回りのポリゴン（＝閉じた領域）のみを対象とする
+                            if (area > 50) { // 面積が50平方ピクセル以上の領域のみを部屋とみなす
                                regions.push(polygonPoints);
                             }
                         }
@@ -2158,14 +2181,13 @@
             };
     
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!aiData || !aiData.Blocks) {
-                    console.error("AIデータまたはBlocksがありません。");
+                if (!aiData || !aiData.walls || !aiData.labels) {
+                    console.error("AIデータに必要なwallsまたはlabelsがありません。");
                     return [];
                 }
             
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
-            
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
                 const fitScale = Math.min(canvasWidth / drawingBbox.width, canvasHeight / drawingBbox.height) * 0.9;
@@ -2176,47 +2198,97 @@
                     x: ((p.x - drawingBbox.x) * fitScale) + offsetX,
                     y: ((p.y - drawingBbox.y) * fitScale) + offsetY
                 });
-            
-                const newElements = [];
-            
-                aiData.Blocks.forEach((block, index) => {
-                    if (!block.Geometry || !block.Geometry.Polygon || block.Geometry.Polygon.length < 3) {
-                        return; 
-                    }
     
-                    const groupId = `space-group-ai-${Date.now()}-${index}`;
-                    const polygonPoints = block.Geometry.Polygon.map(transformPoint);
+                const allEndpoints = aiData.walls.flatMap(wall => [wall.p1, wall.p2]);
+                if (allEndpoints.length === 0) return [];
+    
+                const allTransformedEndpoints = allEndpoints.map(transformPoint);
+                const allX = allTransformedEndpoints.map(p => p.x);
+                const allY = allTransformedEndpoints.map(p => p.y);
+                
+                const coordinateThreshold = 10;
+                const xMap = clusterValues(allX, coordinateThreshold);
+                const yMap = clusterValues(allY, coordinateThreshold);
+    
+                let processedWalls = aiData.walls.map(wall => {
+                    const p1 = transformPoint(wall.p1);
+                    const p2 = transformPoint(wall.p2);
+                    return {
+                        p1: {
+                            x: xMap[findClosestValue(p1.x, Object.keys(xMap).map(parseFloat))] || p1.x,
+                            y: yMap[findClosestValue(p1.y, Object.keys(yMap).map(parseFloat))] || p1.y
+                        },
+                        p2: {
+                            x: xMap[findClosestValue(p2.x, Object.keys(xMap).map(parseFloat))] || p2.x,
+                            y: yMap[findClosestValue(p2.y, Object.keys(yMap).map(parseFloat))] || p2.y
+                        }
+                    };
+                });
+                
+                processedWalls = connectNearbyEndpoints(processedWalls, 15);
+                processedWalls = mergeCollinearWalls(processedWalls);
+                processedWalls = processedWalls.filter(wall => (Math.abs(wall.p1.x - wall.p2.x) > 1 || Math.abs(wall.p1.y - wall.p2.y) > 1));
+    
+                const regions = findClosedRegions(processedWalls);
+                const newElements = [];
+                
+                regions.forEach((polygonPoints, index) => {
+                    const centroid = getPolygonCentroid(polygonPoints);
+                    let assignedLabel = { Text: "不明", type: "その他" };
+                    let minDistance = Infinity;
+    
+                    aiData.labels.forEach(label => {
+                        const labelPos = transformPoint(label.center);
+                        if (isPointInPolygon(labelPos, polygonPoints)) {
+                            const dist = Math.sqrt(Math.pow(labelPos.x - centroid.x, 2) + Math.pow(labelPos.y - centroid.y, 2));
+                            if (dist < minDistance) {
+                                minDistance = dist;
+                                let type = "その他";
+                                if (label.Text.includes("LDK")) type = "LDK";
+                                else if (label.Text.includes("洋室") || label.Text.includes("寝室")) type = "居室";
+                                else if (label.Text.includes("和室")) type = "和室";
+                                else if (label.Text.includes("浴室") || label.Text.includes("バス")) type = "浴室";
+                                else if (label.Text.includes("洗面")) type = "洗面所";
+                                else if (label.Text.includes("トイレ")) type = "トイレ";
+                                else if (label.Text.includes("収納") || label.Text.includes("クロ") || label.Text.includes("WIC")) type = "収納";
+                                else if (label.Text.includes("玄関")) type = "玄関";
+                                else if (label.Text.includes("廊下")) type = "廊下";
+                                else if (label.Text.includes("バルコニー") || label.Text.includes("テラス")) type = "バルコニー";
+                                else if (label.Text.includes("PS")) type = "PS";
+                                else if (label.Text.includes("MB")) type = "MB";
+                                assignedLabel = { ...label, type: type };
+                            }
+                        }
+                    });
                     
-                    const spaceType = block.type;
+                    const groupId = `space-group-ai-${Date.now()}-${index}`;
+                    const spaceType = assignedLabel.type;
                     const preset = SPACE_STYLE_PRESETS[spaceType] || SPACE_STYLE_PRESETS['default'];
                     
-                    const spaceElement = {
-                        id: groupId, type: 'space', shape: 'polygon', spaceType, groupId,
+                    newElements.push({
+                        id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId: groupId,
                         points: polygonPoints.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join(' '),
-                        fill: preset.fill, backgroundPattern: preset.background,
-                        stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
-                    };
-                    newElements.push(spaceElement);
+                        fill: preset.fill, backgroundPattern: preset.background, stroke: preset.strokeColor,
+                        strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
+                    });
     
                     for (let i = 0; i < polygonPoints.length; i++) {
                         const p1 = polygonPoints[i];
                         const p2 = polygonPoints[(i + 1) % polygonPoints.length];
-                        if (Math.abs(p1.x - p2.x) < 1 && Math.abs(p1.y - p2.y) < 1) continue;
-    
                         newElements.push({
-                            id: `wall-${groupId}-${i}`, type: 'wall', groupId, edgeIndex: i,
+                            id: `wall-${groupId}-${i}`, type: 'wall', groupId: groupId, edgeIndex: i,
                             x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
                             stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
                         });
                     }
                     
-                    const centroid = getPolygonCentroid(polygonPoints);
-                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions, groupId, block.Text);
+                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions, groupId, assignedLabel.Text);
                     if (textLabel) {
                         textLabel.groupId = groupId;
                         newElements.push(textLabel);
                     }
                 });
+    
                 return newElements;
             }, [dimensions]);
 
