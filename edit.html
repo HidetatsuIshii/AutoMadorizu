@@ -1172,20 +1172,22 @@
             return { x: x / f, y: y / f };
         };
 
-        const createSpaceLabel = (spaceType, centroid, dimensions) => {
+        const createSpaceLabel = (spaceType, centroid, dimensions, groupId, labelText) => {
             if (["柱", "その他"].includes(spaceType)) {
                 return null;
             }
             
-            const text = ["LDK", "DK", "K", "居室", "和室"].includes(spaceType)
+            // AIが認識したテキストを優先し、なければデフォルトのテキストを生成
+            const text = labelText || (["LDK", "DK", "K", "居室", "和室"].includes(spaceType)
                 ? `${spaceType}\n約◯.◯帖`
-                : spaceType;
+                : spaceType);
 
             const smallFontTypes = ["バルコニー", "トイレ", "浴室", "洗面所", "玄関", "収納", "廊下", ...SPACE_TYPES.sub];
             const fontSize = smallFontTypes.includes(spaceType) ? 10 : 16;
 
             return {
-                id: `text-${Date.now()}`,
+                // ▼▼▼【修正点】IDの生成方法を変更 ▼▼▼
+                id: `text-${groupId}`, 
                 type: 'text',
                 x: (centroid.x / dimensions.width) * 100,
                 y: (centroid.y / dimensions.height) * 100,
@@ -2107,7 +2109,6 @@
                     return [];
                 }
             
-                // --- 座標変換ロジック ---
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
                 const canvasWidth = dimensions.width;
@@ -2121,7 +2122,6 @@
                     y: ((p.y - drawingBbox.y) * fitScale) + offsetY
                 });
     
-                // --- 壁データの整形 ---
                 const allEndpoints = aiData.walls.flatMap(wall => [wall.p1, wall.p2]);
                 if (allEndpoints.length === 0) return [];
     
@@ -2146,13 +2146,11 @@
                             y: yMap[findClosestValue(p2.y, Object.keys(yMap).map(parseFloat))] || p2.y
                         }
                     };
-                }).filter(wall => (wall.p1.x !== wall.p2.x || wall.p1.y !== wall.p2.y)); // 長さゼロの壁を削除
-    
-                // --- 閉じた領域（部屋）を探索 ---
+                }).filter(wall => (wall.p1.x !== wall.p2.x || wall.p1.y !== wall.p2.y));
+            
                 const regions = findClosedRegions(processedWalls);
                 const newElements = [];
     
-                // --- 領域にラベルを割り当て、SVG要素を生成 ---
                 regions.forEach((polygonPoints, index) => {
                     const centroid = getPolygonCentroid(polygonPoints);
                     let assignedLabel = { Text: "不明", type: "その他" };
@@ -2177,7 +2175,6 @@
                                 else if (label.Text.includes("バルコニー") || label.Text.includes("テラス")) type = "バルコニー";
                                 else if (label.Text.includes("PS")) type = "PS";
                                 else if (label.Text.includes("MB")) type = "MB";
-                                
                                 assignedLabel = { ...label, type: type };
                             }
                         }
@@ -2188,37 +2185,26 @@
                     const preset = SPACE_STYLE_PRESETS[spaceType] || SPACE_STYLE_PRESETS['default'];
                     
                     newElements.push({
-                        id: groupId,
-                        type: 'space',
-                        shape: 'polygon',
-                        spaceType: spaceType,
-                        groupId: groupId,
+                        id: groupId, type: 'space', shape: 'polygon', spaceType: spaceType, groupId: groupId,
                         points: polygonPoints.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: preset.fill,
-                        backgroundPattern: preset.background,
-                        stroke: preset.strokeColor,
-                        strokeWidth: preset.strokeWidth,
-                        lineStyle: preset.lineStyle
+                        fill: preset.fill, backgroundPattern: preset.background, stroke: preset.strokeColor,
+                        strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
                     });
     
                     for (let i = 0; i < polygonPoints.length; i++) {
                         const p1 = polygonPoints[i];
                         const p2 = polygonPoints[(i + 1) % polygonPoints.length];
                         newElements.push({
-                            id: `wall-${groupId}-${i}`,
-                            type: 'wall',
-                            groupId: groupId,
-                            edgeIndex: i,
-                            x1: p1.x, y1: p1.y,
-                            x2: p2.x, y2: p2.y,
+                            id: `wall-${groupId}-${i}`, type: 'wall', groupId: groupId, edgeIndex: i,
+                            x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
                             stroke: preset.strokeColor, strokeWidth: preset.strokeWidth, lineStyle: preset.lineStyle
                         });
                     }
                     
-                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions);
+                    // ▼▼▼【修正点】groupId と assignedLabel.Text を渡すように変更 ▼▼▼
+                    const textLabel = createSpaceLabel(spaceType, centroid, dimensions, groupId, assignedLabel.Text);
                     if (textLabel) {
                         textLabel.groupId = groupId;
-                        textLabel.text = assignedLabel.Text; // AIが認識したテキストをそのまま使用
                         newElements.push(textLabel);
                     }
                 });
