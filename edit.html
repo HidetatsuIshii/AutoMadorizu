@@ -2184,7 +2184,71 @@
                     console.error("AIデータに必要なwallsまたはBlocksがありません。");
                     return [];
                 }
+            
+                // ▼▼▼【ここから新しいヘルパー関数を追加】▼▼▼
+                // 指定された壁リストから、頂点を順番に並べ替えてポリゴンを再構築する関数
+                const reconstructPolygonFromWalls = (roomWalls) => {
+                    if (roomWalls.length < 2) return [];
+                    const pointToKey = p => `${p.x},${p.y}`;
+                    const wallEndpoints = new Map();
+                    
+                    // 各端点がどの壁に属するかをマップに記録
+                    roomWalls.forEach((wall, index) => {
+                        const key1 = pointToKey(wall.p1);
+                        const key2 = pointToKey(wall.p2);
+                        if (!wallEndpoints.has(key1)) wallEndpoints.set(key1, []);
+                        if (!wallEndpoints.has(key2)) wallEndpoints.set(key2, []);
+                        wallEndpoints.get(key1).push(wall);
+                        wallEndpoints.get(key2).push(wall);
+                    });
+            
+                    const orderedPoints = [];
+                    const usedWalls = new Set();
+                    
+                    if (roomWalls.length === 0) return [];
     
+                    let currentWall = roomWalls[0];
+                    let currentPoint = currentWall.p1;
+                    orderedPoints.push(currentPoint);
+                    usedWalls.add(currentWall);
+            
+                    // 全ての壁を使い切るまでループ
+                    for (let i = 0; i < roomWalls.length; i++) {
+                        const currentKey = pointToKey(currentPoint);
+                        const lastWallKey1 = pointToKey(currentWall.p1);
+                        const lastWallKey2 = pointToKey(currentWall.p2);
+                        
+                        // 現在の壁の、まだ使っていない方の端点を次の点にする
+                        currentPoint = (currentKey === lastWallKey1) ? currentWall.p2 : currentWall.p1;
+                        orderedPoints.push(currentPoint);
+            
+                        const nextConnections = wallEndpoints.get(pointToKey(currentPoint));
+                        if (!nextConnections) break;
+    
+                        // 次に接続する、まだ使っていない壁を探す
+                        const nextWall = nextConnections.find(wall => !usedWalls.has(wall));
+            
+                        if (!nextWall) break;
+                        
+                        currentWall = nextWall;
+                        usedWalls.add(currentWall);
+                    }
+                    
+                    // ポリゴンが閉じていない場合があるので、始点と終点が一致しているかチェック
+                    if (orderedPoints.length > 2) {
+                         const firstKey = pointToKey(orderedPoints[0]);
+                         const lastKey = pointToKey(orderedPoints[orderedPoints.length-1]);
+                         // 一致していなければ、不完全なポリゴンとして最後の点を削除
+                         if (firstKey !== lastKey) {
+                            orderedPoints.pop();
+                         }
+                    }
+    
+                    return orderedPoints;
+                };
+                // ▲▲▲【新しいヘルパー関数ここまで】▲▲▲
+    
+                // --- メイン処理 ---
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
                 
@@ -2198,17 +2262,23 @@
                     x: Math.round(((p.x - drawingBbox.x) * fitScale) + offsetX),
                     y: Math.round(((p.y - drawingBbox.y) * fitScale) + offsetY)
                 });
+                
+                // 全ての壁を変換・クリーンアップ
+                let allWalls = aiData.walls.map(wall => ({ p1: transformPoint(wall.p1), p2: transformPoint(wall.p2) }));
+                allWalls = connectNearbyEndpoints(allWalls, 15);
+                allWalls = mergeCollinearWalls(allWalls);
     
-                const allWalls = aiData.walls.map(wall => ({ p1: transformPoint(wall.p1), p2: transformPoint(wall.p2) }));
                 const newElements = [];
     
                 aiData.Blocks.forEach((block, index) => {
                     if (!block.wall_indices || block.wall_indices.length < 2) return;
-                    
+    
                     const roomWalls = block.wall_indices.map(i => allWalls[i]).filter(Boolean);
                     if (roomWalls.length < 2) return;
-    
-                    const polygonPoints = block.Geometry.Polygon.map(transformPoint);
+                    
+                    // ▼▼▼【修正点】AIのポリゴンではなく、再構築したポリゴンを使う ▼▼▼
+                    const polygonPoints = reconstructPolygonFromWalls(roomWalls);
+                    // ▲▲▲【修正ここまで】▲▲▲
     
                     if (polygonPoints.length < 3) return;
     
@@ -2225,6 +2295,7 @@
     
                     for (let i = 0; i < polygonPoints.length; i++) {
                         const p1 = polygonPoints[i];
+                        // ポリゴンを閉じるための最後の線分
                         const p2 = polygonPoints[(i + 1) % polygonPoints.length];
                         if (!p1 || !p2 || (p1.x === p2.x && p1.y === p2.y)) continue;
                         newElements.push({
