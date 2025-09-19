@@ -1968,14 +1968,14 @@
                 const base64ImageData = imageDataUrl.split(',')[1];
                 
                 // プロンプトが参照するダミーデータ
-                const exampleData1 = {"walls":[{"p1":{"x":310,"y":35},"p2":{"x":630,"y":35}},{"p1":{"x":630,"y":35},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":565,"y":265}},{"p1":{"x":565,"y":265},"p2":{"x":630,"y":265}},{"p1":{"x":580,"y":265},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":460},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":35},"p2":{"x":310,"y":460}},{"p1":{"x":630,"y":195},"p2":{"x":630,"y":265}},{"p1":{"x":645,"y":295},"p2":{"x":710,"y":295}},{"p1":{"x":710,"y":295},"p2":{"x":710,"y":390}},{"p1":{"x":645,"y":390},"p2":{"x":710,"y":390}},{"p1":{"x":645,"y":295},"p2":{"x":645,"y":390}},{"p1":{"x":580,"y":390},"p2":{"x":710,"y":390}},{"p1":{"x":710,"y":390},"p2":{"x":710,"y":515}},{"p1":{"x":580,"y":515},"p2":{"x":710,"y":515}},{"p1":{"x":580,"y":390},"p2":{"x":580,"y":515}},{"p1":{"x":580,"y":295},"p2":{"x":645,"y":295}},{"p1":{"x":310,"y":460},"p2":{"x":515,"y":460}},{"p1":{"x":515,"y":460},"p2":{"x":515,"y":785}},{"p1":{"x":310,"y":785},"p2":{"x":515,"y":785}},{"p1":{"x":515,"y":460},"p2":{"x":710,"y":460}},{"p1":{"x":710,"y":460},"p2":{"x":710,"y":715}},{"p1":{"x":580,"y":715},"p2":{"x":710,"y":715}},{"p1":{"x":580,"y":515},"p2":{"x":580,"y":715}},{"p1":{"x":515,"y":515},"p2":{"x":580,"y":515}},{"p1":{"x":515,"y":460},"p2":{"x":515,"y":515}},{"p1":{"x":310,"y":785},"p2":{"x":710,"y":785}},{"p1":{"x":710,"y":785},"p2":{"x":710,"y":820}},{"p1":{"x":310,"y":820},"p2":{"x":710,"y":820}},{"p1":{"x":310,"y":785},"p2":{"x":310,"y":820}}],"Blocks":[{"type":"LDK","Text":"LDK","wall_indices":[0,1,2,3,5,6,7],"Geometry":{"Polygon":[]}},{"type":"玄関","Text":"玄関","wall_indices":[2,3,4,8],"Geometry":{"Polygon":[]}},{"type":"トイレ","Text":"トイレ","wall_indices":[9,10,11,12],"Geometry":{"Polygon":[]}},{"type":"浴室","Text":"浴室","wall_indices":[13,14,15,16],"Geometry":{"Polygon":[]}},{"type":"洗面所","Text":"洗面所","wall_indices":[12,13,16,17],"Geometry":{"Polygon":[]}},{"type":"居室","Text":"洋室 約7帖","wall_indices":[6,18,19,20],"Geometry":{"Polygon":[]}},{"type":"居室","Text":"洋室 約5帖","wall_indices":[14,16,21,22,23,24,25,26],"Geometry":{"Polygon":[]}},{"type":"バルコニー","Text":"バルコニー","wall_indices":[27,28,29,30],"Geometry":{"Polygon":[]}}]};
-    
+                const exampleData1 = {"walls":[{"p1":{"x":310,"y":35},"p2":{"x":630,"y":35}},{"p1":{"x":630,"y":35},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":630,"y":195}},{"p1":{"x":565,"y":195},"p2":{"x":565,"y":265}},{"p1":{"x":565,"y":265},"p2":{"x":630,"y":265}},{"p1":{"x":580,"y":265},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":460},"p2":{"x":580,"y":460}},{"p1":{"x":310,"y":35},"p2":{"x":310,"y":460}},{"p1":{"x":630,"y":195},"p2":{"x":630,"y":265}},{"p1":{"x":645,"y":295},"p2":{"x":710,"y":295}}],"Blocks":[{"type":"LDK","Text":"LDK","wall_indices":[0,1,2,3,5,6,7],"Geometry":{"Polygon":[]}},{"type":"玄関","Text":"玄関","wall_indices":[2,3,4,8],"Geometry":{"Polygon":[]}}]};
     
                 let finalPrompt;
                 try {
                     const response = await fetch('prompt.txt');
                     if (!response.ok) throw new Error('prompt.txtの読み込みに失敗しました。');
                     finalPrompt = await response.text();
+                    // ダミーデータを10個から1つに減らしたため、置換処理も1つに修正
                     finalPrompt = finalPrompt.replace('${JSON.stringify(exampleData1)}', JSON.stringify(exampleData1));
                 } catch (error) {
                     console.error(error);
@@ -1987,7 +1987,6 @@
                     contents: [{ parts: [ { text: finalPrompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } } ] }],
                     generationConfig: {
                         responseMimeType: "application/json",
-                        // ▼▼▼【ここを修正】新しいプロンプトの出力形式に合わせたスキーマ定義▼▼▼
                         responseSchema: {
                             type: "OBJECT",
                             properties: {
@@ -2044,7 +2043,6 @@
                         }
                     }
                 };
-                // ▲▲▲【修正ここまで】▲▲▲
             
                 try {
                     const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
@@ -2187,66 +2185,6 @@
                     return [];
                 }
     
-                // --- ヘルパー関数 ---
-                const isPointInPolygon = (point, polygon) => {
-                    let isInside = false;
-                    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                        const xi = polygon[i].x, yi = polygon[i].y;
-                        const xj = polygon[j].x, yj = polygon[j].y;
-                        const intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-                        if (intersect) isInside = !isInside;
-                    }
-                    return isInside;
-                };
-    
-                const reconstructPolygonFromWalls = (roomWalls) => {
-                    if (roomWalls.length < 2) return [];
-                    const pointToKey = p => `${Math.round(p.x)},${Math.round(p.y)}`;
-                    
-                    const wallEndpoints = new Map();
-                    roomWalls.forEach(wall => {
-                        const key1 = pointToKey(wall.p1);
-                        const key2 = pointToKey(wall.p2);
-                        if (!wallEndpoints.has(key1)) wallEndpoints.set(key1, []);
-                        if (!wallEndpoints.has(key2)) wallEndpoints.set(key2, []);
-                        wallEndpoints.get(key1).push(wall);
-                        wallEndpoints.get(key2).push(wall);
-                    });
-    
-                    const orderedPoints = [];
-                    const usedWalls = new Set();
-                    
-                    let currentPoint = roomWalls[0].p1;
-                    let currentWall = roomWalls[0];
-                    orderedPoints.push(currentPoint);
-                    usedWalls.add(currentWall);
-    
-                    for (let i = 0; i < roomWalls.length; i++) {
-                        currentPoint = (pointToKey(currentWall.p1) === pointToKey(currentPoint)) ? currentWall.p2 : currentWall.p1;
-                        orderedPoints.push(currentPoint);
-    
-                        const nextConnections = wallEndpoints.get(pointToKey(currentPoint));
-                        const nextWall = nextConnections.find(wall => !usedWalls.has(wall));
-    
-                        if (!nextWall) break; 
-                        
-                        currentWall = nextWall;
-                        usedWalls.add(currentWall);
-                    }
-                    
-                    // 最後の点が始点と一致するか確認し、閉じていなければ追加
-                    if (orderedPoints.length > 2) {
-                         const firstKey = pointToKey(orderedPoints[0]);
-                         const lastKey = pointToKey(orderedPoints[orderedPoints.length-1]);
-                         if (firstKey !== lastKey) {
-                            orderedPoints.pop(); // 最後の不完全な点を削除
-                         }
-                    }
-                    
-                    return orderedPoints;
-                };
-                
-                // --- メイン処理 ---
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
                 
@@ -2261,16 +2199,17 @@
                     y: Math.round(((p.y - drawingBbox.y) * fitScale) + offsetY)
                 });
     
-                const processedWalls = aiData.walls.map(wall => ({ p1: transformPoint(wall.p1), p2: transformPoint(wall.p2) }));
+                const allWalls = aiData.walls.map(wall => ({ p1: transformPoint(wall.p1), p2: transformPoint(wall.p2) }));
                 const newElements = [];
     
                 aiData.Blocks.forEach((block, index) => {
                     if (!block.wall_indices || block.wall_indices.length < 2) return;
-    
-                    const roomWalls = block.wall_indices.map(i => processedWalls[i]).filter(Boolean);
-                    if (roomWalls.length < 2) return;
                     
-                    const polygonPoints = reconstructPolygonFromWalls(roomWalls);
+                    const roomWalls = block.wall_indices.map(i => allWalls[i]).filter(Boolean);
+                    if (roomWalls.length < 2) return;
+    
+                    const polygonPoints = block.Geometry.Polygon.map(transformPoint);
+    
                     if (polygonPoints.length < 3) return;
     
                     const groupId = `space-group-ai-${Date.now()}-${index}`;
@@ -2287,7 +2226,7 @@
                     for (let i = 0; i < polygonPoints.length; i++) {
                         const p1 = polygonPoints[i];
                         const p2 = polygonPoints[(i + 1) % polygonPoints.length];
-                         if (!p1 || !p2 || (p1.x === p2.x && p1.y === p2.y)) continue;
+                        if (!p1 || !p2 || (p1.x === p2.x && p1.y === p2.y)) continue;
                         newElements.push({
                             id: `wall-${groupId}-${i}`, type: 'wall', groupId, edgeIndex: i,
                             x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
