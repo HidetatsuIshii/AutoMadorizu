@@ -2093,29 +2093,35 @@
     
             // 壁データから閉じた領域（部屋）を見つけ出すメインのロジック
             const findClosedRegions = (walls) => {
-            const points = {};
-            const pointToKey = p => `${Math.round(p.x)},${Math.round(p.y)}`;
-
-            walls.forEach(wall => {
-                const key1 = pointToKey(wall.p1);
-                const key2 = pointToKey(wall.p2);
-                if (!points[key1]) points[key1] = { p: wall.p1, connections: [] };
-                if (!points[key2]) points[key2] = { p: wall.p2, connections: [] };
-                points[key1].connections.push(points[key2]);
-                points[key2].connections.push(points[key1]);
-            });
-            
-            // 各接続点を角度順にソート（変更なし）
-            Object.values(points).forEach(point => {
-                point.connections.sort((a, b) => {
-                    const angleA = Math.atan2(a.p.y - point.p.y, a.p.x - point.p.x);
-                    const angleB = Math.atan2(b.p.y - point.p.y, b.p.x - point.p.x);
-                    return angleA - angleB;
+                const points = {};
+                const pointToKey = p => `${Math.round(p.x)},${Math.round(p.y)}`;
+    
+                walls.forEach(wall => {
+                    const key1 = pointToKey(wall.p1);
+                    const key2 = pointToKey(wall.p2);
+                    if (!points[key1]) points[key1] = { p: wall.p1, connections: [] };
+                    if (!points[key2]) points[key2] = { p: wall.p2, connections: [] };
+                    points[key1].connections.push(points[key2]);
+                    points[key2].connections.push(points[key1]);
                 });
-            });
-
-            const regions = [];
-                const visitedSegments = new Set(); // 訪問済みの「有向セグメント」を記録
+                
+                Object.values(points).forEach(point => {
+                    point.connections.sort((a, b) => {
+                        const angleA = Math.atan2(a.p.y - point.p.y, a.p.x - point.p.x);
+                        const angleB = Math.atan2(b.p.y - point.p.y, b.p.x - point.p.x);
+                        // ▼▼▼【安定性向上のための微修正】▼▼▼
+                        if (angleA === angleB) {
+                            const distA = Math.sqrt(Math.pow(a.p.x - point.p.x, 2) + Math.pow(a.p.y - point.p.y, 2));
+                            const distB = Math.sqrt(Math.pow(b.p.x - point.p.x, 2) + Math.pow(b.p.y - point.p.y, 2));
+                            return distA - distB;
+                        }
+                        // ▲▲▲【修正ここまで】▲▲▲
+                        return angleA - angleB;
+                    });
+                });
+    
+                const regions = [];
+                const visitedSegments = new Set();
     
                 for (const startNodeKey in points) {
                     const startNode = points[startNodeKey];
@@ -2130,7 +2136,7 @@
                         let isValidPath = true;
     
                         while (pointToKey(currentNode.p) !== pointToKey(startNode.p)) {
-                            if (path.length > walls.length * 2) { // 無限ループ防止
+                            if (path.length > walls.length * 2) { 
                                isValidPath = false;
                                break;
                             }
@@ -2144,7 +2150,6 @@
                                break;
                             }
                             
-                            // 最も左に曲がる（反時計回り）次のノードを選択
                             const nextNode = connections[(prevIndex + connections.length - 1) % connections.length];
                             
                             const currentSegmentKey = `${pointToKey(currentNode.p)}>${pointToKey(nextNode.p)}`;
@@ -2160,8 +2165,6 @@
                         
                         if (isValidPath && path.length > 2) {
                             const polygonPoints = path.map(node => node.p);
-                            
-                            // ポリゴンの面積を計算して小さすぎるものを除外
                             let area = 0;
                             for (let i = 0; i < polygonPoints.length; i++) {
                                 const p1 = polygonPoints[i];
@@ -2169,9 +2172,7 @@
                                 area += (p1.x * p2.y - p2.x * p1.y);
                             }
                             area /= 2;
-    
-                            // 反時計回りのポリゴン（＝閉じた領域）のみを対象とする
-                            if (area > 50) { // 面積が50平方ピクセル以上の領域のみを部屋とみなす
+                            if (area > 50) { 
                                regions.push(polygonPoints);
                             }
                         }
@@ -2181,10 +2182,12 @@
             };
     
             const generateDrawingFromAi = useCallback((aiData, dimensions) => {
-                if (!aiData || !aiData.walls || !aiData.labels) {
-                    console.error("AIデータに必要なwallsまたはlabelsがありません。");
+                // ▼▼▼【ここを修正】チェックするプロパティを 'labels' から 'Blocks' に変更▼▼▼
+                if (!aiData || !aiData.walls || !aiData.Blocks) {
+                    console.error("AIデータに必要なwallsまたはBlocksがありません。");
                     return [];
                 }
+                // ▲▲▲【修正ここまで】▲▲▲
             
                 const drawingBbox = aiData.drawingBbox;
                 if (!drawingBbox || drawingBbox.width === 0 || drawingBbox.height === 0) return [];
