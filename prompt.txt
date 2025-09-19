@@ -33,19 +33,18 @@
     {
       "type": "LDK",
       "Text": "LDK",
-      "wall_indices": [0, 3, 7, ...],
+      "wall_indices": [0, 3, 7, 8, 9],
       "Geometry": {
         "Polygon": [
           { "x": 105, "y": 102 },
-          { "x": 518, "y": 102 },
-          ...
+          { "x": 518, "y": 102 }
         ]
       }
     }
   ]
 }
 ---
-【完璧な出力例】
+【完璧な出力例 1】
 ${JSON.stringify(exampleData1)}
 ---
 
