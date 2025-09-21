@@ -1648,50 +1648,6 @@
                 </div>
             );
         };
-
-        const DebugPanel = ({ isDebugOpen, setIsDebugOpen, debugData }) => {
-            if (!isDebugOpen) {
-                return (
-                    <div className="fixed bottom-4 left-4 z-40">
-                        <button 
-                            onClick={() => setIsDebugOpen(true)}
-                            className="bg-indigo-600 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-indigo-700"
-                        >
-                            デバッグ
-                        </button>
-                    </div>
-                );
-            }
-        
-            return (
-                <div className="fixed bottom-4 left-4 z-40 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg w-full max-w-md max-h-[40vh] flex flex-col">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-bold">デバッグ情報</h3>
-                        <button onClick={() => setIsDebugOpen(false)} className="text-gray-500 hover:text-gray-800 font-bold">✕</button>
-                    </div>
-                    <div className="overflow-auto space-y-4 text-xs">
-                        <div>
-                            <h4 className="font-semibold text-gray-800 sticky top-0 bg-white/90 py-1">1. AIからの生レスポンス (JSON)</h4>
-                            <pre className="bg-gray-100 p-2 rounded mt-1 overflow-auto">
-                                {JSON.stringify(debugData.rawAiResponse, null, 2)}
-                            </pre>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-gray-800 sticky top-0 bg-white/90 py-1">2. 補正・整形後のポリゴン座標</h4>
-                            <pre className="bg-gray-100 p-2 rounded mt-1 overflow-auto">
-                                {JSON.stringify(debugData.processedPolygons, null, 2)}
-                            </pre>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-gray-800 sticky top-0 bg-white/90 py-1">3. 最終的なSVG要素データ</h4>
-                            <pre className="bg-gray-100 p-2 rounded mt-1 overflow-auto">
-                                {JSON.stringify(debugData.finalElements, null, 2)}
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
         
         function Editor() {
             // --- ステート定義 ---
@@ -1763,8 +1719,6 @@
             const [clipboard, setClipboard] = useState(null);
             const [stairSnapPreview, setStairSnapPreview] = useState(null);
             const [previewMode, setPreviewMode] = useState(null);
-            const [isDebugOpen, setIsDebugOpen] = useState(true); 
-            const [debugData, setDebugData] = useState({ rawAiResponse: null, processedPolygons: [], finalElements: null });
 
             // --- Ref定義 ---
             const contextMenuRef = useRef(null);
@@ -1899,8 +1853,32 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = useCallback(async (imageDataUrl) => {
+            const analyzeImageWithAI = async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
+                const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
+提供された間取り図画像から、以下の要素を抽出してください。
+
+【抽出対象】
+1. 壁: 画像内の黒い線として認識される壁の線分。
+2. 区画: 壁によって囲まれた全ての閉じた領域。複雑な形状であっても、その輪郭を忠実にトレースしてください。
+3. テキスト: 区画内に存在する全てのテキストラベル。
+
+【出力形式】
+以下のJSON形式で、抽出した全ての情報を 빠짐なく出力してください。部屋のタイプの推測など、意味的な解釈は不要です。テキストをそのまま出力してください。
+
+{
+  "Blocks": [
+    {
+      "Text": "抽出したテキスト",
+      "Geometry": {
+        "Polygon": [
+          { "x": 0, "y": 0 },
+        ]
+      }
+    }
+  ]
+}
+`;
                 const exampleData1 = {
                   "Blocks": [
                     {
@@ -3408,7 +3386,7 @@
 ユーザーが提供する間取り図の画像から、各部屋の情報を抽出し、指定されたJSON形式で出力してください。
 
 【最重要タスク】
-あなたの最重要タスクは、画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力することです。各ブロックには、その空間の輪contourを示す正確なポリゴン、空間の種類を示すtype、そして空間内のテキストを含める必要があります。
+あなたの最重要タスクは、画像内の壁で囲まれた全ての「部屋」または「空間」を、一つ残らず個別のブロックとしてJSONに出力することです。各ブロックには、その空間の輪郭を示す正確なポリゴン、空間の種類を示すtype、そして空間内のテキストを含める必要があります。
 
 【思考プロセス】
 1. 構造把握: まず画像全体を俯瞰し、どの壁がどの空間を構成しているか、大まかなレイアウトを把握します。
@@ -3418,12 +3396,12 @@
 
 【絶対厳守ルール】
 ルール1. 輪郭の完全な正確性: 部屋の形状を単純な四角形に絶対にしないでください。L字型や凹凸のある複雑な多角形であっても、その全ての頂点を完全に捉えてください。壁の厚みの内側のラインをピクセルレベルで正確にトレースすることが求められます。
-ルール2. 全ての角を頂点に: 壁の線が曲がっている箇所は、たとえわずかな凹凸であっても、全てポリゴンの頂点(vertex)として定義してください。頂点の見落としは許されません。
-ルール3. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、"WIC"などは"収納"に分類します。"PS・MB"というテキストがあっても、そこが明らかにトイレの空間であれば'type'は"トイレ"と判断してください。
-ルール4. 全ての空間を網羅: 非常に小さな収納スペースも見逃さず、必ず個別のブロックとして抽出してください。
-ルール5. テキストの完全性: 'Text'には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
-ルール6. 重複の排除: 同じ輪郭を持つポリゴンを絶対に2回以上出力しないでください。また、「リビング」と「ダイニング」のように、隣接していて壁で区切られていない空間は、意味的に一つの大きなLDKとして解釈し、単一のブロックとして出力してください。
-ルール7. 自己検証: 全ての空間を抽出した後、壁で囲まれているにも関わらずどのブロックにも含まれていない「隙間」や「未定義領域」がないか、もう一度全体を見直してください。もし見つかった場合は、それを「廊下」や「収納」などの適切なブロックとして追加してください。
+ルール2. タイプの決定: 'type'は["LDK", "居室", "和室", "浴室", "洗面所", "トイレ", "収納", "玄関", "廊下", "バルコニー", "PS", "MB"]から選択します。空間内の日本語の部屋名を最優先し、"WIC"などは"収納"に分類します。"PS・MB"というテキストがあっても、そこが明らかにトイレの空間であれば'type'は"トイレ"と判断してください。
+ルール3. 全ての空間を網羅: 非常に小さな収納スペースも見逃さず、必ず個別のブロックとして抽出してください。
+ルール4. テキストの完全性: 'Text'には、部屋名だけでなく「約7帖」のような帖数表記ももれなく含めてください。テキストが存在しない場合は空文字 "" を設定してください。
+ルール5. 自己検証: 全ての空間を抽出した後、壁で囲まれているにも関わらずどのブロックにも含まれていない「隙間」や「未定義領域」がないか、もう一度全体を見直してください。もし見つかった場合は、それを「廊下」や「収納」などの適切なブロックとして追加してください。
+
+
 ---
 【完璧な出力例 1】
 ## 思考: 画像を解析した結果、LDK、玄関、トイレ、浴室、洗面所、2つの洋室、バルコニーの計8つの区画を認識した。特にLDKと洋室(5帖)は単純な四角形ではなく、壁の凹凸を反映した多角形として定義する必要があると判断。LDKは8つの頂点、洋室(5帖)は6つの頂点を持つポリゴンとして座標を丁寧に出力する。
@@ -3528,36 +3506,33 @@ ${JSON.stringify(exampleData10)}
                 try {
                     const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
-        
+            
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-        
+            
                     if (!response.ok) {
                         const errorBody = await response.text();
                         throw new Error(`API Error: ${response.status} ${errorBody}`);
                     }
-        
+            
                     const result = await response.json();
-        
+            
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
-                        console.log("AIからのレスポンス(生テキスト):", jsonText);
+                        console.log("AIからのレスポンス(生テキスト):", jsonText); 
                         try {
                             const parsedJson = JSON.parse(jsonText);
-                            console.log("AIからのレスポンス(パース後):", parsedJson);
-                            
-                            // ★★★ ここでデバッグデータをセットします ★★★
-                            setDebugData(prev => ({ ...prev, rawAiResponse: parsedJson, processedPolygons: [], finalElements: null }));
-                            
+                            console.log("AIからのレスポンス(パース後):", parsedJson); // パース後のオブジェクトも確認
                             return parsedJson;
                         } catch (e) {
                             console.error("JSONのパースに失敗しました:", e);
                             console.error("パースしようとしたテキスト:", jsonText);
-                            return null;
+                            return null; // パース失敗時はnullを返す
                         }
+                        //return JSON.parse(jsonText);
                     } else {
                         console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
                         throw new Error("AIからの応答が予期した形式ではありません。");
@@ -3567,9 +3542,9 @@ ${JSON.stringify(exampleData10)}
                     alert("AIの解析に失敗しました。時間をおいて再度お試しください。");
                     return null;
                 }
-            }, [setDebugData]);
+            };
 
-            const straightenAndAlignPolygon = (points, threshold = 3) => {
+            const straightenAndAlignPolygon = (points, threshold = 10) => {
                 if (points.length < 3) return points;
             
                 // 座標の「揺れ」を吸収するためのクラスタリング関数
@@ -3641,128 +3616,128 @@ ${JSON.stringify(exampleData10)}
             };
 
             const generateDrawingFromAi = useCallback((aiData, dimensions, originalImageDimensions) => {
-                if (!aiData.Blocks || aiData.Blocks.length === 0 || !originalImageDimensions) {
-                    console.error("AIデータ、または元の画像サイズが不足しているため、描画を中断しました。");
-                    return [];
-                }
-            
-                const canvasWidth = dimensions.width;
-                const canvasHeight = dimensions.height;
-            
-                // 1. 下絵画像の元のサイズを取得します
-                const imageWidth = originalImageDimensions.width;
-                const imageHeight = originalImageDimensions.height;
-            
-                if (imageWidth === 0 || imageHeight === 0) return [];
-            
-                // 2. 下絵画像をキャンバスにフィットさせるための縮尺（スケール）を計算します
-                const scaleX = canvasWidth / imageWidth;
-                const scaleY = canvasHeight / imageHeight;
-                const fitScale = Math.min(scaleX, scaleY); // * 0.9 の余白計算を削除
-            
-                // 3. 中央に配置するためのオフセットを計算します
-                const displayedWidth = imageWidth * fitScale;
-                const displayedHeight = imageHeight * fitScale;
-                const offsetX = (canvasWidth - displayedWidth) / 2;
-                const offsetY = (canvasHeight - displayedHeight) / 2;
-            
-                const newElements = [];
-    
-                setDebugData(prev => ({ ...prev, processedPolygons: [] }));
-    
-                aiData.Blocks.forEach((block, index) => {
-                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
-            
-                    // 4. AI座標を新しいスケールとオフセットでキャンバス座標に変換します
-                    const initialPoints = block.Geometry.Polygon.map(p => ({
-                        x: (p.x * fitScale) + offsetX,
-                        y: (p.y * fitScale) + offsetY
-                    }));
-    
-                    setDebugData(prev => ({
-                        ...prev,
-                        processedPolygons: [...prev.processedPolygons, { type: block.type, text: block.Text, before: initialPoints }]
-                    }));
-    
-                    let points = initialPoints;
-  
-                    setDebugData(prev => {
-                        const updatedPolygons = [...prev.processedPolygons];
-                        if (updatedPolygons.length > 0) {
-                           updatedPolygons[updatedPolygons.length - 1].after = points;
-                        }
-                        return { ...prev, processedPolygons: updatedPolygons };
-                    });
-            
-                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
-            
-                    let spaceType = block.type;
-                    const text = block.Text || "";
-                    if (spaceType === "Room") {
-                        if (text.includes("LDK")) spaceType = "LDK";
-                        else if (text.includes("洋室")) spaceType = "居室";
-                        else if (text.includes("和室")) spaceType = "和室";
-                        else if (text.includes("洗面")) spaceType = "洗面所";
-                        else if (text.includes("浴室")) spaceType = "浴室";
-                        else if (text.includes("トイレ")) spaceType = "トイレ";
-                        else if (text.includes("玄関")) spaceType = "玄関";
-                        else spaceType = "居室";
-                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
-                        spaceType = "収納";
-                    } else if (spaceType === "Balcony") {
-                        spaceType = "バルコニー";
-                    }
-            
-                    const spaceElement = {
-                        id: subGroupId,
-                        type: 'space',
-                        shape: 'polygon',
-                        spaceType: spaceType,
-                        groupId: subGroupId,
-                        points: points.map(p => `${p.x},${p.y}`).join(' '),
-                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
-                        backgroundPattern: 'none'
-                    };
-                    newElements.push(spaceElement);
-            
-                    for (let i = 0; i < points.length; i++) {
-                        const p1 = points[i];
-                        const p2 = points[(i + 1) % points.length];
-                        newElements.push({
-                            id: `wall-ai-${Date.now()}-${index}-${i}`,
-                            type: 'wall',
-                            groupId: subGroupId,
-                            edgeIndex: i,
-                            x1: p1.x, y1: p1.y,
-                            x2: p2.x, y2: p2.y,
-                            color: DEFAULT_STROKE_COLOR,
-                            strokeWidth: DEFAULT_STROKE_WIDTH,
-                            lineStyle: 'solid'
-                        });
-                    }
-            
-                    const centroid = getPolygonCentroid(points);
-                    const labelElement = {
-                        id: `text-ai-${Date.now()}-${index}`,
-                        type: 'text',
-                        groupId: subGroupId,
-                        x: (centroid.x / dimensions.width) * 100,
-                        y: (centroid.y / dimensions.height) * 100,
-                        text: block.Text,
-                        color: '#000000',
-                        backgroundColor: 'none',
-                        fontSize: 16,
-                        fontFamily: 'sans-serif',
-                        textAlign: 'center',
-                    };
-                    newElements.push(labelElement);
-                });
-                
-                // 2：関数を抜ける直前に最終データを記録
-                setDebugData(prev => ({ ...prev, finalElements: newElements }));
-  
-                return newElements;
-            }, [dimensions, setDebugData]);
+                if (!aiData.Blocks || aiData.Blocks.length === 0) return [];
+            
+                const canvasWidth = dimensions.width;
+                const canvasHeight = dimensions.height;
+            
+                // 1. AIが返した全座標から、間取り図全体の大きさを推定する
+                let allPointsX = [];
+                let allPointsY = [];
+                aiData.Blocks.forEach(block => {
+                    if (block.Geometry.Polygon) {
+                        block.Geometry.Polygon.forEach(p => {
+                            allPointsX.push(p.x);
+                            allPointsY.push(p.y);
+                        });
+                    }
+                });
+            
+                if (allPointsX.length === 0) return [];
+            
+                const minX = Math.min(...allPointsX);
+                const minY = Math.min(...allPointsY);
+                const maxX = Math.max(...allPointsX);
+                const maxY = Math.max(...allPointsY);
+            
+                const aiDrawingWidth = maxX - minX;
+                const aiDrawingHeight = maxY - minY;
+            
+                if (aiDrawingWidth === 0 || aiDrawingHeight === 0) return [];
+            
+                // --- ▼▼▼ ここを微調整します (0.95 → 0.9) ▼▼▼ ---
+                // 2. AIが認識した間取り図のサイズが、キャンバスにフィットするように縮尺を計算
+                const scaleX = canvasWidth / aiDrawingWidth;
+                const scaleY = canvasHeight / aiDrawingHeight;
+                const fitScale = Math.min(scaleX, scaleY) * 0.9; // さらに余白を持たせるため、係数を0.9に変更
+                // --- ▲▲▲ ここまで ▲▲▲ ---
+            
+                // 3. 中央に配置するためのオフセットを計算
+                const displayedWidth = aiDrawingWidth * fitScale;
+                const displayedHeight = aiDrawingHeight * fitScale;
+                const offsetX = (canvasWidth - displayedWidth) / 2;
+                const offsetY = (canvasHeight - displayedHeight) / 2;
+            
+                const newElements = [];
+                aiData.Blocks.forEach((block, index) => {
+                    if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
+            
+                    // 4. 新しく計算したスケールとオフセットで座標を変換
+                    let points = block.Geometry.Polygon.map(p => ({
+                        x: ((p.x - minX) * fitScale) + offsetX,
+                        y: ((p.y - minY) * fitScale) + offsetY
+                    }));
+                    
+                    // 後処理の補正関数を呼び出す
+                    points = straightenAndAlignPolygon(points);
+            
+                    const subGroupId = `space-group-ai-${Date.now()}-${index}`;
+            
+                    // 部屋のタイプ名を変換
+                    let spaceType = block.type;
+                    const text = block.Text || "";
+                    if (spaceType === "Room") {
+                        if (text.includes("LDK")) spaceType = "LDK";
+                        else if (text.includes("洋室")) spaceType = "居室";
+                        else if (text.includes("和室")) spaceType = "和室";
+                        else if (text.includes("洗面")) spaceType = "洗面所";
+                        else if (text.includes("浴室")) spaceType = "浴室";
+                        else if (text.includes("トイレ")) spaceType = "トイレ";
+                        else if (text.includes("玄関")) spaceType = "玄関";
+                        else spaceType = "居室";
+                    } else if (spaceType === "Storage" || spaceType === "Cabinet") {
+                        spaceType = "収納";
+                    } else if (spaceType === "Balcony") {
+                        spaceType = "バルコニー";
+                    }
+            
+                    const spaceElement = {
+                        id: subGroupId,
+                        type: 'space',
+                        shape: 'polygon',
+                        spaceType: spaceType,
+                        groupId: subGroupId,
+                        points: points.map(p => `${p.x},${p.y}`).join(' '),
+                        fill: DEFAULT_FILL_COLORS[spaceType] || '#ffffff',
+                        backgroundPattern: 'none'
+                    };
+                    newElements.push(spaceElement);
+            
+                    for (let i = 0; i < points.length; i++) {
+                        const p1 = points[i];
+                        const p2 = points[(i + 1) % points.length];
+                        newElements.push({
+                            id: `wall-ai-${Date.now()}-${index}-${i}`,
+                            type: 'wall',
+                            groupId: subGroupId,
+                            edgeIndex: i,
+                            x1: p1.x, y1: p1.y,
+                            x2: p2.x, y2: p2.y,
+                            color: DEFAULT_STROKE_COLOR,
+                            strokeWidth: DEFAULT_STROKE_WIDTH,
+                            lineStyle: 'solid'
+                        });
+                    }
+            
+                    const centroid = getPolygonCentroid(points);
+                    const labelElement = {
+                        id: `text-ai-${Date.now()}-${index}`,
+                        type: 'text',
+                        groupId: subGroupId,
+                        x: (centroid.x / dimensions.width) * 100,
+                        y: (centroid.y / dimensions.height) * 100,
+                        text: block.Text,
+                        color: '#000000',
+                        backgroundColor: 'none',
+                        fontSize: 16,
+                        fontFamily: 'sans-serif',
+                        textAlign: 'center',
+                    };
+                    newElements.push(labelElement);
+                });
+            
+                return newElements;
+            }, [dimensions]);
 
             const handleModalSubmit = useCallback(async (imageDataUrl, useAi) => {
                 const img = new Image();
@@ -5067,23 +5042,33 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleExportJson = useCallback(() => {
-                // 1. コピー対象を描画データ（historyState.present）に戻します
-                if (!historyState.present || !historyState.present.svgElements || historyState.present.svgElements.length === 0) {
-                    alert("エクスポートする描画データがありません。");
+                if (!historyState.present || !historyState.present.svgElements) {
+                    alert("エクスポートするデータがありません。");
                     return;
                 }
-            
-                // 2. データを整形して文字列に変換します
-                const jsonString = JSON.stringify(historyState.present, null, 2); 
-            
-                // 3. クリップボードにコピーします
+    
+                // AIへのお手本として使いやすいように、svgElements部分だけを抽出
+                const exportData = {
+                    "Blocks": [
+                        // ここでデータを変換することも可能ですが、まずは生のデータをコピーします
+                    ],
+                    // svgElementsのデータをここに含める形が良いでしょう
+                    "svgElements": historyState.present.svgElements 
+                };
+                
+                // JSONデータを整形して文字列に変換
+                const jsonString = JSON.stringify(historyState.present, null, 2); // historyState.present全体をコピー
+    
+                // クリップボードにコピー
                 navigator.clipboard.writeText(jsonString).then(() => {
-                    alert("現在の描画データをクリップボードにコピーしました。");
+                    alert("間取り図のJSONデータをクリップボードにコピーしました。");
                 }).catch(err => {
                     console.error("コピーに失敗しました:", err);
                     alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
                 });
             }, [historyState.present]);
+
+
 
             useEffect(() => {
                 // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
@@ -6308,11 +6293,6 @@ ${JSON.stringify(exampleData10)}
                     </header>
 
                     <div className="flex-1 relative overflow-hidden">
-                        <DebugPanel 
-                            isDebugOpen={isDebugOpen} 
-                            setIsDebugOpen={setIsDebugOpen} 
-                            debugData={debugData} 
-                        />
                         <main ref={editorAreaRef} className="editor-area w-full h-full bg-gray-200">
                             <div className="scroll-wrapper">
                                 <div ref={editorContainerRef} className="editor-container" style={{ width: dimensions.width, height: dimensions.height, transform: `translate(-50%, -50%) scale(${zoom})`, ...(isGridVisible && { backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`, backgroundSize: `${gridSize}px ${gridSize}px` }) }}>
