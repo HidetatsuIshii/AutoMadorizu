@@ -3649,61 +3649,43 @@ ${JSON.stringify(exampleData10)}
                 const canvasWidth = dimensions.width;
                 const canvasHeight = dimensions.height;
             
-                // --- ▼▼▼【ここから修正】▼▼▼ ---
-            
-                // 1. AIが認識した範囲ではなく、「下絵画像そのもの」のサイズを基準にする
+                // 1. 下絵画像の元のサイズを取得します
                 const imageWidth = originalImageDimensions.width;
                 const imageHeight = originalImageDimensions.height;
             
                 if (imageWidth === 0 || imageHeight === 0) return [];
             
-                // 2. 下絵画像をキャンバスにフィットさせるための縮尺（スケール）を計算
+                // 2. 下絵画像をキャンバスにフィットさせるための縮尺（スケール）を計算します
                 const scaleX = canvasWidth / imageWidth;
                 const scaleY = canvasHeight / imageHeight;
-                // アスペクト比を保ち、90%の余白を持たせる
-                const fitScale = Math.min(scaleX, scaleY) * 0.9;
+                const fitScale = Math.min(scaleX, scaleY); // * 0.9 の余白計算を削除
             
-                // 3. スケール後の画像がキャンバスの中央に配置されるよう、オフセット（位置のずれ）を計算
+                // 3. 中央に配置するためのオフセットを計算します
                 const displayedWidth = imageWidth * fitScale;
                 const displayedHeight = imageHeight * fitScale;
                 const offsetX = (canvasWidth - displayedWidth) / 2;
                 const offsetY = (canvasHeight - displayedHeight) / 2;
             
-                // --- ▲▲▲【修正ここまで】▲▲▲ ---
-            
                 const newElements = [];
     
-                // ループの前にデバッグ用配列をリセット
                 setDebugData(prev => ({ ...prev, processedPolygons: [] }));
     
                 aiData.Blocks.forEach((block, index) => {
                     if (!block.Geometry.Polygon || block.Geometry.Polygon.length < 3) return;
             
-                    // --- ▼▼▼【ここから修正】▼▼▼ ---
-            
-                    // 4. AI座標を、画像全体に適用したスケールとオフセットでキャンバス座標に変換する
-                    //    (AI座標の最小値を引くのではなく、直接スケールを掛ける)
+                    // 4. AI座標を新しいスケールとオフセットでキャンバス座標に変換します
                     const initialPoints = block.Geometry.Polygon.map(p => ({
                         x: (p.x * fitScale) + offsetX,
                         y: (p.y * fitScale) + offsetY
                     }));
     
-                    // --- ▲▲▲【修正ここまで】▲▲▲ ---
-    
-                    // 1-A：整形前の座標を記録
                     setDebugData(prev => ({
                         ...prev,
-                        processedPolygons: [...prev.processedPolygons, { 
-                            type: block.type, 
-                            text: block.Text, 
-                            before: initialPoints 
-                        }]
+                        processedPolygons: [...prev.processedPolygons, { type: block.type, text: block.Text, before: initialPoints }]
                     }));
-            
-                    // 後処理の補正関数を呼び出す
+    
                     let points = initialPoints;
   
-                    // 1-B：整形後の座標を同じオブジェクトに記録
                     setDebugData(prev => {
                         const updatedPolygons = [...prev.processedPolygons];
                         if (updatedPolygons.length > 0) {
@@ -3714,7 +3696,6 @@ ${JSON.stringify(exampleData10)}
             
                     const subGroupId = `space-group-ai-${Date.now()}-${index}`;
             
-                    // 部屋のタイプ名を変換
                     let spaceType = block.type;
                     const text = block.Text || "";
                     if (spaceType === "Room") {
