@@ -4644,8 +4644,8 @@ ${JSON.stringify(exampleData10)}
                             }
                             newElements[elementIndex] = newElement;
                         }
-                    } else if (type === 'wall' && selectedElement?.type === 'space') { // spaceの頂点ハンドル(wallタイプ)がドラッグされた場合
-                        const groupId = selectedElement.id;
+                    } else if (type === 'spaceVertex') { // ハンドルのタイプが"spaceVertex"の場合、という明確な条件
+                        const groupId = resizingHandleInfo.id; // resizingHandleInfoからIDを取得
                         const spaceOfGroup = newElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
                     
@@ -6751,7 +6751,7 @@ ${JSON.stringify(exampleData10)}
                                                                     key={`handle-vertex-${id}-${index}`}
                                                                     data-id={id}
                                                                     data-handle-index={index}
-                                                                    data-handle-type="wall" // 壁の頂点と同じタイプとして扱う
+                                                                    data-handle-type="spaceVertex" // <- 空間頂点専用の識別子に変更
                                                                     cx={vertex.x}
                                                                     cy={vertex.y}
                                                                     r={6 / zoom}
