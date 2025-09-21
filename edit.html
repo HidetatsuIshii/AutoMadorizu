@@ -1763,8 +1763,8 @@
             const [clipboard, setClipboard] = useState(null);
             const [stairSnapPreview, setStairSnapPreview] = useState(null);
             const [previewMode, setPreviewMode] = useState(null);
-            const [isDebugOpen, setIsDebugOpen] = useState(true); // デバッグパネルの開閉
-            const [debugData, setDebugData] = useState({ rawAiResponse: null, processedPolygons: [], finalElements: null, });
+            const [isDebugOpen, setIsDebugOpen] = useState(true); 
+            const [debugData, setDebugData] = useState({ rawAiResponse: null, processedPolygons: [], finalElements: null });
 
             // --- Ref定義 ---
             const contextMenuRef = useRef(null);
@@ -1899,7 +1899,7 @@
                 });
             }, [selectedElement]);
 
-            const analyzeImageWithAI = async (imageDataUrl) => {
+            const analyzeImageWithAI = useCallback(async (imageDataUrl) => {
                 const base64ImageData = imageDataUrl.split(',')[1];
                 const promptForExtraction = `あなたは、建築図面をピクセルレベルで正確に読み取る画像解析エンジンです。
 提供された間取り図画像から、以下の要素を抽出してください。
@@ -3551,35 +3551,37 @@ ${JSON.stringify(exampleData10)}
             
                 try {
                     const apiKey = "AIzaSyAjbITp1Dbv-AyO4i42L5IWy17g5-ctEjg";
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
-            
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`;
+        
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-            
+        
                     if (!response.ok) {
                         const errorBody = await response.text();
                         throw new Error(`API Error: ${response.status} ${errorBody}`);
                     }
-            
+        
                     const result = await response.json();
-            
+        
                     if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                         const jsonText = result.candidates[0].content.parts[0].text;
-                        console.log("AIからのレスポンス(生テキスト):", jsonText); 
+                        console.log("AIからのレスポンス(生テキスト):", jsonText);
                         try {
                             const parsedJson = JSON.parse(jsonText);
-                            console.log("AIからのレスポンス(パース後):", parsedJson); // パース後のオブジェクトも確認
+                            console.log("AIからのレスポンス(パース後):", parsedJson);
+                            
+                            // ★★★ ここでデバッグデータをセットします ★★★
                             setDebugData(prev => ({ ...prev, rawAiResponse: parsedJson, processedPolygons: [], finalElements: null }));
+                            
                             return parsedJson;
                         } catch (e) {
                             console.error("JSONのパースに失敗しました:", e);
                             console.error("パースしようとしたテキスト:", jsonText);
-                            return null; // パース失敗時はnullを返す
+                            return null;
                         }
-                        //return JSON.parse(jsonText);
                     } else {
                         console.error("AIからの応答が予期した形式ではありません。レスポンス全体:", result);
                         throw new Error("AIからの応答が予期した形式ではありません。");
