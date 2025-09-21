@@ -5115,33 +5115,23 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleExportJson = useCallback(() => {
-                if (!historyState.present || !historyState.present.svgElements) {
-                    alert("エクスポートするデータがありません。");
+                // 1. デバッグパネルに表示されている「AIからの生レスポンス」をコピーするように変更します。
+                if (!debugData.rawAiResponse) { 
+                    alert("AIからの生レスポンスデータがありません。");
                     return;
                 }
-    
-                // AIへのお手本として使いやすいように、svgElements部分だけを抽出
-                const exportData = {
-                    "Blocks": [
-                        // ここでデータを変換することも可能ですが、まずは生のデータをコピーします
-                    ],
-                    // svgElementsのデータをここに含める形が良いでしょう
-                    "svgElements": historyState.present.svgElements 
-                };
-                
-                // JSONデータを整形して文字列に変換
-                const jsonString = JSON.stringify(historyState.present, null, 2); // historyState.present全体をコピー
-    
-                // クリップボードにコピー
+            
+                // 2. データを整形して文字列に変換します。
+                const jsonString = JSON.stringify(debugData.rawAiResponse, null, 2); 
+            
+                // 3. クリップボードにコピーします。
                 navigator.clipboard.writeText(jsonString).then(() => {
-                    alert("間取り図のJSONデータをクリップボードにコピーしました。");
+                    alert("デバッグパネルの「AIからの生レスポンス」をクリップボードにコピーしました。");
                 }).catch(err => {
                     console.error("コピーに失敗しました:", err);
                     alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
                 });
-            }, [historyState.present]);
-
-
+            }, [debugData.rawAiResponse]);
 
             useEffect(() => {
                 // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
