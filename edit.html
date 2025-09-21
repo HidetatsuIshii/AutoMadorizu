@@ -4644,10 +4644,42 @@ ${JSON.stringify(exampleData10)}
                             }
                             newElements[elementIndex] = newElement;
                         }
-                    } else if (type === 'spaceCorner' || type === 'spaceEdge') {
-                        const groupElements = newElements.filter(el => el.groupId === id); const spaceEl = groupElements.find(el => el.type === 'space'); if (!spaceEl) return; const originalPoints = spaceEl.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])})); const xs = originalPoints.map(p => p.x); const ys = originalPoints.map(p => p.y); const originalBbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }; let newPoints;
-                        if(type==='spaceCorner'){const corners=[{x:originalBbox.minX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.minY},{x:originalBbox.maxX,y:originalBbox.maxY},{x:originalBbox.minX,y:originalBbox.maxY}];const anchor=corners[(handleIndex+2)%4];const originalCorner=corners[handleIndex];const scaleX=(originalCorner.x-anchor.x)===0?1:(snappedPos.x-anchor.x)/(originalCorner.x-anchor.x);const scaleY=(originalCorner.y-anchor.y)===0?1:(snappedPos.y-anchor.y)/(originalCorner.y-anchor.y);newPoints=originalPoints.map(p=>({x:Math.round(anchor.x+(p.x-anchor.x)*scaleX),y:Math.round(anchor.y+(p.y-anchor.y)*scaleY)}))}else{newPoints=originalPoints.map(p=>{let newP={...p};if(handleIndex===0&&p.y===originalBbox.minY)newP.y=snappedPos.y;if(handleIndex===1&&p.x===originalBbox.maxX)newP.x=snappedPos.x;if(handleIndex===2&&p.y===originalBbox.maxY)newP.y=snappedPos.y;if(handleIndex===3&&p.x===originalBbox.minX)newP.x=snappedPos.x;return newP})}
-                        const newPointsStr=newPoints.map(p=>`${p.x},${p.y}`).join(' ');const newCentroid=getPolygonCentroid([...newPoints]);newElements=newElements.map(el=>{if(el.groupId!==id)return el;if(el.type==='space')return{...el,points:newPointsStr};if(el.type==='text')return{...el,x:(newCentroid.x/dimensions.width)*100,y:(newCentroid.y/dimensions.height)*100};if(el.type==='wall'){const p1=newPoints[el.edgeIndex];const p2=newPoints[(el.edgeIndex+1)%newPoints.length];return{...el,x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y}}return el});
+                    } else if (type === 'wall' && selectedElement?.type === 'space') { // spaceの頂点ハンドル(wallタイプ)がドラッグされた場合
+                        const groupId = selectedElement.id;
+                        const spaceOfGroup = newElements.find(el => el.id === groupId);
+                        if (!spaceOfGroup) return;
+                    
+                        // 1. 空間ポリゴンの頂点リストを更新
+                        const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        // 閉じたポリゴンの最後の重複点を一時的に削除
+                        if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
+                            polygonPoints.pop();
+                        }
+                        const pointToMoveIndex = handleIndex;
+                        polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
+                    
+                        // 2. 更新された頂点リストから、関連要素を全て再計算
+                        const newPointsStr = [...polygonPoints, polygonPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
+                        const newCentroid = getPolygonCentroid(polygonPoints);
+                    
+                        // 3. historyState内の全要素を走査し、このグループに属するものを更新
+                        newElements = newElements.map(el => {
+                            if (el.groupId !== groupId) return el;
+                    
+                            if (el.id === groupId) { // space要素のpointsを更新
+                                return { ...el, points: newPointsStr };
+                            }
+                            if (el.type === 'wall') { // wall要素の始点・終点を更新
+                                const p1 = polygonPoints[el.edgeIndex];
+                                if (!p1) return el; // 念の為のエラーガード
+                                const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
+                                return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+                            }
+                            if (el.type === 'text') { // text要素の中心位置を更新
+                                return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
+                            }
+                            return el;
+                        });
                     }
                     setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                     return;
@@ -5439,19 +5471,24 @@ ${JSON.stringify(exampleData10)}
                 }
                 
                 if (element.type === 'space') {
-                    const points = element.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
-                    const xs = points.map(p => p.x);
-                    const ys = points.map(p => p.y);
-                    const bbox = { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
-                    const corners = [
-                        {x: bbox.minX, y: bbox.minY}, {x: bbox.maxX, y: bbox.minY},
-                        {x: bbox.maxX, y: bbox.maxY}, {x: bbox.minX, y: bbox.maxY}
-                    ];
-                    const edges = [
-                        {x: (bbox.minX + bbox.maxX) / 2, y: bbox.minY}, {x: bbox.maxX, y: (bbox.minY + bbox.maxY) / 2},
-                        {x: (bbox.minX + bbox.maxX) / 2, y: bbox.maxY}, {x: bbox.minX, y: (bbox.minY + bbox.maxY) / 2}
-                    ];
-                    return { vertices: [], corners, edges };
+                    const points = element.points.split(' ').map(p_str => {
+                        const [x, y] = p_str.split(',').map(parseFloat);
+                        return { x, y };
+                    });
+                
+                    // 閉じたポリゴンの最後の点は始点と同じなので、ハンドル計算時には除外
+                    if (points.length > 1 && points[0].x === points[points.length - 1].x && points[0].y === points[points.length - 1].y) {
+                        points.pop();
+                    }
+                
+                    // 各辺の中点を計算
+                    const edges = points.map((p1, i) => {
+                        const p2 = points[(i + 1) % points.length];
+                        return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                    });
+                
+                    // verticesに頂点、edgesに辺の中点を返す
+                    return { vertices: points, corners: [], edges: edges };
                 }
                 if (element.type === 'fixture') {
                     const w = element.width;
@@ -6704,41 +6741,41 @@ ${JSON.stringify(exampleData10)}
                                                     );
                                                 }
                                                 
-                                                // 空間が選択された場合：四隅と各辺のハンドルを表示
                                                 case 'space': {
-                                                    const { corners, edges } = getVerticesAndEdges(selectedElement);
+                                                    const { vertices, edges } = getVerticesAndEdges(selectedElement);
                                                     return (
                                                         <g>
-                                                            {corners.map((corner, index) => (
+                                                            {/* 頂点ハンドル (丸) */}
+                                                            {vertices.map((vertex, index) => (
                                                                 <circle
-                                                                    key={`handle-corner-${id}-${index}`}
+                                                                    key={`handle-vertex-${id}-${index}`}
                                                                     data-id={id}
                                                                     data-handle-index={index}
-                                                                    data-handle-type="spaceCorner"
-                                                                    cx={corner.x}
-                                                                    cy={corner.y}
+                                                                    data-handle-type="wall" // 壁の頂点と同じタイプとして扱う
+                                                                    cx={vertex.x}
+                                                                    cy={vertex.y}
                                                                     r={6 / zoom}
                                                                     fill="black"
                                                                     stroke="white"
                                                                     strokeWidth={2 / zoom}
-                                                                    style={{ cursor: getResizeCursor(index, corners.length) }}
+                                                                    style={{ cursor: 'move' }}
                                                                 />
                                                             ))}
+                                                            {/* 辺の中点ハンドル (四角) - 今後の機能拡張用 */}
                                                             {edges.map((edge, index) => (
                                                                 <rect
                                                                     key={`handle-edge-${id}-${index}`}
                                                                     data-id={id}
                                                                     data-handle-index={index}
-                                                                    data-handle-type="spaceEdge"
-                                                                    x={edge.x - 5 / zoom}
-                                                                    y={edge.y - 5 / zoom}
-                                                                    width={10 / zoom}
-                                                                    height={10 / zoom}
+                                                                    data-handle-type="spaceEdge" // 今は操作不可
+                                                                    x={edge.x - 4 / zoom}
+                                                                    y={edge.y - 4 / zoom}
+                                                                    width={8 / zoom}
+                                                                    height={8 / zoom}
                                                                     fill="white"
-                                                                    stroke="black"
-                                                                    strokeWidth={1 / zoom}
-                                                                    style={{ cursor: (index === 0 || index === 2) ? 'ns-resize' : 'ew-resize' }}
-                                                                    transform={`rotate(45 ${edge.x} ${edge.y})`}
+                                                                    stroke={SELECTED_ELEMENT_COLOR}
+                                                                    strokeWidth={1.5 / zoom}
+                                                                    style={{ cursor: 'pointer', pointerEvents: 'none' }} // 現時点では操作不可に
                                                                 />
                                                             ))}
                                                         </g>
