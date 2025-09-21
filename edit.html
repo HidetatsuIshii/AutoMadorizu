@@ -5115,23 +5115,23 @@ ${JSON.stringify(exampleData10)}
             };
 
             const handleExportJson = useCallback(() => {
-                // 1. デバッグパネルに表示されている「AIからの生レスポンス」をコピーするように変更します。
-                if (!debugData.rawAiResponse) { 
-                    alert("AIからの生レスポンスデータがありません。");
+                // 1. コピー対象を描画データ（historyState.present）に戻します
+                if (!historyState.present || !historyState.present.svgElements || historyState.present.svgElements.length === 0) {
+                    alert("エクスポートする描画データがありません。");
                     return;
                 }
             
-                // 2. データを整形して文字列に変換します。
-                const jsonString = JSON.stringify(debugData.rawAiResponse, null, 2); 
+                // 2. データを整形して文字列に変換します
+                const jsonString = JSON.stringify(historyState.present, null, 2); 
             
-                // 3. クリップボードにコピーします。
+                // 3. クリップボードにコピーします
                 navigator.clipboard.writeText(jsonString).then(() => {
-                    alert("デバッグパネルの「AIからの生レスポンス」をクリップボードにコピーしました。");
+                    alert("現在の描画データをクリップボードにコピーしました。");
                 }).catch(err => {
                     console.error("コピーに失敗しました:", err);
                     alert("クリップボードへのコピーに失敗しました。コンソールを確認してください。");
                 });
-            }, [debugData.rawAiResponse]);
+            }, [historyState.present]);
 
             useEffect(() => {
                 // 設備のカテゴリが変更されたら、選択中の設備IDをそのカテゴリの先頭のIDに更新する
