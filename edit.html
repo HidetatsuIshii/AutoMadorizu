@@ -4324,10 +4324,18 @@ ${JSON.stringify(exampleData10)}
                     }
                 }
             }, [
-                isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, 
-                selectedId, historyState.present, drawingMode, spaceShape, dimensions,
-                isDisplaySettingsOpen, imagePosition, getCanvasCoords, svgElements, editorMode, 
-                selectedId, historyState.present, drawingMode, spaceShape, dimensions, imageUrl, setTooltip
+                svgElements, 
+                editorMode, 
+                getCanvasCoords, 
+                dimensions, 
+                isDisplaySettingsOpen, 
+                imagePosition, 
+                selectedId, 
+                historyState.present, 
+                drawingMode, 
+                spaceShape, 
+                imageUrl, 
+                setTooltip
             ]);
 
             const handleMouseMove = useCallback((e) => {
