@@ -4693,38 +4693,66 @@ ${JSON.stringify(exampleData10)}
                             }
                             newElements[elementIndex] = newElement;
                         }
-                    } else if (type === 'spaceVertex') { // ハンドルのタイプが"spaceVertex"の場合、という明確な条件
-                        const groupId = resizingHandleInfo.id; // resizingHandleInfoからIDを取得
-                        const spaceOfGroup = newElements.find(el => el.id === groupId);
+                    else if (type === 'spaceVertex') {
+                        const groupId = resizingHandleInfo.id;
+                        const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
                     
-                        // 1. 空間ポリゴンの頂点リストを更新
+                        // ドラッグ開始時の頂点リストを取得
                         const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
-                        // 閉じたポリゴンの最後の重複点を一時的に削除
                         if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
                             polygonPoints.pop();
                         }
-                        const pointToMoveIndex = handleIndex;
-                        polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
+                        const n = polygonPoints.length;
+                        if (n < 3) return;
                     
-                        // 2. 更新された頂点リストから、関連要素を全て再計算
-                        const newPointsStr = [...polygonPoints, polygonPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
-                        const newCentroid = getPolygonCentroid(polygonPoints);
+                        // 1. ドラッグされた頂点と、その両隣の頂点を特定します
+                        const currentIndex = handleIndex;
+                        const prevIndex = (currentIndex - 1 + n) % n;
+                        const nextIndex = (currentIndex + 1) % n;
                     
-                        // 3. historyState内の全要素を走査し、このグループに属するものを更新
+                        const p_curr_orig = polygonPoints[currentIndex];
+                        const p_prev_orig = polygonPoints[prevIndex];
+                        const p_next_orig = polygonPoints[nextIndex];
+                    
+                        // 2. ドラッグされた頂点の新しい位置をマウス座標に更新します
+                        const p_curr_new = { x: snappedPos.x, y: snappedPos.y };
+                        const newPoints = [...polygonPoints];
+                        newPoints[currentIndex] = p_curr_new;
+                        
+                        // 3. 両隣の頂点の座標を、壁の水平・垂直を維持するように更新します
+                        const tolerance = 1; // ほぼ水平・垂直と見なす許容誤差
+                        
+                        // 前の頂点との関係をチェック
+                        if (Math.abs(p_prev_orig.y - p_curr_orig.y) < tolerance) { // 元の辺が水平なら
+                            newPoints[prevIndex].y = p_curr_new.y; // 新しいY座標を合わせる
+                        } else if (Math.abs(p_prev_orig.x - p_curr_orig.x) < tolerance) { // 元の辺が垂直なら
+                            newPoints[prevIndex].x = p_curr_new.x; // 新しいX座標を合わせる
+                        }
+                    
+                        // 次の頂点との関係をチェック
+                        if (Math.abs(p_curr_orig.y - p_next_orig.y) < tolerance) { // 元の辺が水平なら
+                            newPoints[nextIndex].y = p_curr_new.y; // 新しいY座標を合わせる
+                        } else if (Math.abs(p_curr_orig.x - p_next_orig.x) < tolerance) { // 元の辺が垂直なら
+                            newPoints[nextIndex].x = p_curr_new.x; // 新しいX座標を合わせる
+                        }
+                    
+                        // 4. 新しい頂点情報をもとに、空間全体を再構築します
+                        const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
+                        const newCentroid = getPolygonCentroid(newPoints);
+                    
                         newElements = newElements.map(el => {
                             if (el.groupId !== groupId) return el;
-                    
-                            if (el.id === groupId) { // space要素のpointsを更新
+                            if (el.id === groupId) {
                                 return { ...el, points: newPointsStr };
                             }
-                            if (el.type === 'wall') { // wall要素の始点・終点を更新
-                                const p1 = polygonPoints[el.edgeIndex];
-                                if (!p1) return el; // 念の為のエラーガード
-                                const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
+                            if (el.type === 'wall') {
+                                const p1 = newPoints[el.edgeIndex];
+                                if (!p1) return el;
+                                const p2 = newPoints[(el.edgeIndex + 1) % newPoints.length];
                                 return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
                             }
-                            if (el.type === 'text') { // text要素の中心位置を更新
+                            if (el.type === 'text') {
                                 return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
                             }
                             return el;
