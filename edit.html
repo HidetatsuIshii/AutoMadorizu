@@ -4217,6 +4217,7 @@ ${JSON.stringify(exampleData10)}
                 const startCanvasY = getCanvasCoords(e).y;
                 mouseDownInfo.current = { x: e.clientX, y: e.clientY };
 
+                const isCtrlOrMetaPressed = e.ctrlKey || e.metaKey;
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
 
