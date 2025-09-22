@@ -4596,54 +4596,54 @@ ${JSON.stringify(exampleData10)}
                         return;
                     }else if (type === 'spaceEdge') {
                         const groupId = resizingHandleInfo.id;
-                        const spaceOfGroup = newElements.find(el => el.id === groupId);
+                        const { startMousePos } = resizingHandleInfo;
+                        
+                        // ドラッグ開始時の空間の形状を取得
+                        const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
                     
-                        // 1. 空間の元の頂点リストを取得
-                        const originalPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
-                        if (originalPoints.length > 1 && originalPoints[0].x === originalPoints[originalPoints.length - 1].x && originalPoints[0].y === originalPoints[originalPoints.length - 1].y) {
-                            originalPoints.pop();
+                        // 1. 移動させる辺の元の頂点 (p1, p2) を特定
+                        const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
+                            polygonPoints.pop();
                         }
-                        
-                        // 2. ドラッグされた辺の中点の位置に、新しい頂点を挿入
-                        const newPoints = [...originalPoints];
-                        newPoints.splice(handleIndex + 1, 0, { x: snappedPos.x, y: snappedPos.y });
+                        const p1_orig = polygonPoints[handleIndex];
+                        const p2_orig = polygonPoints[(handleIndex + 1) % polygonPoints.length];
                     
-                        // 3. 頂点リストと中心点を再計算
+                        // 2. ドラッグ量を、辺に対して垂直な方向に限定する
+                        const edgeVec = { x: p2_orig.x - p1_orig.x, y: p2_orig.y - p1_orig.y };
+                        const edgeLen = Math.sqrt(edgeVec.x**2 + edgeVec.y**2);
+                        const normalVec = edgeLen > 0 ? { x: -edgeVec.y / edgeLen, y: edgeVec.x / edgeLen } : { x: 0, y: 0 };
+                        
+                        const dragVec = { x: snappedPos.x - startMousePos.x, y: snappedPos.y - startMousePos.y };
+                        const projectionLength = dragVec.x * normalVec.x + dragVec.y * normalVec.y;
+                        const constrainedDelta = { x: normalVec.x * projectionLength, y: normalVec.y * projectionLength };
+                    
+                        // 3. 辺を構成する2つの頂点の新しい座標を計算
+                        const newPoints = [...polygonPoints];
+                        newPoints[handleIndex] = { x: p1_orig.x + constrainedDelta.x, y: p1_orig.y + constrainedDelta.y };
+                        newPoints[(handleIndex + 1) % newPoints.length] = { x: p2_orig.x + constrainedDelta.x, y: p2_orig.y + constrainedDelta.y };
+                    
+                        // 4. 新しい座標に基づいて、空間、壁、テキストを再構築（頂点移動時と同じロジック）
                         const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
                         const newCentroid = getPolygonCentroid(newPoints);
                     
-                        // 4. グループ内の全要素を新しい頂点リストに基づいて再構築
-                        const otherElementsInGroup = newElements.filter(el => el.groupId === groupId && el.type !== 'space' && el.type !== 'wall' && el.type !== 'text');
-                        const newWallElements = [];
-                        for (let i = 0; i < newPoints.length; i++) {
-                            const p1 = newPoints[i];
-                            const p2 = newPoints[(i + 1) % newPoints.length];
-                            newWallElements.push({
-                                ...newElements.find(el => el.type === 'wall' && el.groupId === groupId), // スタイルを継承
-                                id: `wall-${groupId}-${i}`,
-                                groupId: groupId,
-                                edgeIndex: i,
-                                x1: p1.x, y1: p1.y,
-                                x2: p2.x, y2: p2.y,
-                            });
-                        }
-                    
-                        const newSpaceElement = { ...spaceOfGroup, points: newPointsStr };
-                        const newTextElement = { 
-                            ...newElements.find(el => el.groupId === groupId && el.type === 'text'), 
-                            x: (newCentroid.x / dimensions.width) * 100, 
-                            y: (newCentroid.y / dimensions.height) * 100 
-                        };
-                    
-                        // 5. 新しい要素リストで元のリストを置き換える
-                        newElements = [
-                            ...newElements.filter(el => el.groupId !== groupId), 
-                            newSpaceElement, 
-                            ...newWallElements, 
-                            newTextElement, 
-                            ...otherElementsInGroup
-                        ];
+                        newElements = newElements.map(el => {
+                            if (el.groupId !== groupId) return el;
+                            if (el.id === groupId) {
+                                return { ...el, points: newPointsStr };
+                            }
+                            if (el.type === 'wall') {
+                                const p1 = newPoints[el.edgeIndex];
+                                if (!p1) return el;
+                                const p2 = newPoints[(el.edgeIndex + 1) % newPoints.length];
+                                return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+                            }
+                            if (el.type === 'text') {
+                                return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
+                            }
+                            return el;
+                        });
                     }
                     
                     else if (type === 'wall' || type === 'door' || type === 'window') {
