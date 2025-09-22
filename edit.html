@@ -4693,7 +4693,7 @@ ${JSON.stringify(exampleData10)}
                             }
                             newElements[elementIndex] = newElement;
                         }
-                    else if (type === 'spaceVertex') {
+                    }else if (type === 'spaceVertex') {
                         const groupId = resizingHandleInfo.id;
                         const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
