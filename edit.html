@@ -4594,8 +4594,57 @@ ${JSON.stringify(exampleData10)}
                         
                         setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                         return;
+                    }else if (type === 'spaceEdge') {
+                        const groupId = resizingHandleInfo.id;
+                        const spaceOfGroup = newElements.find(el => el.id === groupId);
+                        if (!spaceOfGroup) return;
+                    
+                        // 1. 空間の元の頂点リストを取得
+                        const originalPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        if (originalPoints.length > 1 && originalPoints[0].x === originalPoints[originalPoints.length - 1].x && originalPoints[0].y === originalPoints[originalPoints.length - 1].y) {
+                            originalPoints.pop();
+                        }
+                        
+                        // 2. ドラッグされた辺の中点の位置に、新しい頂点を挿入
+                        const newPoints = [...originalPoints];
+                        newPoints.splice(handleIndex + 1, 0, { x: snappedPos.x, y: snappedPos.y });
+                    
+                        // 3. 頂点リストと中心点を再計算
+                        const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
+                        const newCentroid = getPolygonCentroid(newPoints);
+                    
+                        // 4. グループ内の全要素を新しい頂点リストに基づいて再構築
+                        const otherElementsInGroup = newElements.filter(el => el.groupId === groupId && el.type !== 'space' && el.type !== 'wall' && el.type !== 'text');
+                        const newWallElements = [];
+                        for (let i = 0; i < newPoints.length; i++) {
+                            const p1 = newPoints[i];
+                            const p2 = newPoints[(i + 1) % newPoints.length];
+                            newWallElements.push({
+                                ...newElements.find(el => el.type === 'wall' && el.groupId === groupId), // スタイルを継承
+                                id: `wall-${groupId}-${i}`,
+                                groupId: groupId,
+                                edgeIndex: i,
+                                x1: p1.x, y1: p1.y,
+                                x2: p2.x, y2: p2.y,
+                            });
+                        }
+                    
+                        const newSpaceElement = { ...spaceOfGroup, points: newPointsStr };
+                        const newTextElement = { 
+                            ...newElements.find(el => el.groupId === groupId && el.type === 'text'), 
+                            x: (newCentroid.x / dimensions.width) * 100, 
+                            y: (newCentroid.y / dimensions.height) * 100 
+                        };
+                    
+                        // 5. 新しい要素リストで元のリストを置き換える
+                        newElements = [
+                            ...newElements.filter(el => el.groupId !== groupId), 
+                            newSpaceElement, 
+                            ...newWallElements, 
+                            newTextElement, 
+                            ...otherElementsInGroup
+                        ];
                     }
-                    // ▲▲▲ 差し替えはここまで ▲▲▲
                     
                     else if (type === 'wall' || type === 'door' || type === 'window') {
                         const elementToResize = { ...newElements[elementIndex] };
@@ -6767,7 +6816,7 @@ ${JSON.stringify(exampleData10)}
                                                                     key={`handle-edge-${id}-${index}`}
                                                                     data-id={id}
                                                                     data-handle-index={index}
-                                                                    data-handle-type="spaceEdge" // 今は操作不可
+                                                                    data-handle-type="spaceEdge" // 専用の識別子
                                                                     x={edge.x - 4 / zoom}
                                                                     y={edge.y - 4 / zoom}
                                                                     width={8 / zoom}
@@ -6775,7 +6824,7 @@ ${JSON.stringify(exampleData10)}
                                                                     fill="white"
                                                                     stroke={SELECTED_ELEMENT_COLOR}
                                                                     strokeWidth={1.5 / zoom}
-                                                                    style={{ cursor: 'pointer', pointerEvents: 'none' }} // 現時点では操作不可に
+                                                                    style={{ cursor: 'grab' }} // カーソルを有効化し、pointerEventsを削除
                                                                 />
                                                             ))}
                                                         </g>
