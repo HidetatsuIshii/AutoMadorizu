@@ -4672,10 +4672,15 @@ ${JSON.stringify(exampleData10)}
                         if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
                             polygonPoints.pop();
                         }
-                        const p1_orig = polygonPoints[handleIndex];
-                        const p2_orig = polygonPoints[(handleIndex + 1) % polygonPoints.length];
+                        const n = polygonPoints.length;
+                        if (n < 3) return;
                     
-                        // 2. ドラッグ量を、辺に対して垂直な方向に限定する
+                        const p1_orig_index = handleIndex;
+                        const p2_orig_index = (handleIndex + 1) % n;
+                        const p1_orig = polygonPoints[p1_orig_index];
+                        const p2_orig = polygonPoints[p2_orig_index];
+                    
+                        // 2. ドラッグ量を、辺に対して垂直な方向に限定します
                         const edgeVec = { x: p2_orig.x - p1_orig.x, y: p2_orig.y - p1_orig.y };
                         const edgeLen = Math.sqrt(edgeVec.x**2 + edgeVec.y**2);
                         const normalVec = edgeLen > 0 ? { x: -edgeVec.y / edgeLen, y: edgeVec.x / edgeLen } : { x: 0, y: 0 };
@@ -4684,12 +4689,12 @@ ${JSON.stringify(exampleData10)}
                         const projectionLength = dragVec.x * normalVec.x + dragVec.y * normalVec.y;
                         const constrainedDelta = { x: normalVec.x * projectionLength, y: normalVec.y * projectionLength };
                     
-                        // 3. 辺を構成する2つの頂点の新しい座標を計算
+                        // 3. 辺を構成する「2つの頂点のみ」の新しい座標を計算します（ここが重要な変更点です）
                         const newPoints = [...polygonPoints];
-                        newPoints[handleIndex] = { x: p1_orig.x + constrainedDelta.x, y: p1_orig.y + constrainedDelta.y };
-                        newPoints[(handleIndex + 1) % newPoints.length] = { x: p2_orig.x + constrainedDelta.x, y: p2_orig.y + constrainedDelta.y };
+                        newPoints[p1_orig_index] = { x: p1_orig.x + constrainedDelta.x, y: p1_orig.y + constrainedDelta.y };
+                        newPoints[p2_orig_index] = { x: p2_orig.x + constrainedDelta.x, y: p2_orig.y + constrainedDelta.y };
                     
-                        // 4. 新しい座標に基づいて、空間、壁、テキストを再構築（頂点移動時と同じロジック）
+                        // 4. 他の頂点は固定されたまま、空間全体を再構築します
                         const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
                         const newCentroid = getPolygonCentroid(newPoints);
                     
