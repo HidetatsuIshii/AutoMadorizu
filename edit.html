@@ -4220,6 +4220,70 @@ ${JSON.stringify(exampleData10)}
                 const targetId = e.target.getAttribute('data-id') || e.target.closest('[data-id]')?.getAttribute('data-id');
                 const targetElement = svgElements.find(el => el.id === targetId);
 
+                // Ctrlキーを押しながら、空間に属する壁をクリックした際の頂点追加処理
+                if (isCtrlOrMetaPressed && editorMode === 'edit' && targetElement?.type === 'wall' && targetElement.groupId) {
+                    const clickPos = getCanvasCoords(e);
+                    const wallToSplit = targetElement;
+                    const groupId = wallToSplit.groupId;
+                    
+                    setHistoryState(prevState => {
+                        const originalElements = prevState.present.svgElements;
+                        const spaceOfGroup = originalElements.find(el => el.id === groupId);
+                        if (!spaceOfGroup) return prevState;
+            
+                        // 1. 空間の元の頂点リストを取得
+                        const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
+                        if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
+                            polygonPoints.pop();
+                        }
+            
+                        // 2. クリックされた位置に新しい頂点を挿入
+                        const insertIndex = wallToSplit.edgeIndex + 1;
+                        polygonPoints.splice(insertIndex, 0, clickPos);
+                        
+                        // 3. 新しい頂点リストを元に、空間、壁、テキストを再構築
+                        const newPointsStr = [...polygonPoints, polygonPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
+                        const newCentroid = getPolygonCentroid(polygonPoints);
+                        
+                        const newWallElements = [];
+                        for (let i = 0; i < polygonPoints.length; i++) {
+                            const p1 = polygonPoints[i];
+                            const p2 = polygonPoints[(i + 1) % polygonPoints.length];
+                            newWallElements.push({
+                                ...wallToSplit, // スタイルを継承
+                                id: `wall-${groupId}-${i}-${Date.now()}`, // IDをユニークにする
+                                edgeIndex: i, // edgeIndexを再設定
+                                x1: p1.x, y1: p1.y,
+                                x2: p2.x, y2: p2.y,
+                            });
+                        }
+                        
+                        const newSpaceElement = { ...spaceOfGroup, points: newPointsStr };
+                        const textElement = originalElements.find(el => el.groupId === groupId && el.type === 'text');
+                        const newTextElement = textElement ? { 
+                            ...textElement, 
+                            x: (newCentroid.x / dimensions.width) * 100, 
+                            y: (newCentroid.y / dimensions.height) * 100 
+                        } : null;
+                        
+                        // 4. 新しい要素リストで元の要素を置き換える
+                        const finalElements = [
+                            ...originalElements.filter(el => el.groupId !== groupId),
+                            newSpaceElement,
+                            ...newWallElements,
+                            ...(newTextElement ? [newTextElement] : [])
+                        ];
+            
+                        return {
+                            past: [...prevState.past, prevState.present],
+                            present: { ...prevState.present, svgElements: finalElements },
+                            future: []
+                        };
+                    });
+            
+                    return; // 通常のクリック処理を中断
+                }
+
                 if (editorMode === 'edit') {
                     const handleIndex = e.target.dataset.handleIndex;
                     const handleType = e.target.dataset.handleType;
