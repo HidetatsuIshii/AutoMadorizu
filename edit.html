@@ -3810,11 +3810,11 @@ ${JSON.stringify(exampleData10)}
             }, [zoom]);
 
             const getGridSnappedPoint = useCallback((point) => {
-                return {
-                    x: Math.floor(point.x / gridSize) * gridSize + gridSize / 2,
-                    y: Math.floor(point.y / gridSize) * gridSize + gridSize / 2
-                };
-            }, [gridSize]);
+                return {
+                    x: Math.round(point.x / gridSize) * gridSize,
+                    y: Math.round(point.y / gridSize) * gridSize
+                };
+            }, [gridSize]);
 
             const finishDrawing = useCallback(() => {
                 if (drawingMode === 'space' && spaceShape === 'line' && linePoints.length > 1) {
