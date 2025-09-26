@@ -4089,7 +4089,17 @@ ${JSON.stringify(exampleData10)}
                 let newElementId = null;
 
                 if (drawingMode === 'wall') {
-                    const newElement = { id: `wall-${Date.now()}`, type: 'wall', x1: start.x, y1: start.y, x2: end.x, y2: end.y, stroke: strokeColor, strokeWidth: strokeWidth, lineStyle: lineStyle };
+                    const newElement = {
+                        id: `wall-${Date.now()}`,
+                        type: 'wall',
+                        x1: Math.round(start.x),
+                        y1: Math.round(start.y),
+                        x2: Math.round(end.x),
+                        y2: Math.round(end.y),
+                        stroke: strokeColor,
+                        strokeWidth: strokeWidth,
+                        lineStyle: lineStyle
+                    };
                     newElements.push(newElement);
                     newElementId = newElement.id;
                 } else if (drawingMode === 'compass') {
@@ -4764,17 +4774,20 @@ ${JSON.stringify(exampleData10)}
                                 });
                             }
                         } else { // 独立した壁、またはドア、窓の場合 (従来のロジック)
-                            const newElement = elementToResize;
-                            if (handleIndex === 0) { newElement.x1 = snappedPos.x; newElement.y1 = snappedPos.y; } 
-                            else { newElement.x2 = snappedPos.x; newElement.y2 = snappedPos.y; }
-                            
-                            if(type==='door'||type==='window'){
-                                const dx=newElement.x2-newElement.x1; const dy=newElement.y2-newElement.y1;
-                                newElement.length=Math.sqrt(dx*dx+dy*dy);
-                                newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
-                            }
-                            newElements[elementIndex] = newElement;
+                        const newElement = elementToResize;
+                        if (handleIndex === 0) {
+                            newElement.x1 = Math.round(snappedPos.x);
+                            newElement.y1 = Math.round(snappedPos.y);
+                        } else {
+                            newElement.x2 = Math.round(snappedPos.x);
+                            newElement.y2 = Math.round(snappedPos.y);
                         }
+                        if(type==='door'||type==='window'){
+                            const dx=newElement.x2-newElement.x1; const dy=newElement.y2-newElement.y1;
+                            newElement.length=Math.sqrt(dx*dx+dy*dy);
+                            newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
+                        }
+                        newElements[elementIndex] = newElement;
                     }else if (type === 'spaceVertex') {
                         const groupId = resizingHandleInfo.id;
                         const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
