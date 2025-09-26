@@ -4774,20 +4774,21 @@ ${JSON.stringify(exampleData10)}
                                 });
                             }
                         } else { // 独立した壁、またはドア、窓の場合 (従来のロジック)
-                        const newElement = elementToResize;
-                        if (handleIndex === 0) {
-                            newElement.x1 = Math.round(snappedPos.x);
-                            newElement.y1 = Math.round(snappedPos.y);
-                        } else {
-                            newElement.x2 = Math.round(snappedPos.x);
-                            newElement.y2 = Math.round(snappedPos.y);
+                            const newElement = elementToResize;
+                            if (handleIndex === 0) {
+                                newElement.x1 = Math.round(snappedPos.x);
+                                newElement.y1 = Math.round(snappedPos.y);
+                            } else {
+                                newElement.x2 = Math.round(snappedPos.x);
+                                newElement.y2 = Math.round(snappedPos.y);
+                            }
+                            if(type==='door'||type==='window'){
+                                const dx=newElement.x2-newElement.x1; const dy=newElement.y2-newElement.y1;
+                                newElement.length=Math.sqrt(dx*dx+dy*dy);
+                                newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
+                            }
+                            newElements[elementIndex] = newElement;
                         }
-                        if(type==='door'||type==='window'){
-                            const dx=newElement.x2-newElement.x1; const dy=newElement.y2-newElement.y1;
-                            newElement.length=Math.sqrt(dx*dx+dy*dy);
-                            newElement.baseAngle=Math.atan2(dy,dx)*180/Math.PI
-                        }
-                        newElements[elementIndex] = newElement;
                     }else if (type === 'spaceVertex') {
                         const groupId = resizingHandleInfo.id;
                         const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
