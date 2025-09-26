@@ -6534,9 +6534,13 @@ ${JSON.stringify(exampleData10)}
                                                         <polygon
                                                             data-id={el.id}
                                                             points={el.points}
-                                                            fill={el.fill}
-                                                            stroke="none"
-                                                            style={{ pointerEvents: isHighlighted ? 'all' : 'auto', cursor: 'pointer' }}
+                                                            fill="none"
+                                                            stroke={stroke}
+                                                            strokeWidth={strokeW}
+                                                            strokeDasharray={style?.dashArray || 'none'}
+                                                            strokeLinejoin="miter" // 角をシャープにする
+                                                            strokeLinecap="square"  // 線の端を四角くする
+                                                            style={{ pointerEvents: 'none' }} // このポリゴン自体はクリックさせない
                                                         />
                                                         <BackgroundRenderer element={el} />
                                                         
@@ -6571,87 +6575,86 @@ ${JSON.stringify(exampleData10)}
                                                 );
                                             }
                                             if (el.type === 'wall') {
-                                                const isPartOfSpace = !!el.groupId;
-                                                const isWallSelected = selectedId === el.id;
-                                                const isSpaceSelected = isPartOfSpace && selectedId === el.groupId;
-                                                const isHighlighted = isWallSelected || isSpaceSelected;
-                                            
-                                                // ▼▼▼【ここからが変更箇所です】▼▼▼
-                                                
-                                                // 空間に属する壁で、スタイルが二重線の場合の特別処理
-                                                if (el.groupId && el.lineStyle === 'double') {
+                                                // 空間に属する壁 (el.groupId がある) の場合
+                                                // 枠線の描画は親である'space'要素のpolygonが一括して行うため、
+                                                // ここでは当たり判定や編集操作のための「透明な線」のみを描画します。
+                                                if (el.groupId) {
+                                                    const isWallSelected = selectedId === el.id;
                                                     return (
                                                         <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu}>
-                                                            {/* 1. クリックや右クリックのイベントを受け取るための、透明な太い線 */}
+                                                            {/* ユーザーがクリックやドラッグ操作をするための透明な当たり判定 */}
                                                             <line
                                                                 x1={el.x1} y1={el.y1}
                                                                 x2={el.x2} y2={el.y2}
                                                                 stroke="transparent"
-                                                                strokeWidth={Math.max(el.strokeWidth || 0, 10)} // クリックしやすいように最低10pxの幅を確保
+                                                                strokeWidth={Math.max(el.strokeWidth || 0, 10)} // クリックしやすいように十分な太さを確保
                                                                 style={{ cursor: 'pointer' }}
                                                             />
-                                                            {/* 2. この壁が「直接」選択された場合のみ、ハイライト線を描画 */}
+                                                            
+                                                            {/* この壁が「直接」選択された場合のみ、ハイライト線を描画します。 */}
+                                                            {/* これにより、どの壁辺を操作しているかがユーザーに分かります。 */}
                                                             {isWallSelected && (
                                                                 <line
                                                                     x1={el.x1} y1={el.y1}
                                                                     x2={el.x2} y2={el.y2}
                                                                     stroke={SELECTED_ELEMENT_COLOR}
-                                                                    strokeWidth={el.strokeWidth}
-                                                                    strokeLinejoin="miter" // 結合部を滑らかにする
+                                                                    strokeWidth={4 / zoom} // ハイライトは少し太く見せる
+                                                                    strokeLinecap="round"
                                                                     style={{ pointerEvents: 'none' }} // ハイライト自体はクリックイベントを拾わない
                                                                 />
                                                             )}
                                                         </g>
                                                     );
                                                 }
-                                                
-                                                // --- 通常の壁（独立した壁や、二重線以外の空間の壁）の描画処理 ---
-                                                const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
-                                                const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
-                                                const finalLineStyleId = el.lineStyle || 'solid';
-                                                const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
+                                                // 独立した壁 (el.groupId がない) の場合
+                                                // これは従来通りの描画ロジックを実行します。
+                                                else {
+                                                    const isHighlighted = selectedId === el.id;
+                                                    const finalStroke = isHighlighted ? SELECTED_ELEMENT_COLOR : (el.stroke || el.color || DEFAULT_STROKE_COLOR);
+                                                    const finalStrokeW = el.strokeWidth || DEFAULT_STROKE_WIDTH;
+                                                    const finalLineStyleId = el.lineStyle || 'solid';
+                                                    const finalStyle = LINE_STYLES.find(s => s.id === finalLineStyleId);
                                             
-                                                // 実線または二重線の場合 (CustomLineRendererを使わない場合)
-                                                if (finalLineStyleId === 'solid' || finalLineStyleId === 'double') {
-                                                    const isDouble = finalLineStyleId === 'double';
-                                                    const singleLineWidth = 1.5;
-                                                    const innerSpaceWidth = finalStrokeW - (singleLineWidth * 2);
-                                                    const offsetDistance = (finalStrokeW / 2) - (singleLineWidth / 2);
+                                                    if (finalLineStyleId === 'solid' || finalLineStyleId === 'double') {
+                                                        const isDouble = finalLineStyleId === 'double';
+                                                        const singleLineWidth = 1.5;
+                                                        const innerSpaceWidth = finalStrokeW - (singleLineWidth * 2);
+                                                        const offsetDistance = (finalStrokeW / 2) - (singleLineWidth / 2);
+                                                        
+                                                        const dx = el.x2 - el.x1;
+                                                        const dy = el.y2 - el.y1;
+                                                        const len = Math.sqrt(dx * dx + dy * dy);
+                                                        const offsetX = len > 0 ? -dy / len * offsetDistance : 0;
+                                                        const offsetY = len > 0 ? dx / len * offsetDistance : 0;
                                             
-                                                    const dx = el.x2 - el.x1;
-                                                    const dy = el.y2 - el.y1;
-                                                    const len = Math.sqrt(dx * dx + dy * dy);
-                                                    const offsetX = len > 0 ? -dy / len * offsetDistance : 0;
-                                                    const offsetY = len > 0 ? dx / len * offsetDistance : 0;
-                                            
-                                                    return (
-                                                        <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
-                                                            {isDouble ? (
-                                                                <g style={{ pointerEvents: 'none' }}>
-                                                                    <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="white" strokeWidth={innerSpaceWidth + 2} strokeLinecap="butt" strokeLinejoin="miter" />
-                                                                    <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
-                                                                    <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
-                                                                </g>
-                                                            ) : (
-                                                                <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
-                                                            )}
-                                                            <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
-                                                        </g>
-                                                    );
-                                                } else {
-                                                    // それ以外の線（点線、破線など）は新しいコンポーネントで描画
-                                                    return (
-                                                        <CustomLineRenderer
-                                                            key={el.id}
-                                                            id={el.id}
-                                                            x1={el.x1} y1={el.y1}
-                                                            x2={el.x2} y2={el.y2}
-                                                            stroke={finalStroke}
-                                                            strokeWidth={finalStrokeW}
-                                                            lineStyle={finalLineStyleId}
-                                                            onContextMenu={handleContextMenu}
-                                                        />
-                                                    );
+                                                        return (
+                                                            <g key={el.id} data-id={el.id} onContextMenu={handleContextMenu} style={{ cursor: 'pointer' }}>
+                                                                {isDouble ? (
+                                                                    <g style={{ pointerEvents: 'none' }}>
+                                                                        <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="white" strokeWidth={innerSpaceWidth + 2} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                        <line x1={el.x1 + offsetX} y1={el.y1 + offsetY} x2={el.x2 + offsetX} y2={el.y2 + offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                        <line x1={el.x1 - offsetX} y1={el.y1 - offsetY} x2={el.x2 - offsetX} y2={el.y2 - offsetY} stroke={finalStroke} strokeWidth={singleLineWidth} strokeLinecap="butt" strokeLinejoin="miter" />
+                                                                    </g>
+                                                                ) : (
+                                                                    <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={finalStroke} strokeWidth={finalStrokeW} strokeLinecap="square" style={{ pointerEvents: 'none' }} />
+                                                                )}
+                                                                <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={Math.max(finalStrokeW, 10)} />
+                                                            </g>
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <CustomLineRenderer
+                                                                key={el.id}
+                                                                id={el.id}
+                                                                x1={el.x1} y1={el.y1}
+                                                                x2={el.x2} y2={el.y2}
+                                                                stroke={finalStroke}
+                                                                strokeWidth={finalStrokeW}
+                                                                lineStyle={finalLineStyleId}
+                                                                onContextMenu={handleContextMenu}
+                                                            />
+                                                        );
+                                                    }
                                                 }
                                             }
                                             if (el.type === 'stairs') {
