@@ -4691,8 +4691,14 @@ ${JSON.stringify(exampleData10)}
                     
                         // 3. 辺を構成する「2つの頂点のみ」の新しい座標を計算します（ここが重要な変更点です）
                         const newPoints = [...polygonPoints];
-                        newPoints[p1_orig_index] = { x: p1_orig.x + constrainedDelta.x, y: p1_orig.y + constrainedDelta.y };
-                        newPoints[p2_orig_index] = { x: p2_orig.x + constrainedDelta.x, y: p2_orig.y + constrainedDelta.y };
+                        newPoints[p1_orig_index] = { 
+                            x: Math.round(p1_orig.x + constrainedDelta.x), // ★ここで整数化
+                            y: Math.round(p1_orig.y + constrainedDelta.y)  // ★ここで整数化
+                        };
+                        newPoints[p2_orig_index] = { 
+                            x: Math.round(p2_orig.x + constrainedDelta.x), // ★ここで整数化
+                            y: Math.round(p2_orig.y + constrainedDelta.y)  // ★ここで整数化
+                        };
                     
                         // 4. 他の頂点は固定されたまま、空間全体を再構築します
                         const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
@@ -4786,7 +4792,8 @@ ${JSON.stringify(exampleData10)}
                         const p_next_orig = polygonPoints[nextIndex];
                     
                         // 2. ドラッグされた頂点の新しい位置をマウス座標に更新します
-                        const p_curr_new = { x: snappedPos.x, y: snappedPos.y };
+                        const p_curr_new = { x: Math.round(snappedPos.x), y: Math.round(snappedPos.y) }; // ★ここで整数化
+
                         const newPoints = [...polygonPoints];
                         newPoints[currentIndex] = p_curr_new;
                         
@@ -4867,17 +4874,20 @@ ${JSON.stringify(exampleData10)}
                                 case 'door': 
                                 case 'window': 
                                 case 'wall': 
-                                    newEl.x1 = originalEl.x1 + finalDeltaX; 
-                                    newEl.y1 = originalEl.y1 + finalDeltaY; 
-                                    newEl.x2 = originalEl.x2 + finalDeltaX; 
-                                    newEl.y2 = originalEl.y2 + finalDeltaY; 
+                                    newEl.x1 = Math.round(originalEl.x1 + finalDeltaX); // ★ここで整数化
+                                    newEl.y1 = Math.round(originalEl.y1 + finalDeltaY); // ★ここで整数化
+                                    newEl.x2 = Math.round(originalEl.x2 + finalDeltaX); // ★ここで整数化
+                                    newEl.y2 = Math.round(originalEl.y2 + finalDeltaY); // ★ここで整数化
                                     break; 
                                 case 'space': 
                                 case 'stairs': 
                                     const originalPoints = originalEl.points.split(' ').map(p_str => ({x: parseFloat(p_str.split(',')[0]), y: parseFloat(p_str.split(',')[1])})); 
-                                    const movedPoints = originalPoints.map(p => ({ x: p.x + finalDeltaX, y: p.y + finalDeltaY })); 
-                                    newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' '); 
-                                    break; 
+                                    const movedPoints = originalPoints.map(p => ({ 
+                                        x: Math.round(p.x + finalDeltaX), // ★ここで整数化
+                                        y: Math.round(p.y + finalDeltaY)  // ★ここで整数化
+                                    }));
+                                    newEl.points = movedPoints.map(p => `${p.x},${p.y}`).join(' ');
+                                    break;
                             } return newEl; 
                         } return el; 
                     });
