@@ -4571,73 +4571,59 @@ ${JSON.stringify(exampleData10)}
                         const elementIndex = newElements.findIndex(el => el.id === id);
                         if (elementIndex === -1) return;
                         
-                        // 1. 回転と反転のための初期値を準備
+                        // (省略... fixtureのリサイズロジックは変更なし)
                         const rad = (startElement.rotation || 0) * Math.PI / 180;
                         const cos = Math.cos(rad);
                         const sin = Math.sin(rad);
-                        const flip = startElement.isFlipped ? -1 : 1; // 反転係数を追加
-                    
+                        const flip = startElement.isFlipped ? -1 : 1;
                         const startCx = startElement.x / 100 * dimensions.width;
                         const startCy = startElement.y / 100 * dimensions.height;
                         const startW = startElement.width;
                         const startH = startElement.height;
-                    
-                        // 2. アンカーポイント（動かない基準点）のワールド座標を計算
                         const halfW = startW / 2;
                         const halfH = startH / 2;
-                        // ハンドルのローカル座標（中心が0,0）
                         const corners = [
-                            {x: -halfW, y: -halfH}, {x: halfW, y: -halfH}, 
+                            {x: -halfW, y: -halfH}, {x: halfW, y: -halfH},
                             {x: halfW, y: halfH},   {x: -halfW, y: halfH}
                         ];
                         const edges = [
-                            {x: 0, y: -halfH}, {x: halfW, y: 0}, 
+                            {x: 0, y: -halfH}, {x: halfW, y: 0},
                             {x: 0, y: halfH}, {x: -halfW, y: 0}
                         ];
-                    
-                        const anchorIndex = (handleIndex + 2) % 4; // 対角/対辺のインデックス
+                        const anchorIndex = (handleIndex + 2) % 4;
                         const anchorLocal = (type === 'fixtureCorner') ? corners[anchorIndex] : edges[anchorIndex];
-                    
-                        // アンカーのワールド座標（反転も考慮）
                         const anchorGlobal = {
                             x: startCx + (anchorLocal.x * cos * flip - anchorLocal.y * sin),
                             y: startCy + (anchorLocal.x * sin * flip + anchorLocal.y * cos)
                         };
-                    
-                        // 3. マウスの現在位置からアンカーへのベクトルを、回転・反転を解除したローカルなベクトルに変換
                         const mouseVec = { x: snappedPos.x - anchorGlobal.x, y: snappedPos.y - anchorGlobal.y };
                         const unrotatedMouseVec = {
                             x: (mouseVec.x * cos + mouseVec.y * sin) * flip,
                             y: (-mouseVec.x * sin + mouseVec.y * cos)
                         };
-                    
                         let newWidth, newHeight;
                         let newCenterLocal;
-                    
-                        // 4. 新しい幅、高さ、中心点をローカル座標系で計算
                         if (type === 'fixtureEdge') {
                             const signX = (handleIndex === 1) ? 1 : -1;
-                            const signY = (handleIndex === 0) ? -1 : 1; // TopハンドルはY軸負方向
+                            const signY = (handleIndex === 0) ? -1 : 1;
                             switch(handleIndex) {
-                                case 0: // Top
-                                case 2: // Bottom
+                                case 0:
+                                case 2:
                                     newWidth = startW;
                                     newHeight = Math.max(10, signY * unrotatedMouseVec.y);
                                     newCenterLocal = { x: anchorLocal.x, y: anchorLocal.y + (signY * newHeight / 2) };
                                     break;
-                                case 1: // Right
-                                case 3: // Left
+                                case 1:
+                                case 3:
                                     newHeight = startH;
                                     newWidth = Math.max(10, signX * unrotatedMouseVec.x);
                                     newCenterLocal = { x: anchorLocal.x + (signX * newWidth / 2), y: anchorLocal.y };
                                     break;
                             }
-                        } else { // fixtureCorner (アスペクト比を維持)
+                        } else {
                             const aspectRatio = startW / startH;
                             const signX = (handleIndex === 1 || handleIndex === 2) ? 1 : -1;
                             const signY = (handleIndex === 2 || handleIndex === 3) ? 1 : -1;
-                            
-                            // マウス位置とアスペクト比から、新しい幅と高さを決定
                             if (Math.abs(unrotatedMouseVec.x / aspectRatio) > Math.abs(unrotatedMouseVec.y)) {
                                 newWidth = Math.max(10, Math.abs(unrotatedMouseVec.x));
                                 newHeight = newWidth / aspectRatio;
@@ -4645,14 +4631,11 @@ ${JSON.stringify(exampleData10)}
                                 newHeight = Math.max(10, Math.abs(unrotatedMouseVec.y));
                                 newWidth = newHeight * aspectRatio;
                             }
-                            
                             newCenterLocal = {
                                 x: anchorLocal.x + (signX * newWidth / 2),
                                 y: anchorLocal.y + (signY * newHeight / 2)
                             };
                         }
-                    
-                        // 5. 新しいローカル中心座標を、回転・反転を考慮してワールド座標に戻す
                         const centerVecFromAnchorLocal = {
                             x: newCenterLocal.x - anchorLocal.x,
                             y: newCenterLocal.y - anchorLocal.y
@@ -4663,8 +4646,6 @@ ${JSON.stringify(exampleData10)}
                         };
                         const newCx = anchorGlobal.x + centerVecFromAnchorGlobal.x;
                         const newCy = anchorGlobal.y + centerVecFromAnchorGlobal.y;
-                    
-                        // 6. 計算した新しい値で要素を更新
                         newElements[elementIndex] = {
                             ...startElement,
                             width: newWidth,
@@ -4672,54 +4653,40 @@ ${JSON.stringify(exampleData10)}
                             x: (newCx / dimensions.width) * 100,
                             y: (newCy / dimensions.height) * 100
                         };
-                        
                         setHistoryState(prev => ({ ...prev, present: { ...prev.present, svgElements: newElements } }));
                         return;
-                    }else if (type === 'spaceEdge') {
+                    } else if (type === 'spaceEdge') {
                         const groupId = resizingHandleInfo.id;
                         const { startMousePos } = resizingHandleInfo;
-                        
-                        // ドラッグ開始時の空間の形状を取得
                         const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
-                    
-                        // 1. 移動させる辺の元の頂点 (p1, p2) を特定
                         const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
                         if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
                             polygonPoints.pop();
                         }
                         const n = polygonPoints.length;
                         if (n < 3) return;
-                    
                         const p1_orig_index = handleIndex;
                         const p2_orig_index = (handleIndex + 1) % n;
                         const p1_orig = polygonPoints[p1_orig_index];
                         const p2_orig = polygonPoints[p2_orig_index];
-                    
-                        // 2. ドラッグ量を、辺に対して垂直な方向に限定します
                         const edgeVec = { x: p2_orig.x - p1_orig.x, y: p2_orig.y - p1_orig.y };
                         const edgeLen = Math.sqrt(edgeVec.x**2 + edgeVec.y**2);
                         const normalVec = edgeLen > 0 ? { x: -edgeVec.y / edgeLen, y: edgeVec.x / edgeLen } : { x: 0, y: 0 };
-                        
                         const dragVec = { x: snappedPos.x - startMousePos.x, y: snappedPos.y - startMousePos.y };
                         const projectionLength = dragVec.x * normalVec.x + dragVec.y * normalVec.y;
                         const constrainedDelta = { x: normalVec.x * projectionLength, y: normalVec.y * projectionLength };
-                    
-                        // 3. 辺を構成する「2つの頂点のみ」の新しい座標を計算します（ここが重要な変更点です）
                         const newPoints = [...polygonPoints];
-                        newPoints[p1_orig_index] = { 
-                            x: Math.round(p1_orig.x + constrainedDelta.x), // ★ここで整数化
-                            y: Math.round(p1_orig.y + constrainedDelta.y)  // ★ここで整数化
+                        newPoints[p1_orig_index] = {
+                            x: Math.round(p1_orig.x + constrainedDelta.x),
+                            y: Math.round(p1_orig.y + constrainedDelta.y)
                         };
-                        newPoints[p2_orig_index] = { 
-                            x: Math.round(p2_orig.x + constrainedDelta.x), // ★ここで整数化
-                            y: Math.round(p2_orig.y + constrainedDelta.y)  // ★ここで整数化
+                        newPoints[p2_orig_index] = {
+                            x: Math.round(p2_orig.x + constrainedDelta.x),
+                            y: Math.round(p2_orig.y + constrainedDelta.y)
                         };
-                    
-                        // 4. 他の頂点は固定されたまま、空間全体を再構築します
                         const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
                         const newCentroid = getPolygonCentroid(newPoints);
-                    
                         newElements = newElements.map(el => {
                             if (el.groupId !== groupId) return el;
                             if (el.id === groupId) {
@@ -4736,45 +4703,36 @@ ${JSON.stringify(exampleData10)}
                             }
                             return el;
                         });
-                    }
-                    
-                    else if (type === 'wall' || type === 'door' || type === 'window') {
+                    } else if (type === 'wall' || type === 'door' || type === 'window') {
                         const elementToResize = { ...newElements[elementIndex] };
-                
-                        // 空間に属する壁 (groupId を持つ壁) のリサイズ処理
                         if (type === 'wall' && elementToResize.groupId) {
                             const groupId = elementToResize.groupId;
                             const spaceOfGroup = newElements.find(el => el.id === groupId);
-                            
                             if (spaceOfGroup) {
-                                // 1. 空間ポリゴンの頂点リストを更新
                                 const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
                                 const pointToMoveIndex = (elementToResize.edgeIndex + handleIndex) % polygonPoints.length;
                                 polygonPoints[pointToMoveIndex] = { x: snappedPos.x, y: snappedPos.y };
-                                
-                                // 2. 更新された頂点リストから、関連要素を全て再計算
                                 const newPointsStr = polygonPoints.map(p => `${p.x},${p.y}`).join(' ');
                                 const newCentroid = getPolygonCentroid([...polygonPoints]);
-                
                                 newElements = newElements.map(el => {
-                                    if (el.groupId !== groupId) return el; // 関係ない要素はスキップ
-                
-                                    if (el.id === groupId) { // space要素のpointsを更新
+                                    if (el.groupId !== groupId) return el;
+                                    if (el.id === groupId) {
                                         return { ...el, points: newPointsStr };
                                     }
-                                    if (el.type === 'wall') { // wall要素の始点・終点を更新
+                                    if (el.type === 'wall') {
                                         const p1 = polygonPoints[el.edgeIndex];
                                         const p2 = polygonPoints[(el.edgeIndex + 1) % polygonPoints.length];
                                         return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
                                     }
-                                    if (el.type === 'text') { // text要素の中心位置を更新
+                                    if (el.type === 'text') {
                                         return {...el, x: (newCentroid.x / dimensions.width) * 100, y: (newCentroid.y / dimensions.height) * 100 };
                                     }
                                     return el;
                                 });
                             }
-                        } else { // 独立した壁、またはドア、窓の場合 (従来のロジック)
+                        } else {
                             const newElement = elementToResize;
+                            // ★★★ ここからが前回修正した箇所です ★★★
                             if (handleIndex === 0) {
                                 newElement.x1 = Math.round(snappedPos.x);
                                 newElement.y1 = Math.round(snappedPos.y);
@@ -4789,55 +4747,38 @@ ${JSON.stringify(exampleData10)}
                             }
                             newElements[elementIndex] = newElement;
                         }
-                    }else if (type === 'spaceVertex') {
+                    } else if (type === 'spaceVertex') { // ★★★ 括弧が不足していたのはこの行の前です ★★★
                         const groupId = resizingHandleInfo.id;
                         const spaceOfGroup = historyOnActionStart.current.svgElements.find(el => el.id === groupId);
                         if (!spaceOfGroup) return;
-                    
-                        // ドラッグ開始時の頂点リストを取得
                         const polygonPoints = spaceOfGroup.points.split(' ').map(p => ({x: parseFloat(p.split(',')[0]), y: parseFloat(p.split(',')[1])}));
                         if (polygonPoints.length > 1 && polygonPoints[0].x === polygonPoints[polygonPoints.length - 1].x && polygonPoints[0].y === polygonPoints[polygonPoints.length - 1].y) {
                             polygonPoints.pop();
                         }
                         const n = polygonPoints.length;
                         if (n < 3) return;
-                    
-                        // 1. ドラッグされた頂点と、その両隣の頂点を特定します
                         const currentIndex = handleIndex;
                         const prevIndex = (currentIndex - 1 + n) % n;
                         const nextIndex = (currentIndex + 1) % n;
-                    
                         const p_curr_orig = polygonPoints[currentIndex];
                         const p_prev_orig = polygonPoints[prevIndex];
                         const p_next_orig = polygonPoints[nextIndex];
-                    
-                        // 2. ドラッグされた頂点の新しい位置をマウス座標に更新します
-                        const p_curr_new = { x: Math.round(snappedPos.x), y: Math.round(snappedPos.y) }; // ★ここで整数化
-
+                        const p_curr_new = { x: Math.round(snappedPos.x), y: Math.round(snappedPos.y) };
                         const newPoints = [...polygonPoints];
                         newPoints[currentIndex] = p_curr_new;
-                        
-                        // 3. 両隣の頂点の座標を、壁の水平・垂直を維持するように更新します
-                        const tolerance = 1; // ほぼ水平・垂直と見なす許容誤差
-                        
-                        // 前の頂点との関係をチェック
-                        if (Math.abs(p_prev_orig.y - p_curr_orig.y) < tolerance) { // 元の辺が水平なら
-                            newPoints[prevIndex].y = p_curr_new.y; // 新しいY座標を合わせる
-                        } else if (Math.abs(p_prev_orig.x - p_curr_orig.x) < tolerance) { // 元の辺が垂直なら
-                            newPoints[prevIndex].x = p_curr_new.x; // 新しいX座標を合わせる
+                        const tolerance = 1;
+                        if (Math.abs(p_prev_orig.y - p_curr_orig.y) < tolerance) {
+                            newPoints[prevIndex].y = p_curr_new.y;
+                        } else if (Math.abs(p_prev_orig.x - p_curr_orig.x) < tolerance) {
+                            newPoints[prevIndex].x = p_curr_new.x;
                         }
-                    
-                        // 次の頂点との関係をチェック
-                        if (Math.abs(p_curr_orig.y - p_next_orig.y) < tolerance) { // 元の辺が水平なら
-                            newPoints[nextIndex].y = p_curr_new.y; // 新しいY座標を合わせる
-                        } else if (Math.abs(p_curr_orig.x - p_next_orig.x) < tolerance) { // 元の辺が垂直なら
-                            newPoints[nextIndex].x = p_curr_new.x; // 新しいX座標を合わせる
+                        if (Math.abs(p_curr_orig.y - p_next_orig.y) < tolerance) {
+                            newPoints[nextIndex].y = p_curr_new.y;
+                        } else if (Math.abs(p_curr_orig.x - p_next_orig.x) < tolerance) {
+                            newPoints[nextIndex].x = p_curr_new.x;
                         }
-                    
-                        // 4. 新しい頂点情報をもとに、空間全体を再構築します
                         const newPointsStr = [...newPoints, newPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
                         const newCentroid = getPolygonCentroid(newPoints);
-                    
                         newElements = newElements.map(el => {
                             if (el.groupId !== groupId) return el;
                             if (el.id === groupId) {
